@@ -1111,12 +1111,43 @@ function initLessonsForClass(cls){
 function initAllLessons(){
   try{for(const c of viewClasses())initLessonsForClass(c)}catch(e){}
 }
+/* Couleur de la barre de progression : rouge <50 %, orange 50-74 %, vert >=75 % */
+function lsnColor(pct){return pct>=75?'var(--green)':pct>=50?'var(--amber)':'var(--red)'}
+function lsnPct(ls){return ls&&ls.planned>0?Math.min(100,Math.round(ls.done/ls.planned*100)):0}
+/* Simulation de la progression des leçons pour toutes les classes et matières */
+function simulateLessons(){
+  let n=0;
+  for(const cls of viewClasses()){
+    initLessonsForClass(cls);
+    for(const sub of cls.subjects){
+      const planned=[40,44,48,50,52,56,60][Math.floor(Math.random()*7)];
+      const r=0.25+Math.random()*0.8;            // entre 25 % et 105 % d'avancement
+      const done=Math.min(planned,Math.round(planned*r));
+      cls.lessons[sub.id]={planned,done};n++;
+    }
+  }
+  return n;
+}
 function lessonsHtml(){
   initAllLessons();
   const myClasses=viewClasses().filter(c=>isAdmin()||c.subjects.some(s=>s.teacherId===ME.id));
-  let h='<div class="page-h"><div><h1>📚 Suivi des leçons</h1><p>'+(isAdmin()?'Toutes les classes':'Mes matières attribuées')+' · Progression des leçons par matière</p></div></div>';
+  let h='<div class="page-h"><div><h1>📚 Suivi des leçons</h1><p>'+(isAdmin()?'Toutes les classes':'Mes matières attribuées')+' · Progression des leçons par matière</p></div>'+
+   (isAdmin()?'<div class="session-actions"><button class="btn" data-act="sim-lessons">🎲 Simuler les leçons des professeurs</button> <button class="btn" data-act="reset-lessons">Réinitialiser à 0</button></div>':'')+'</div>';
   if(isReadOnlySession())h+='<div class="notice info">Session archivée en consultation seulement. <button class="btn sm" data-act="session-current">Revenir à la session en cours</button></div>';
   if(!myClasses.length)return h+'<div class="panel empty"><h3>Aucune classe ne vous est attribuée</h3><p>L\'administrateur doit vous affecter comme professeur dans une matière ou comme professeur principal.</p></div>';
+  // Récapitulatif global (admin) — réaction immédiate de l'espace administrateur
+  if(isAdmin()){
+    let tp=0,td=0,nb=0,late=0;
+    for(const cls of myClasses){initLessonsForClass(cls);for(const sub of cls.subjects){const ls=cls.lessons[sub.id];tp+=ls.planned;td+=ls.done;nb++;if(ls.planned>0&&lsnPct(ls)<50)late++}}
+    const gp=tp>0?Math.min(100,Math.round(td/tp*100)):0;
+    h+='<div class="kpis">'+
+      '<div class="kpi"><b>'+nb+'</b><span>matières suivies</span></div>'+
+      '<div class="kpi"><b>'+tp+'</b><span>leçons prévues</span></div>'+
+      '<div class="kpi"><b>'+td+'</b><span>leçons faites</span></div>'+
+      '<div class="kpi"><b style="color:'+lsnColor(gp)+'">'+gp+' %</b><span>avancement global</span></div>'+
+      '<div class="kpi"><b style="color:'+(late?'var(--red)':'var(--green)')+'">'+late+'</b><span>matières sous 50 %</span></div>'+
+      '</div>';
+  }
   for(const cls of myClasses){
     h+='<div class="panel"><h3>'+esc(cls.name)+' <span class="badge">'+cls.students.length+' élèves</span></h3><div class="tw"><table class="t"><thead><tr><th>Matière</th>'+(isAdmin()?'<th>Enseignant</th>':'')+'<th class="num">Leçons prévues</th><th class="num">Leçons faites</th><th style="width:220px">Progression</th></tr></thead><tbody>';
     for(const sub of cls.subjects){
@@ -1126,7 +1157,7 @@ function lessonsHtml(){
       const t=DB.users.find(u=>u.id===sub.teacherId);
       const teacherName=t?t.name:'Non attribué';
       const editable = isAdmin() || sub.teacherId===ME.id;
-      h+='<tr><td><b>'+esc(sub.name)+'</b></td>'+(isAdmin()?'<td>'+esc(teacherName)+'</td>':'')+'<td class="num"><input type="number" min="0" value="'+ls.planned+'" data-lplan="'+sub.id+'" data-cls="'+cls.id+'" class="inp sm" style="width:80px;display:inline-block"'+(editable?'':' disabled')+'></td><td class="num"><input type="number" min="0" value="'+ls.done+'" data-ldone="'+sub.id+'" data-cls="'+cls.id+'" class="inp sm" style="width:80px;display:inline-block"'+(editable?'':' disabled')+'></td><td><div style="display:flex;align-items:center;gap:8px"><div class="bar" style="flex:1"><i style="width:'+pct+'%;background:'+(pct>=100?'var(--green)':'var(--brand)')+'"></i></div><span class="small" style="width:42px;text-align:right">'+pct+'%</span></div></td></tr>';
+      h+='<tr><td><b>'+esc(sub.name)+'</b></td>'+(isAdmin()?'<td>'+esc(teacherName)+'</td>':'')+'<td class="num"><input type="number" min="0" value="'+ls.planned+'" data-lplan="'+sub.id+'" data-cls="'+cls.id+'" class="inp sm" style="width:80px;display:inline-block"'+(editable?'':' disabled')+'></td><td class="num"><input type="number" min="0" value="'+ls.done+'" data-ldone="'+sub.id+'" data-cls="'+cls.id+'" class="inp sm" style="width:80px;display:inline-block"'+(editable?'':' disabled')+'></td><td><div style="display:flex;align-items:center;gap:8px"><div class="bar" style="flex:1"><i style="width:'+pct+'%;background:'+lsnColor(pct)+'"></i></div><span class="small" style="width:42px;text-align:right;color:'+lsnColor(pct)+';font-weight:700">'+pct+'%</span></div></td></tr>';
     }
     h+='</tbody></table></div></div>';
   }
@@ -1302,10 +1333,10 @@ function statsTab(cls){
       totalPlanned+=ls.planned;totalDone+=ls.done;subCount++;
       const pct=ls.planned>0?Math.min(100,Math.round(ls.done/ls.planned*100)):0;
       const teacher=DB.users.find(u=>u.id===sub.teacherId);
-      h+='<tr><td><b>'+esc(sub.name)+'</b></td><td class="small">'+esc(teacher?teacher.name:'Non attribué')+'</td><td class="num">'+ls.planned+'</td><td class="num">'+ls.done+'</td><td><div style="display:flex;align-items:center;gap:8px"><div class="bar" style="flex:1"><i style="width:'+pct+'%;background:'+(pct>=100?'var(--green)':pct>=75?'var(--green)':pct>=50?'var(--amber)':'var(--brand)')+'"></i></div><b style="width:48px;text-align:right;color:'+(pct<50?'var(--red)':'inherit')+'">'+pct+'%</b></div></td></tr>';
+      h+='<tr><td><b>'+esc(sub.name)+'</b></td><td class="small">'+esc(teacher?teacher.name:'Non attribué')+'</td><td class="num">'+ls.planned+'</td><td class="num">'+ls.done+'</td><td><div style="display:flex;align-items:center;gap:8px"><div class="bar" style="flex:1"><i style="width:'+pct+'%;background:'+lsnColor(pct)+'"></i></div><b style="width:48px;text-align:right;color:'+lsnColor(pct)+'">'+pct+'%</b></div></td></tr>';
     }
     const gp=totalPlanned>0?Math.round(totalDone/totalPlanned*100):0;
-    h+='<tr style="background:#fafbfd;font-weight:700"><td>TOTAL GÉNÉRAL</td><td class="small muted">'+subCount+' matières</td><td class="num">'+totalPlanned+'</td><td class="num">'+totalDone+'</td><td><div style="display:flex;align-items:center;gap:8px"><div class="bar" style="flex:1"><i style="width:'+gp+'%;background:'+(gp>=100?'var(--green)':'var(--brand)')+'"></i></div><b style="width:48px;text-align:right">'+gp+'%</b></div></td></tr>';
+    h+='<tr style="background:#fafbfd;font-weight:700"><td>TOTAL GÉNÉRAL</td><td class="small muted">'+subCount+' matières</td><td class="num">'+totalPlanned+'</td><td class="num">'+totalDone+'</td><td><div style="display:flex;align-items:center;gap:8px"><div class="bar" style="flex:1"><i style="width:'+gp+'%;background:'+lsnColor(gp)+'"></i></div><b style="width:48px;text-align:right">'+gp+'%</b></div></td></tr>';
     h+='</tbody></table></div></div>';
   }
   if(!cls.students.length)return h+'<div class="panel empty"><h3>Aucun élève dans cette classe</h3><p>Les statistiques apparaîtront dès que des notes seront saisies.</p></div>';
@@ -1553,6 +1584,19 @@ A.preview=el=>openPreview(el.dataset.id);
 A['prev-b']=el=>{if(el.dataset.id)openPreview(el.dataset.id)};
 A['print-results']=()=>{if(!isAdmin())return toast('Impression réservée à l’administrateur.','err');printHtml(resultsSheet(curClass(),S.trim))};
 A['export-csv']=()=>exportCsv(curClass(),S.trim);
+A['sim-lessons']=()=>{
+  if(!isAdmin())return;
+  if(!confirm('Simuler des leçons prévues et faites pour tous les professeurs de toutes les classes ? Les valeurs actuelles seront remplacées.'))return;
+  const n=simulateLessons();dirty();saveNow();render();
+  toast(n+' matières simulées pour l’année '+viewYear()+'.','ok');
+};
+A['reset-lessons']=()=>{
+  if(!isAdmin())return;
+  if(!confirm('Remettre toutes les leçons prévues et faites à 0 ?'))return;
+  let n=0;
+  for(const cls of viewClasses()){initLessonsForClass(cls);for(const sub of cls.subjects){cls.lessons[sub.id]={planned:0,done:0};n++}}
+  dirty();saveNow();render();toast('Leçons réinitialisées ('+n+' matières).','ok');
+};
 A['toggle-lock']=el=>{const cls=curClass(),t=+el.dataset.t;if(!cls)return;if(!confirm((cls.locks&&cls.locks[t]===false?'Débloquer':'Bloquer')+' la saisie des notes pour le '+TRN[t-1]+' trimestre ?'))return;if(!cls.locks)cls.locks={1:false,2:false,3:false};cls.locks[t]=!(cls.locks[t]!==false);dirty();render();toast('Saisie '+(cls.locks[t]!==false?'débloquée':'bloquée')+' pour le '+TRN[t-1]+' trimestre.','ok')};
 A['export-my-notes']=()=>{
   const cls=curClass(),out={type:'mbi-notes',school:viewYear(),by:ME.username,date:new Date().toISOString(),classes:[]};
@@ -1621,16 +1665,16 @@ document.addEventListener('change',e=>{
     const cid=el.dataset.cls;const cls=viewClasses().find(x=>x.id===cid);if(!cls)return;const sid=el.dataset.lplan;
     initLessonsForClass(cls);const v=parseInt(el.value)||0;cls.lessons[sid].planned=v;dirty();
     // Mise à jour visuelle de la barre sans re-render complet
-    const row=el.closest('tr'),bar=row&&row.querySelector('.bar i'),pct=row&&row.querySelector('.small:last-child');
-    if(bar&&pct){const done=cls.lessons[sid].done;pct.textContent=pct.textContent;bar.style.width=Math.min(100,Math.round(cls.lessons[sid].planned>0?done/cls.lessons[sid].planned*100:0))+'%';pct.textContent=Math.min(100,Math.round(cls.lessons[sid].planned>0?done/cls.lessons[sid].planned*100:0))+'%'}
+    const row=el.closest('tr'),bar=row&&row.querySelector('.bar i'),pctEl=row&&row.querySelector('.small:last-child');
+    if(bar&&pctEl){const p=lsnPct(cls.lessons[sid]);bar.style.width=p+'%';bar.style.background=lsnColor(p);pctEl.textContent=p+'%';pctEl.style.color=lsnColor(p)}
     return;
   }
   if(el.dataset.ldone!==undefined){
     const cid=el.dataset.cls;const cls=viewClasses().find(x=>x.id===cid);if(!cls)return;const sid=el.dataset.ldone;
     initLessonsForClass(cls);const v=parseInt(el.value)||0;cls.lessons[sid].done=Math.min(cls.lessons[sid].planned,v);
     if(v>cls.lessons[sid].planned){el.value=cls.lessons[sid].planned}
-    dirty();const row=el.closest('tr'),bar=row&&row.querySelector('.bar i'),pct=row&&row.querySelector('.small:last-child');
-    if(bar&&pct){const p=Math.min(100,Math.round(cls.lessons[sid].planned>0?cls.lessons[sid].done/cls.lessons[sid].planned*100:0));bar.style.width=p+'%';bar.style.background=p>=100?'var(--green)':'var(--brand)';pct.textContent=p+'%'}
+    dirty();const row=el.closest('tr'),bar=row&&row.querySelector('.bar i'),pctEl=row&&row.querySelector('.small:last-child');
+    if(bar&&pctEl){const p=lsnPct(cls.lessons[sid]);bar.style.width=p+'%';bar.style.background=lsnColor(p);pctEl.textContent=p+'%';pctEl.style.color=lsnColor(p)}
     return;
   }
   if(el.classList.contains('cell')){commitCell(el);refreshSummary();return}
