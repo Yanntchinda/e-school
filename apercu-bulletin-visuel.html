@@ -207,6 +207,34 @@ td.sumc{font-weight:700;min-width:64px;padding:0 8px;background:#fcfcf6}
 .two{display:grid;grid-template-columns:1fr 1fr;gap:18px}
 .chk{display:flex;gap:7px;align-items:center;font-weight:500;font-size:14px;cursor:pointer}
 
+/* ===== version compacte « une page A4 » (utilisée à l'impression) ===== */
+.bulletin.b-print{width:194mm;max-width:194mm;margin:0 auto}
+.bulletin.b-print .b-title{font-size:17pt;margin:2mm 0 1mm}
+.bulletin.b-print .b-year{font-size:10.5pt;margin-bottom:1mm}
+.bulletin.b-print .b-profile{margin:.5mm 0 1mm;gap:3mm}
+.bulletin.b-print .b-profile .b-line{margin:.35mm 0}
+.bulletin.b-print .b-line .lbl{width:28mm}
+.bulletin.b-print .b-photo{width:24mm;height:30mm}
+.bulletin.b-print table.b-table{margin-top:1.5mm}
+.bulletin.b-print .b-table th,.bulletin.b-print .b-table td{padding:.55mm .9mm;font-size:8.6pt}
+.bulletin.b-print .b-table td.mt .sub-teacher{font-size:7.2pt}
+.bulletin.b-print .b-legend{font-size:7.2pt;margin-top:.8mm}
+.bulletin.b-print .b-bottom{margin-top:1.6mm}
+.bulletin.b-print .b-bottom-t td,.bulletin.b-print .b-bottom-t th{padding:.5mm .8mm;font-size:6.6pt}
+.bulletin.b-print .b-bottom-t th{font-size:6pt}
+.bulletin.b-print .b-bottom-t .lbl{font-size:6pt}
+.bulletin.b-print .b-bottom-t .lbl b{font-size:5.4pt}
+.bulletin.b-print .b-bottom-t .lbl i{font-size:5.4pt}
+.bulletin.b-print .b-bottom-t .val{font-size:7.4pt;min-height:3.2mm}
+.bulletin.b-print .b-bottom-t .row-h{height:6.6mm}
+.bulletin.b-print .b-bottom-t .appr>td{height:17mm}
+.bulletin.b-print .b-bottom-t .sign-zone{height:9mm}
+.bulletin.b-print .b-bottom-t .appr-title{font-size:5.8pt}
+.bulletin.b-print .b-bottom-t .appr-title i{font-size:5.2pt}
+.bulletin.b-print .b-bottom-t .nom-lbl{font-size:5.6pt}
+.bulletin.b-print .b-bottom-t .nom-val{font-size:6.8pt;min-height:3mm}
+.bulletin.b-print .b-bottom-t .appr-lines{font-size:7.4pt;line-height:3.9mm;background-size:100% 3.9mm}
+
 /* ===== bulletin (écran + impression) ===== */
 .bulletin{width:190mm;margin:0 auto 14px;background:#fff;color:#000;font-family:Calibri,Carlito,"Segoe UI",Arial,sans-serif;font-size:10.5pt;padding:0;line-height:1.25}
 .xl .bulletin{padding:6mm 7mm;width:100%;max-width:210mm;box-shadow:0 2px 14px rgba(0,0,0,.18)}
@@ -263,11 +291,12 @@ td.sumc{font-weight:700;min-width:64px;padding:0 8px;background:#fcfcf6}
 .sheet .k{display:flex;flex-wrap:wrap;gap:3mm 8mm;margin-bottom:5mm}
 
 @media print{
-  @page{size:A4;margin:9mm}
-  html,body{background:#fff!important;height:auto}
+  @page{size:A4 portrait;margin:7mm 8mm}
+  html,body{background:#fff!important;height:auto;-webkit-print-color-adjust:exact;print-color-adjust:exact}
   body.printing>*:not(#printRoot){display:none!important}
   body.printing #printRoot{display:block}
-  #printRoot .bulletin{margin:0 auto;box-shadow:none;break-after:page;page-break-after:always}
+  #printRoot .bulletin{margin:0 auto;box-shadow:none;width:194mm;max-width:194mm;
+    break-inside:avoid;page-break-inside:avoid;break-after:page;page-break-after:always;overflow:hidden}
   #printRoot .bulletin:last-child{break-after:auto;page-break-after:auto}
   #printRoot .sheet{break-after:page}
   #printRoot .sheet:last-child{break-after:auto}
@@ -564,12 +593,65 @@ function askConfirm(title,msg,okLabel,cb,danger){
   confirmCb=cb;   // posé APRÈS openModal pour que le bouton autofocus ne déclenche rien avant
 }
 function download(name,text,mime){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type:mime||'text/plain'}));a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},500)}
+/* Réduit automatiquement un bulletin trop haut pour qu'il tienne sur une seule page A4 */
+function fitBulletinsOnePage(){
+  const MM=3.7795275591;
+  const availPx=(297-14)*MM;                 // A4 moins marges haut/bas, en pixels CSS
+  const root=$('#printRoot');if(!root)return;
+  // mesure hors écran : #printRoot est masqué en temps normal
+  const prevStyle=root.getAttribute('style')||'';
+  root.style.cssText='display:block!important;position:fixed;left:-20000px;top:0;width:194mm;visibility:hidden;z-index:-1';
+  $$('#printRoot .bulletin').forEach(b=>{
+    b.style.zoom='';b.style.transform='';
+    const h=b.getBoundingClientRect().height||0;
+    if(h>availPx&&h>0){
+      let k=availPx/h;
+      k=Math.max(0.5,k*0.98);                // marge de sécurité
+      if(window.CSS&&CSS.supports&&CSS.supports('zoom','0.9')){
+        b.style.zoom=String(k);
+      }else{
+        // repli : enveloppe de hauteur fixe pour que la pagination suive l'échelle
+        const wrap=document.createElement('div');
+        wrap.style.cssText='position:relative;height:'+(h*k)+'px;overflow:hidden;page-break-inside:avoid;break-inside:avoid';
+        b.parentNode.insertBefore(wrap,b);
+        b.style.position='absolute';b.style.top='0';b.style.left='0';
+        b.style.transformOrigin='top left';b.style.transform='scale('+k+')';
+        wrap.appendChild(b);
+      }
+    }
+  });
+  root.setAttribute('style',prevStyle);
+}
 function printHtml(html){
   if(!isAdmin()){toast('Impression réservée à l’administrateur.','err');return}
-  $('#printRoot').innerHTML=html;document.body.classList.add('printing');
-  setTimeout(()=>window.print(),180);
+  const root=$('#printRoot');
+  root.innerHTML=html;
+  $$('#printRoot .bulletin').forEach(b=>b.classList.add('b-print'));
+  try{fitBulletinsOnePage()}catch(e){}
+  // on attend le chargement de l'en-tête (image) avant de mesurer une seconde fois
+  const imgs=$$('#printRoot img');
+  const done=Promise.all(imgs.map(i=>i.decode?i.decode().catch(()=>{}):Promise.resolve()));
+  Promise.race([done,new Promise(r=>setTimeout(r,700))]).then(()=>{
+    try{fitBulletinsOnePage()}catch(e){}
+    document.body.classList.add('printing');
+    setTimeout(()=>window.print(),120);
+  });
 }
-addEventListener('beforeprint',()=>{document.body.classList.toggle('no-print',!isAdmin())});
+addEventListener('beforeprint',()=>{
+  document.body.classList.toggle('no-print',!isAdmin());
+  // Ctrl+P depuis l'aperçu d'un bulletin : on imprime le bulletin, pas l'interface
+  try{
+    if(isAdmin()&&!$('#printRoot').innerHTML.trim()){
+      const bprev=$('#modalRoot #bprev');
+      if(bprev&&bprev.querySelector('.bulletin')){
+        $('#printRoot').innerHTML=bprev.innerHTML;
+        $$('#printRoot .bulletin').forEach(b=>b.classList.add('b-print'));
+        document.body.classList.add('printing');
+        fitBulletinsOnePage();
+      }
+    }
+  }catch(e){}
+});
 addEventListener('afterprint',()=>{document.body.classList.remove('printing','no-print');$('#printRoot').innerHTML=''});
 const headerSrc=()=>viewSchool().header||DEFAULT_HEADER;
 
@@ -705,7 +787,7 @@ const Cloud={
     const b=document.getElementById('cloudBadge');if(!b)return;
     if(!this.enabled()){b.style.display='none';return}
     b.style.display='';b.className='badge '+(this.online?'ok':'warn');
-    b.textContent=this.online?'☁️ En ligne':'☁️ Hors ligne';
+    b.textContent=this.online?'En ligne':'Hors ligne';
     b.title=this.last?('Dernière synchronisation : '+this.last):'Aucune synchronisation';
   },
   setMsg(m){this.msg=m;const el=document.getElementById('cloud-status');if(el)el.textContent=m;this.badge()},
@@ -988,10 +1070,10 @@ function shellHtml(){
   const nav=cl.map(c=>'<a class="nav '+(S.view==='class'&&S.classId===c.id?'on':'')+'" data-act="open-class" data-id="'+c.id+'"><span>'+esc(c.name)+'</span><small>'+c.students.length+'</small></a>').join('');
   return '<header class="topbar"><div class="brand"><span class="dot">M</span><span class="t">'+esc(viewSchool().name)+'</span></div>'+(isReadOnlySession()?'<span class="role">Consultation · '+esc(viewYear())+'</span>':'<span class="role">Session en cours · '+esc(viewYear())+'</span>')+
    '<div class="tri" role="group" aria-label="Trimestre">'+[1,2,3].map(t=>'<button data-act="trim" data-t="'+t+'" class="'+(S.trim===t?'on':'')+'">'+TRN[t-1]+' trimestre</button>').join('')+'</div>'+
-   '<div class="me"><span id="cloudBadge" class="badge ok" style="display:none;margin-right:8px">☁️</span><span>'+esc(ME.name)+' <span class="role">'+(isAdmin()?'Administrateur':'Professeur')+'</span></span><button class="btn sm" data-act="logout">Quitter</button></div></header>'+
+   '<div class="me"><span id="cloudBadge" class="badge ok" style="display:none;margin-right:8px">Sync</span><span>'+esc(ME.name)+' <span class="role">'+(isAdmin()?'Administrateur':'Professeur')+'</span></span><button class="btn sm" data-act="logout">Quitter</button></div></header>'+
    '<div class="shell"><nav class="side" aria-label="Navigation">'+
    '<a class="nav '+(S.view==='dash'?'on':'')+'" data-act="go" data-v="dash">Tableau de bord</a>'+
-   '<a class="nav '+(S.view==='lessons'?'on':'')+'" data-act="go" data-v="lessons">📚 Leçons</a>'+
+   '<a class="nav '+(S.view==='lessons'?'on':'')+'" data-act="go" data-v="lessons">Leçons</a>'+
    '<h4>Classes</h4>'+(nav||'<span class="small muted" style="padding:6px 10px;display:block">Aucune classe</span>')+
    (isAdmin()&&!isReadOnlySession()?'<a class="nav" data-act="new-class" style="color:var(--green-d)">+ Nouvelle classe</a>':'')+
    '<h4>Sessions</h4><a class="nav '+(S.view==='sessions'?'on':'')+'" data-act="go" data-v="sessions">Sessions</a>'+
@@ -1030,9 +1112,9 @@ function sessionsHtml(){
   const nextY=nextSchoolYear(DB.school.year);
   const needActivate = DB.school.year!=='2027/2028';
   const actions='<div class="session-actions">'+
-    '<button class="btn" data-act="simulate-year">👁️ Simuler la nouvelle session ('+esc(nextY)+')</button>'+
-    (needActivate?'<button class="btn green" data-act="direct-activate">⚡ Activer '+esc(nextY)+' en un clic</button>':'')+
-    '<button class="btn primary" data-act="close-year">🚀 Créer une nouvelle session</button>'+
+    '<button class="btn" data-act="simulate-year">Simuler la nouvelle session ('+esc(nextY)+')</button>'+
+    (needActivate?'<button class="btn green" data-act="direct-activate">Activer '+esc(nextY)+' en un clic</button>':'')+
+    '<button class="btn primary" data-act="close-year">Créer une nouvelle session</button>'+
     '</div>';
   let h='<div class="page-h"><div><h1>Sessions scolaires</h1><p>Session active : <b>'+esc(DB.school.year)+'</b> — Consultez les années clôturées ou préparez la nouvelle session.</p></div>'+
     (isAdmin()&&!isReadOnlySession()?actions:'')+'</div>';
@@ -1044,9 +1126,9 @@ function sessionsHtml(){
     if(hasArchive){
       h+='<div class="notice" style="background:'+(anyGrades?'#e6f4dc':'#fbe4e4')+';border-color:'+(anyGrades?'#b9d89b':'#e7b9bb')+';padding:16px">';
       if(!anyGrades){
-        h+='<b style="color:var(--red);font-size:16px">⚠️ LES NOTES ONT ÉTÉ EFFACÉES PAR UN ESSAI PRÉCÉDENT</b><br>Vous devez restaurer les données avant de pouvoir activer correctement :<br><br><button class="btn danger" data-act="restore-archive" style="font-size:15px;padding:10px 18px">🔄 RESTAURER LES DONNÉES 2026/2027 ET TOUTES LES NOTES</button><br><br>Le bouton Activer ne fonctionnera pas tant que les notes ne seront pas restaurées.';
+        h+='<b style="color:var(--red);font-size:16px">ATTENTION : LES NOTES ONT ÉTÉ EFFACÉES PAR UN ESSAI PRÉCÉDENT</b><br>Vous devez restaurer les données avant de pouvoir activer correctement :<br><br><button class="btn danger" data-act="restore-archive" style="font-size:15px;padding:10px 18px">RESTAURER LES DONNÉES 2026/2027 ET TOUTES LES NOTES</button><br><br>Le bouton Activer ne fonctionnera pas tant que les notes ne seront pas restaurées.';
       }else{
-        h+='✅ Les notes sont bien présentes. Vous pouvez activer la nouvelle session. Les élèves avec moyenne <10/20 seront marqués <b>Ancien</b> (redoublent), ceux ≥10/20 seront <b>NA</b> (passent en classe supérieure).';
+        h+='Les notes sont bien présentes. Vous pouvez activer la nouvelle session. Les élèves avec moyenne <10/20 seront marqués <b>Ancien</b> (redoublent), ceux ≥10/20 seront <b>NA</b> (passent en classe supérieure).';
       }
       h+='</div>';
     }
@@ -1235,7 +1317,7 @@ function simulationHtml(){
   let h='<div class="page-h"><div><h1>Simulation de la session '+esc(state.year)+'</h1><p>À partir des données de '+esc(state.sourceYear)+' — classes d\'accueil présélectionnées automatiquement.</p></div><button class="btn" data-act="simulation-cancel">Fermer la simulation</button></div>'+
     '<div class="notice info"><b>Pré-sélection automatique :</b> moyenne ≥ 10/20 → Admis dans la classe supérieure ; moyenne < 10/20 → Redouble dans la même classe ; Tle/Form II → Sortie fin de cycle. Vous pouvez modifier les décisions si nécessaire puis validez directement.</div>';
   const total=Object.keys(state.decisions).length,complete=simulationComplete();
-  h+='<div class="toolbar"><span class="small muted"><b>✅ Toutes les décisions sont pré-remplies automatiquement ('+total+' / '+total+')</b></span><span class="grow"></span><button class="btn" data-act="simulation-cancel">Annuler sans enregistrer</button></div>';
+  h+='<div class="toolbar"><span class="small muted"><b>Toutes les décisions sont pré-remplies automatiquement ('+total+' / '+total+')</b></span><span class="grow"></span><button class="btn" data-act="simulation-cancel">Annuler sans enregistrer</button></div>';
   if(!DB.classes.length)h+='<div class="panel empty"><h3>Aucune classe à simuler</h3></div>';
   for(const cls of DB.classes){
     h+='<div class="panel"><h3>'+esc(cls.name)+' <span class="badge">'+cls.students.length+' élève'+(cls.students.length===1?'':'s')+'</span> → <span style="color:var(--green)">'+(nextLevelMap[cls.presetKey]?PRESETS.find(p=>p.key===nextLevelMap[cls.presetKey])?.label:'Sortie')+'</span></h3>';
@@ -1247,7 +1329,7 @@ function simulationHtml(){
     });
     h+='</tbody></table></div></div>';
   }
-  h+='<div id="simulation-summary">'+simulationSummaryHtml()+'</div><div class="toolbar"><button class="btn" data-act="simulation-cancel">Annuler</button> <button class="btn green" data-act="apply-simulation" style="font-size:16px;padding:10px 20px">✅ VALIDER ET ACTIVER LA NOUVELLE SESSION</button></div>';return h;
+  h+='<div id="simulation-summary">'+simulationSummaryHtml()+'</div><div class="toolbar"><button class="btn" data-act="simulation-cancel">Annuler</button> <button class="btn green" data-act="apply-simulation" style="font-size:16px;padding:10px 20px">VALIDER ET ACTIVER LA NOUVELLE SESSION</button></div>';return h;
 }
 function applySimulationYear(){
   const state=S.simulationState;
@@ -1319,12 +1401,12 @@ function applySimulationYear(){
   clearTimeout(saveT);
   try{localStorage.setItem(KEY,JSON.stringify(DB))}catch(e){memOnly=true}
   dirty();render();
-  toast('✅ Nouvelle session activée : '+DB.school.year+' !','ok');
+  toast('Nouvelle session activée : '+DB.school.year+' !','ok');
 }
 function showLoading(steps){
   let h='<div id="loadingOverlay" style="position:fixed;inset:0;background:rgba(18,38,63,0.92);z-index:99999;display:flex;align-items:center;justify-content:center"><div style="background:#fff;padding:40px;border-radius:16px;max-width:500px;width:90%"><h2 style="margin-top:0;text-align:center;font-family:var(--serif)" id="loadingTitle">Activation de la session 2027/2028</h2><div style="height:12px;background:#eaeef3;border-radius:6px;overflow:hidden;margin:24px 0 16px"><div id="loadingBar" style="height:100%;width:0%;background:linear-gradient(90deg,var(--green),#45b018);border-radius:6px;transition:width .4s ease"></div></div><div id="loadingSteps" style="font-size:14px;line-height:2">';
   steps.forEach((s,i)=>{
-    h+='<div class="step-'+i+'" style="color:var(--muted);display:flex;align-items:center;gap:8px"><span class="step-icon">⏳</span> <span class="step-text">'+esc(s)+'</span></div>';
+    h+='<div class="step-'+i+'" style="color:var(--muted);display:flex;align-items:center;gap:8px"><span class="step-icon">·</span> <span class="step-text">'+esc(s)+'</span></div>';
   });
   h+='</div></div></div>';
   document.body.insertAdjacentHTML('beforeend',h);
@@ -1335,14 +1417,14 @@ function showLoading(steps){
         const prev=document.querySelector('#loadingSteps .step-'+(currentStep-1));
         if(prev){
           prev.style.color='var(--green)';
-          prev.querySelector('.step-icon').textContent='✅';
+          prev.querySelector('.step-icon').textContent='OK';
         }
       }
       const el=document.querySelector('#loadingSteps .step-'+currentStep);
       if(el){
         el.style.color='var(--ink)';
         el.style.fontWeight='600';
-        el.querySelector('.step-icon').textContent='🔄';
+        el.querySelector('.step-icon').textContent='...';
       }
       currentStep++;
       const pct=Math.min(95,Math.round((currentStep/steps.length)*100));
@@ -1352,10 +1434,10 @@ function showLoading(steps){
       document.querySelector('#loadingBar').style.width='100%';
       document.querySelectorAll('#loadingSteps > div').forEach(d=>{
         d.style.color='var(--green)';
-        d.querySelector('.step-icon').textContent='✅';
+        d.querySelector('.step-icon').textContent='OK';
         d.style.fontWeight='400';
       });
-      document.querySelector('#loadingTitle').textContent='✅ Session 2027/2028 activée !';
+      document.querySelector('#loadingTitle').textContent='Session 2027/2028 activée';
     }
   };
 }
@@ -1367,12 +1449,12 @@ function hideLoading(){
 function directActivate2027(){
   var overlay=document.createElement('div');
   overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.95);z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px;box-sizing:border-box';
-  overlay.innerHTML='<div style="background:#1e1e1e;color:#d4d4d4;padding:24px;border-radius:12px;max-width:800px;width:100%;font-family:monospace"><h2 style="color:#fff;margin-top:0">🔍 Activation 2027/2028 - Logs de diagnostic</h2><div id="logarea" style="height:450px;overflow-y:auto;background:#000;padding:12px;border-radius:6px;font-size:12px;line-height:1.5;margin-bottom:12px"></div><div id="logstatus" style="color:#4fa824;font-weight:bold">En attente...</div></div>';
+  overlay.innerHTML='<div style="background:#1e1e1e;color:#d4d4d4;padding:24px;border-radius:12px;max-width:800px;width:100%;font-family:monospace"><h2 style="color:#fff;margin-top:0">Activation 2027/2028 — Journal de diagnostic</h2><div id="logarea" style="height:450px;overflow-y:auto;background:#000;padding:12px;border-radius:6px;font-size:12px;line-height:1.5;margin-bottom:12px"></div><div id="logstatus" style="color:#4fa824;font-weight:bold">En attente...</div></div>';
   document.body.appendChild(overlay);
   var logArea=document.getElementById('logarea'),status=document.getElementById('logstatus');
   function log(msg,color){var line=document.createElement('div');line.style.color=color||'#ccc';line.textContent='['+new Date().toLocaleTimeString()+'] '+msg;logArea.appendChild(line);logArea.scrollTop=logArea.scrollHeight;console.log(msg)}
   try{
-    log('✅ Démarrage','#4fa824');
+    log('Démarrage','#4fa824');
     var genId=function(){return 'id-'+Math.random().toString(36).substring(2,10)};
     var nextMap={'6e':'5e','5e':'4e','4e':'3e','3e':'2A','2A':'1A','2C':'1D','1A':'TA','1D':'TD','F1':'F2'};
     function getSubjectsFor(pk){
@@ -1394,7 +1476,7 @@ function directActivate2027(){
     for(var i=0;i<DB.classes.length;i++){archive.classes.push(DB.classes[i])}
     var newSessions=[];for(var i=0;i<DB.sessions.length;i++){if(DB.sessions[i].year!==oldYear)newSessions.push(DB.sessions[i])}
     newSessions.unshift(archive);DB.sessions=newSessions;
-    log('✅ Archivé, '+DB.sessions.length+' archives','#4fa824');
+    log('Archivé, '+DB.sessions.length+' archives','#4fa824');
 
     log('Étape 2/5 : Création classes redoublants...','#ffcc00');
     var classes={};
@@ -1403,7 +1485,7 @@ function directActivate2027(){
       if(classes[c.presetKey])continue;
       var newsubs=[];for(var j=0;j<c.subjects.length;j++){var s=c.subjects[j];newsubs.push({id:genId(),name:s.name,coef:s.coef,group:s.group||'',opt:s.opt||false,teacherId:s.teacherId||''})}
       classes[c.presetKey]={id:genId(),name:c.name,ord:c.ord||0,presetKey:c.presetKey,ppId:c.ppId||'',ppName:c.ppName||'',subjects:newsubs,students:[],locks:{1:false,2:false,3:false},grades:{},remarks:{}};
-      log('✅ Classe : '+c.name);
+      log('Classe : '+c.name);
     }
     log('Étape 3/5 : Création classes supérieures...','#ffcc00');
     var keys=Object.keys(classes);
@@ -1414,7 +1496,7 @@ function directActivate2027(){
         for(var si=0;si<subList.length;si++){nsubs.push({id:genId(),name:subList[si][0],coef:subList[si][1],group:'',opt:false,teacherId:''})}
         var prname=npk;for(var pi=0;pi<PRESETS.length;pi++){if(PRESETS[pi].key===npk)prname=PRESETS[pi].label}
         classes[npk]={id:genId(),name:prname,ord:0,presetKey:npk,ppId:'',ppName:'',subjects:nsubs,students:[],locks:{1:false,2:false,3:false},grades:{},remarks:{}};
-        log('✅ Classe sup : '+prname+' pour '+pk);
+        log('Classe supérieure : '+prname+' pour '+pk);
       }
     }
 
@@ -1453,7 +1535,7 @@ function directActivate2027(){
       }
       log('  '+c.name+' : '+nbA+' admis / '+nbR+' redoublants / '+nbS+' sortis');
     }
-    log('✅ Total : '+totalAdmis+' admis | '+totalRedoublants+' redoublants | '+totalSortis+' sortis','#4fa824');
+    log('Total : '+totalAdmis+' admis | '+totalRedoublants+' redoublants | '+totalSortis+' sortis','#4fa824');
     for(var pk in effectifs)log('   Effectif '+effectifs[pk].name+' : '+effectifs[pk].total+' élèves');
     var finalClasses=[];for(var pk in classes)finalClasses.push(classes[pk]);
 
@@ -1462,13 +1544,13 @@ function directActivate2027(){
     S.view='dash';S.classId=null;S.tab='eleves';S.trim=1;S.simulationState=null;S.closeState=null;S.sessionId=null;S.mine=true;
     if(typeof calcCache!=='undefined')calcCache={};
     localStorage.setItem('mbi_gestion_bulletins_v1',JSON.stringify(DB));
-    log('✅ SAUVEGARDÉ !','#4fa824');
-    status.style.color='#4fa824';status.textContent='✅ ACTIVATION RÉUSSIE - Rechargement...';
+    log('SAUVEGARDÉ','#4fa824');
+    status.style.color='#4fa824';status.textContent='ACTIVATION RÉUSSIE — Rechargement...';
     setTimeout(function(){location.reload()},1500);
   }catch(err){
-    log('❌ ERREUR : '+err.message,'#ff4444');
+    log('ERREUR : '+err.message,'#ff4444');
     log(err.stack,'#ff6666');
-    status.style.color='#ff4444';status.textContent='❌ ERREUR - copiez les logs';
+    status.style.color='#ff4444';status.textContent='ERREUR — copiez le journal';
   }
 }
 function updateSimulationSummary(){const el=$('#simulation-summary');if(el)el.innerHTML=simulationSummaryHtml()}
@@ -1550,8 +1632,8 @@ function simulateLessons(){
 function lessonsHtml(){
   initAllLessons();
   const myClasses=viewClasses().filter(c=>isAdmin()||c.subjects.some(s=>s.teacherId===ME.id));
-  let h='<div class="page-h"><div><h1>📚 Suivi des leçons</h1><p>'+(isAdmin()?'Toutes les classes':'Mes matières attribuées')+' · Progression des leçons par matière</p></div>'+
-   (isAdmin()?'<div class="session-actions"><button class="btn primary" data-act="fill-lessons">✍️ Saisir à la place des professeurs</button> <button class="btn" data-act="sim-lessons">🎲 Simuler</button> <button class="btn" data-act="reset-lessons">Réinitialiser à 0</button></div>':'')+'</div>';
+  let h='<div class="page-h"><div><h1>Suivi des leçons</h1><p>'+(isAdmin()?'Toutes les classes':'Mes matières attribuées')+' · Progression des leçons par matière</p></div>'+
+   (isAdmin()?'<div class="session-actions"><button class="btn primary" data-act="fill-lessons">Saisir à la place des professeurs</button> <button class="btn" data-act="sim-lessons">Simuler</button> <button class="btn" data-act="reset-lessons">Réinitialiser à 0</button></div>':'')+'</div>';
   if(isReadOnlySession())h+='<div class="notice info">Session archivée en consultation seulement. <button class="btn sm" data-act="session-current">Revenir à la session en cours</button></div>';
   if(!myClasses.length)return h+'<div class="panel empty"><h3>Aucune classe ne vous est attribuée</h3><p>L\'administrateur doit vous affecter comme professeur dans une matière ou comme professeur principal.</p></div>';
   // ---------- Tableau de bord administrateur ----------
@@ -1597,7 +1679,7 @@ function lessonsHtml(){
       '</div>';
 
     // ---------- Statistiques par professeur ----------
-    h+='<div class="panel"><h3>👩‍🏫 Statistiques par professeur <span class="badge">'+tStats.length+' professeurs</span></h3>'+
+    h+='<div class="panel"><h3>Statistiques par professeur <span class="badge">'+tStats.length+' professeurs</span></h3>'+
       '<p class="small muted" style="margin-top:0">Ce que chaque professeur a réellement enregistré. Les professeurs n’ayant rien saisi apparaissent en premier.</p>'+
       '<div class="tw"><table class="t"><thead><tr>'+
       '<th>Professeur</th><th>Identifiant</th><th class="num">Matières</th><th class="num">Classes</th>'+
@@ -1606,10 +1688,10 @@ function lessonsHtml(){
 
     for(const t of tStats){
       let etat,etatStyle;
-      if(t.planned===0){etat='⚠️ Rien saisi';etatStyle='var(--red)'}
-      else if(t.pct<50){etat='🔴 En retard';etatStyle='var(--red)'}
-      else if(t.pct<75){etat='🟠 En cours';etatStyle='var(--amber)'}
-      else {etat='🟢 À jour';etatStyle='var(--green)'}
+      if(t.planned===0){etat='Rien saisi';etatStyle='var(--red)'}
+      else if(t.pct<50){etat='En retard';etatStyle='var(--red)'}
+      else if(t.pct<75){etat='En cours';etatStyle='var(--amber)'}
+      else {etat='À jour';etatStyle='var(--green)'}
       const last=t.at?new Date(t.at):null;
       const lastTxt=last?(last.toLocaleDateString('fr-FR')+' '+last.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})):'—';
       h+='<tr'+(t.planned===0?' style="background:#fff5f5"':'')+'>'+
@@ -1629,12 +1711,12 @@ function lessonsHtml(){
     // alerte globale
     if(muets){
       const names=realTeachers.filter(x=>x.planned===0).map(x=>x.name).join(', ');
-      h+='<div class="notice"><b>'+muets+' professeur(s) n’ont encore rien enregistré :</b> '+esc(names)+'. Ils doivent se connecter avec leur identifiant et saisir leurs leçons dans l’onglet « 📚 Leçons ».</div>';
+      h+='<div class="notice"><b>'+muets+' professeur(s) n’ont encore rien enregistré :</b> '+esc(names)+'. Ils doivent se connecter avec leur identifiant et saisir leurs leçons dans l’onglet « Leçons ».</div>';
     }
     if(unassigned&&unassigned.subs>0){
       h+='<div class="notice"><b>'+unassigned.subs+' matière(s) sans enseignant affecté</b> — elles apparaissent sous « Non attribué ». Affectez un professeur dans <b>Paramètres de la classe</b> pour que leur progression soit suivie.</div>';
     }
-    h+='<div class="toolbar"><button class="btn" data-act="refresh-lessons">🔄 Rafraîchir les statistiques</button>'+
+    h+='<div class="toolbar"><button class="btn" data-act="refresh-lessons">Rafraîchir les statistiques</button>'+
       (Cloud.enabled()?'<span class="small muted">Synchronisation Supabase active — les données des professeurs arrivent automatiquement.</span>':'<span class="small muted">Mode local : seules les saisies faites sur cet ordinateur sont visibles. Configurez Supabase dans Paramètres pour voir tous les professeurs.</span>')+
       '</div>';
   }
@@ -1731,7 +1813,7 @@ function gradesTab(cls){
    '<span class="small muted">Séquences '+seqs.map(i=>i+1).join(', ')+' · notes sur 20, virgule ou point · Entrée passe à l’élève suivant · vous pouvez coller une colonne copiée depuis Excel.</span><span class="grow"></span>'+(isReadOnlySession()?'':'<button class="btn" data-act="export-my-notes">Exporter mes notes (fichier)</button>')+'</div>';
   if(isAdmin()&&!isReadOnlySession()){
     h+='<div class="toolbar"><span class="small muted" style="font-weight:600">Verrouillage de la saisie :</span>'+
-     [1,2,3].map(t=>'<button class="btn sm '+(cls.locks&&cls.locks[t]===false?'':'green')+'" data-act="toggle-lock" data-t="'+t+'">'+TRN[t-1]+' trim. '+(cls.locks&&cls.locks[t]===false?'🔒 bloqué':'🔓 débloqué')+'</button>').join('')+
+     [1,2,3].map(t=>'<button class="btn sm '+(cls.locks&&cls.locks[t]===false?'':'green')+'" data-act="toggle-lock" data-t="'+t+'">'+TRN[t-1]+' trim. '+(cls.locks&&cls.locks[t]===false?'bloqué':'débloqué')+'</button>').join('')+
      '<span class="small muted">Seul l’administrateur peut débloquer la saisie des notes pour un trimestre.</span></div>';
   }
   if(!isAdmin()&&cls.locks&&cls.locks[S.trim]===false){
@@ -1796,7 +1878,7 @@ function bulletinsTab(cls){
 function openPreview(sid){
   const cls=curClass(),list=[...cls.students].sort(cmpName),i=list.findIndex(s=>s.id===sid);
   const t=S.trim,remark=(cls.remarks[sid]&&cls.remarks[sid]['t'+t])||'';
-  openModal('<div class="toolbar" style="margin-bottom:10px"><button class="btn sm" data-act="prev-b" data-id="'+(list[i-1]?list[i-1].id:'')+'" '+(i<1?'disabled':'')+'>‹ Précédent</button><button class="btn sm" data-act="prev-b" data-id="'+(list[i+1]?list[i+1].id:'')+'" '+(i>=list.length-1?'disabled':'')+'>Suivant ›</button><span class="grow"></span>'+(isAdmin()?'<button class="btn primary sm" data-act="print-one" data-id="'+sid+'">Imprimer ce bulletin</button>':'')+'<button class="btn sm" data-act="mclose">Fermer</button></div>'+
+  openModal('<div class="toolbar" style="margin-bottom:10px;position:sticky;top:0;z-index:5;background:#e6eaf0;padding:6px 0"><button class="btn sm" data-act="prev-b" data-id="'+(list[i-1]?list[i-1].id:'')+'" '+(i<1?'disabled':'')+'>‹ Précédent</button><button class="btn sm" data-act="prev-b" data-id="'+(list[i+1]?list[i+1].id:'')+'" '+(i>=list.length-1?'disabled':'')+'>Suivant ›</button><span class="grow"></span>'+(isAdmin()?'<button class="btn primary sm" data-act="print-one" data-id="'+sid+'">Imprimer ce bulletin</button>':'')+'<button class="btn sm" data-act="mclose">Fermer</button></div>'+
    '<div id="bprev">'+bulletinHtml(cls,sid,t)+'</div>'+
    '<label class="f" style="background:#fff;padding:12px 14px;border-radius:8px;margin:12px 0 0">Appréciation imprimée sur les lignes du bulletin<textarea id="remark" data-sid="'+sid+'" rows="3" '+(isReadOnlySession()?'readonly':'')+' placeholder="Facultatif — par exemple : Élève sérieux, doit poursuivre ses efforts.">'+esc(remark)+'</textarea></label>','xl');
 }
@@ -1823,7 +1905,7 @@ function statsTab(cls){
   // Panel statistiques progression leçons pour admin/PP
   if(isAdmin()||cls.ppId===ME.id){
     let totalPlanned=0,totalDone=0,subCount=0;
-    h+='<div class="panel"><h3>📚 Progression des leçons par matière</h3><div class="tw"><table class="t"><thead><tr><th>Matière</th><th>Enseignant</th><th class="num">Prévues</th><th class="num">Faites</th><th style="width:260px">Progression</th></tr></thead><tbody>';
+    h+='<div class="panel"><h3>Progression des leçons par matière</h3><div class="tw"><table class="t"><thead><tr><th>Matière</th><th>Enseignant</th><th class="num">Prévues</th><th class="num">Faites</th><th style="width:260px">Progression</th></tr></thead><tbody>';
     for(const sub of cls.subjects){
       const ls=cls.lessons[sub.id]||{planned:0,done:0};
       totalPlanned+=ls.planned;totalDone+=ls.done;subCount++;
@@ -1921,12 +2003,12 @@ function schoolHtml(){
   '<div class="panel"><h3>Établissement</h3><div class="row"><label class="f">Nom de l’établissement<input data-sc="name" value="'+esc(sc.name)+'"></label><label class="f">Ville (« Douala le … »)<input data-sc="city" value="'+esc(sc.city)+'"></label></div>'+
    '<div class="row"><label class="f">Année scolaire<input data-sc="year" value="'+esc(sc.year)+'" placeholder="2025/2026"></label><label class="f">Nom du Principal (imprimé sous « Le Principal »)<input data-sc="principal" value="'+esc(sc.principal||'')+'"></label></div></div>'+
   '<div class="panel"><h3>En-tête des bulletins</h3><img src="'+headerSrc()+'" alt="En-tête actuel" style="max-width:100%;border:1px solid var(--line);border-radius:6px;display:block;margin-bottom:12px"><div class="toolbar"><label class="btn" style="cursor:pointer">Remplacer l’image…<input type="file" accept="image/*" data-file="header" class="hide"></label>'+(sc.header?'<button class="btn" data-act="header-reset">Rétablir l’en-tête d’origine</button>':'')+'</div><p class="small muted" style="margin:0">Image large (bandeau République du Cameroun / logo / établissement). Elle est réduite automatiquement.</p></div>'+
-  '<div class="panel"><h3>☁️ Synchronisation Supabase (production)</h3>'+
+  '<div class="panel"><h3>Synchronisation Supabase (production)</h3>'+
    '<p style="margin-top:0" class="small muted">Relie l’administrateur et tous les professeurs à une <b>même base de données</b> : les leçons, notes et appréciations saisies par chaque professeur remontent automatiquement chez l’administrateur. Sans configuration, l’application continue de fonctionner en local.</p>'+
    '<div class="row"><label class="f">URL du projet Supabase<input id="sb-url" placeholder="https://xxxxxxx.supabase.co" value="'+esc(Cloud.cfg.url)+'" autocapitalize="none"></label>'+
    '<label class="f">Clé « anon public »<input id="sb-key" type="password" placeholder="eyJhbGciOiJIUzI1NiIs…" value="'+esc(Cloud.cfg.key)+'" autocapitalize="none"></label></div>'+
    '<label class="f">Code de l’école (identique sur tous les postes)<input id="sb-school" value="'+esc(Cloud.cfg.schoolId)+'" placeholder="Généré automatiquement" autocapitalize="none"></label>'+
-   '<div class="toolbar"><button class="btn primary" data-act="cloud-save">Enregistrer et connecter</button><button class="btn" data-act="cloud-pull">⬇️ Recevoir du cloud</button><button class="btn" data-act="cloud-push">⬆️ Envoyer mes données</button>'+(Cloud.enabled()?'<button class="btn danger" data-act="cloud-off">Déconnecter</button>':'')+'</div>'+
+   '<div class="toolbar"><button class="btn primary" data-act="cloud-save">Enregistrer et connecter</button><button class="btn" data-act="cloud-pull">Recevoir du cloud</button><button class="btn" data-act="cloud-push">Envoyer mes données</button>'+(Cloud.enabled()?'<button class="btn danger" data-act="cloud-off">Déconnecter</button>':'')+'</div>'+
    '<div id="cloud-status" class="small muted" style="margin-top:6px">'+esc(Cloud.msg||'Mode local — aucune synchronisation configurée.')+'</div>'+
    '<p class="small muted" style="margin-bottom:0">Les professeurs doivent saisir la <b>même</b> URL, la <b>même</b> clé et le <b>même</b> code d’école. Le script SQL à exécuter une fois dans Supabase se trouve dans <code>supabase/01-schema.sql</code>.</p></div>'+
   '<div class="panel"><h3>Sauvegarde et partage des notes</h3><p style="margin-top:0">Sans synchronisation Supabase, les données vivent dans le navigateur de cet ordinateur. Exportez une sauvegarde régulièrement et avant tout nettoyage du navigateur.</p>'+
@@ -2019,13 +2101,13 @@ A['direct-activate']=()=>{
   }
   const hasArchive = DB.sessions.some(s=>s&&s.year==='2026/2027');
   if(!anyGrades && hasArchive){
-    alert('❌ AUCUNE NOTE TROUVÉE !\n\nLes notes ont été effacées par un essai précédent.\n\n👉 Cliquez d\'abord sur le bouton ROUGE "RESTAURER LES DONNÉES 2026/2027" en haut de la page, puis réessayez d\'activer.');
+    alert('AUCUNE NOTE TROUVÉE !\n\nLes notes ont été effacées par un essai précédent.\n\nCliquez d\'abord sur le bouton ROUGE "RESTAURER LES DONNÉES 2026/2027" en haut de la page, puis réessayez d\'activer.');
     return;
   }
-  askConfirm('⚡ Activer la nouvelle session ?','Répartition : ≥10/20 = Admis (NA) ; <10/20 = Redouble (Ancien) ; Tle = Sortie','ACTIVER',directActivate2027,true)
+  askConfirm('Activer la nouvelle session ?','Répartition : ≥10/20 = Admis (NA) ; <10/20 = Redouble (Ancien) ; Tle = Sortie','ACTIVER',directActivate2027,true)
 };
 A['restore-archive']=()=>{
-  askConfirm('🔄 Restaurer 2026/2027 depuis l\'archive ?','Cette opération annule toute activation précédente, restaure TOUTES les classes, élèves et notes de l\'année 2026/2027 depuis l\'archive, comme avant tout essai d\'activation. Vous pourrez ensuite réactiver la session correctement.','Restaurer 2026/2027',()=>{
+  askConfirm('Restaurer 2026/2027 depuis l\'archive ?','Cette opération annule toute activation précédente, restaure TOUTES les classes, élèves et notes de l\'année 2026/2027 depuis l\'archive, comme avant tout essai d\'activation. Vous pourrez ensuite réactiver la session correctement.','Restaurer 2026/2027',()=>{
     if(!Array.isArray(DB.sessions))DB.sessions=[];
     const archive = DB.sessions.find(s=>s&&s.year==='2026/2027');
     if(!archive){toast('Archive 2026/2027 introuvable','err');return}
@@ -2039,7 +2121,7 @@ A['restore-archive']=()=>{
     S.view='dash';S.classId=null;S.tab='eleves';S.trim=1;
     S.simulationState=null;S.closeState=null;S.sessionId=null;S.mine=true;
     localStorage.setItem(KEY,JSON.stringify(DB));
-    toast('✅ Données 2026/2027 restaurées avec toutes les notes !','ok');
+    toast('Données 2026/2027 restaurées avec toutes les notes.','ok');
     setTimeout(()=>location.reload(),800);
   },true);
 };
