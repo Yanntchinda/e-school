@@ -195,27 +195,25 @@ td.sumc{font-weight:700;min-width:64px;padding:0 8px;background:#fcfcf6}
 .bulletin .b-table tr.grp td.mt{text-align:center}
 .bulletin .b-table tr.tot td{font-weight:700}
 .bulletin .b-legend{font-size:8.5pt;margin-top:1.2mm}
-.bulletin .b-foot{display:flex;justify-content:space-between;gap:2mm;align-items:flex-start;margin-top:3mm}
-.bulletin .b-foot-pair{display:flex;align-items:stretch;gap:2mm;flex:none}
-.bulletin .b-sum{border-collapse:collapse;border:1px solid #000}
-.bulletin .b-mentions{border:1px solid #000;padding:1mm 2mm;min-width:42mm;box-sizing:border-box;font-size:9.5pt;align-self:stretch}
-.bulletin .b-mentions-title{text-align:center;font-weight:700;margin-bottom:1mm}
-.bulletin .b-mentions-option{display:flex;align-items:center;gap:1.5mm;margin-top:1mm;white-space:nowrap}
-.bulletin .b-mentions-check{display:inline-block;width:3.5mm;height:3.5mm;border:1px solid #000;box-sizing:border-box;flex:none}
-.bulletin .b-disciple{border:1px solid #000;padding:1mm 1.5mm;width:28mm;min-width:28mm;box-sizing:border-box;font-size:9.5pt;align-self:stretch}
-.bulletin .b-disciple-title{text-align:center;font-weight:700;margin-bottom:1mm}
-.bulletin .b-disciple-row{display:grid;grid-template-columns:7mm 1fr;gap:1mm;align-items:end;margin-top:1mm;white-space:nowrap}
-.bulletin .b-disciple-write{display:block;width:100%;height:4mm;border-bottom:1px solid #000;box-sizing:border-box}
-
-.bulletin .b-sum td{padding:.45mm .9mm;font-size:9.5pt}
-.bulletin .b-sum td.l{text-align:left;padding-right:1mm;white-space:nowrap}
-.bulletin .b-sum td.v{font-weight:700;text-align:right;min-width:0;white-space:nowrap}
-.bulletin .b-sum td.v.r{color:#c00000}
-.bulletin .b-sum .b-den{color:#000;font-weight:400}
-.bulletin .b-sign{text-align:left;font-size:10.5pt;padding:1.5mm 2mm;border:1px solid #000;min-width:62mm;box-sizing:border-box}
-.bulletin .b-sign .pr{margin-top:1.5mm;font-weight:700}
-.bulletin .b-sign .nm{margin-top:12mm;font-size:10pt}
-.bulletin .b-lines{margin-top:3mm;min-height:14mm;line-height:7mm;font-size:10.5pt;white-space:pre-wrap;word-break:break-word;background-image:repeating-linear-gradient(to bottom,transparent 0,transparent 6.2mm,#000 6.2mm,#000 6.35mm);background-size:100% 7mm;padding:0 1mm;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.bulletin .b-bottom{margin-top:2.2mm;break-inside:avoid;page-break-inside:avoid}
+.bulletin table.b-bottom-t{width:100%;border-collapse:collapse;table-layout:fixed;font-size:7.6pt}
+.bulletin .b-bottom-t td,.bulletin .b-bottom-t th{border:.38mm solid #000;padding:.7mm 1mm;vertical-align:top;line-height:1.18}
+.bulletin .b-bottom-t th{text-align:center;font-weight:700;text-transform:uppercase;font-size:6.8pt;background:#fafafa;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.bulletin .b-bottom-t .lbl{font-size:6.9pt;line-height:1.15}
+.bulletin .b-bottom-t .lbl b{display:block;font-size:6.1pt;text-transform:uppercase;line-height:1.1}
+.bulletin .b-bottom-t .lbl i{font-style:normal;font-size:6.1pt;display:block;color:#333}
+.bulletin .b-bottom-t .center{text-align:center}
+.bulletin .b-bottom-t .val{display:block;width:100%;border-bottom:.3mm dotted #777;font-weight:700;font-size:8.6pt;text-align:center;min-height:4mm;padding:.2mm 0;color:#1a2fb5;line-height:1.15}
+.bulletin .b-bottom-t .row-h{height:8.2mm}
+.bulletin .b-bottom-t .appr>td{height:25mm;vertical-align:top}
+.bulletin .b-bottom-t .sign-zone{height:15mm}
+.bulletin .b-bottom-t .nom-lbl{font-size:6.4pt;text-align:center;line-height:1.15;color:#444}
+.bulletin .b-bottom-t .nom-val{font-size:8pt;font-weight:700;text-align:center;border-bottom:.3mm dotted #777;min-height:3.6mm;padding-top:.4mm}
+.bulletin .b-bottom-t .chk{display:inline-block;width:2.9mm;height:2.9mm;border:.35mm solid #000;vertical-align:-.5mm;margin-left:1.2mm;box-sizing:border-box}
+.bulletin .b-bottom-t .appr-lines{font-size:8.6pt;line-height:4.6mm;white-space:pre-wrap;word-break:break-word;min-height:4.6mm;background-image:repeating-linear-gradient(to bottom,transparent 0,transparent 4.25mm,#bbb 4.25mm,#bbb 4.4mm);background-size:100% 4.6mm;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.bulletin .b-bottom-t .appr-title{font-size:6.8pt;font-weight:400;line-height:1.15}
+.bulletin .b-bottom-t .appr-title i{font-style:italic;font-size:6.1pt;color:#333}
+.bulletin .b-bottom-t th i{font-style:normal;font-weight:400;font-size:6pt;display:block;text-transform:none}
 .sheet{width:190mm;margin:0 auto;font-family:Calibri,Carlito,"Segoe UI",Arial,sans-serif;color:#000;font-size:10.5pt}
 .sheet h2{font-family:inherit;text-align:center;font-size:17pt;font-weight:600;margin:4mm 0 1mm}
 .sheet .sub{text-align:center;margin-bottom:4mm}
@@ -530,6 +528,58 @@ addEventListener('afterprint',()=>{document.body.classList.remove('printing');$(
 const headerSrc=()=>viewSchool().header||DEFAULT_HEADER;
 
 /* ---------- Bulletin ---------- */
+/* ---------- Bas du bulletin : discipline / travail / profil de classe / visas ---------- */
+function bBottomHtml(cls,st,res,P,t,ann,remark,pp,sc){
+  const avgs=res.ranked.map(s=>res.per[s.id].avg);
+  const mn=avgs.length?Math.min.apply(null,avgs):null,mx=avgs.length?Math.max.apply(null,avgs):null;
+  const pass=avgs.length?avgs.filter(a=>a>=10).length/avgs.length:null;
+  const v=x=>'<span class="val">'+x+'</span>',chk='<span class="chk" aria-hidden="true"></span>';
+  const num=x=>x==null||x===''?'&nbsp;':x;
+  let h='<div class="b-bottom"><table class="b-bottom-t">'+
+  '<colgroup><col style="width:17%"><col style="width:18%"><col style="width:16%"><col style="width:26%"><col style="width:23%"></colgroup>'+
+  '<thead><tr><th colspan="2">Discipline</th><th colspan="2">Travail de l’élève <i>/ Student’s work</i></th><th>Profil de la classe</th></tr></thead><tbody>'+
+  '<tr class="row-h">'+
+    '<td class="lbl">Abs. non. J. (h)'+v('&nbsp;')+'</td>'+
+    '<td class="lbl">Avertissement de conduite'+v('&nbsp;')+'</td>'+
+    '<td class="lbl center"><b>Total général</b>'+v(num(fmt(P.pts)))+'</td>'+
+    '<td class="lbl center"><b>Décision du conseil de classe</b><i>Class council decision</i></td>'+
+    '<td class="lbl">Moyenne Générale / General Average'+v(res.classAvg==null?'&nbsp;':fmt1(res.classAvg))+'</td>'+
+  '</tr>'+
+  '<tr class="row-h">'+
+    '<td class="lbl">Abs. just. (h)'+v('&nbsp;')+'</td>'+
+    '<td class="lbl">Blâme de cond.'+v('&nbsp;')+'</td>'+
+    '<td class="lbl center"><b>Coef.</b>'+v(num(P.cs||''))+'</td>'+
+    '<td class="lbl">Promu (e) / Promoted'+chk+'</td>'+
+    '<td class="lbl center">[ Min - Max ]'+v(mn==null?'&nbsp;':fmt1(mn)+' – '+fmt1(mx))+'</td>'+
+  '</tr>'+
+  '<tr class="row-h">'+
+    '<td class="lbl">Retards (nombre de fois)'+v('&nbsp;')+'</td>'+
+    '<td class="lbl">Exclusions (jrs)<i>Expelling (jrs)</i>'+v('&nbsp;')+'</td>'+
+    '<td class="lbl center"><b>Moyenne annuelle</b>Annual average'+v(ann==null?'&nbsp;':fmt1(ann))+'</td>'+
+    '<td class="lbl">Redouble / Repeat'+chk+'</td>'+
+    '<td class="lbl">Nombre de moyennes<i>Average number</i>'+v(avgs.length+' / '+cls.students.length)+'</td>'+
+  '</tr>'+
+  '<tr class="row-h">'+
+    '<td class="lbl">Consignes (h)<i>Punishment</i>'+v('&nbsp;')+'</td>'+
+    '<td class="lbl">Exclusion définitive'+v('&nbsp;')+'</td>'+
+    '<td class="lbl center"><b>Cote</b>'+v('&nbsp;')+'</td>'+
+    '<td class="lbl">Exclu (e) pour / Expelled for'+chk+'</td>'+
+    '<td class="lbl">Taux de réussite / Success rate'+v(pass==null?'&nbsp;':Math.round(pass*100)+' %')+'</td>'+
+  '</tr>'+
+  '<tr>'+
+    '<th colspan="2" class="appr-title">Appréciation du travail de l’élève <i>Appreciation of student’s work</i></th>'+
+    '<th class="appr-title">Visa du parent / Tuteur <i>Parent / Tutor &amp; Visa</i></th>'+
+    '<th class="appr-title">Nom et visa du Prof. Principal <i>Class Master name and Visa</i></th>'+
+    '<th class="appr-title">Le Chef d’Établissement <i>The Principal</i></th>'+
+  '</tr>'+
+  '<tr class="appr">'+
+    '<td colspan="2"><div class="appr-lines">'+(remark?esc(remark):'')+'</div></td>'+
+    '<td><div class="sign-zone"></div></td>'+
+    '<td><div class="nom-lbl">Nom du Prof. Principal</div><div class="nom-val">'+esc(pp||'&nbsp;')+'</div><div class="sign-zone"></div></td>'+
+    '<td><div class="nom-lbl">Nom du Chef d’établissement</div><div class="nom-val">'+esc(sc.principal||'&nbsp;')+'</div><div class="sign-zone"></div></td>'+
+  '</tr></tbody></table></div>';
+  return h;
+}
 function bulletinHtml(cls,sid,t){
   const L=LB[cls.lang||'fr'],sc=viewSchool(),st=cls.students.find(s=>s.id===sid);
   const res=getRes(cls,t),P=res.per[sid],rows=bulletinRows(cls,sid,res,t);
@@ -552,11 +602,8 @@ function bulletinHtml(cls,sid,t){
   const cells=L.order.filter(k=>k!=='n1'&&k!=='n2').map(k=>'<td style="'+(k==='m'?'font-weight:700;'+(P.avg!=null&&P.avg<10?'color:#c00000;':''):'')+'">'+(k==='coef'?(P.cs||''):k==='pts'?fmt(P.pts):(L.totalAvg?fmt(P.avg):''))+'</td>').join('');
   b+='<tr class="tot"><td class="mt" colspan="3" style="text-align:center">'+L.total+'</td>'+cells+'<td></td><td></td></tr>';
   const prev=[];for(let k=1;k<t;k++){const a=getRes(cls,k).per[sid];prev.push(a?a.avg:null)}
-  let sums='<tr><td class="l">'+L.avgT+'</td><td class="v r" style="color:'+(P.avg!=null&&P.avg<10?'#c00000':'inherit')+'">'+fmt1(P.avg)+'<span class="b-den">&nbsp;/20</span></td></tr>'+
-   '<tr><td class="l">'+L.rankL+'</td><td class="v">'+(P.rank?rankStr(P.rank):'—')+'<span class="b-den">&nbsp;/'+cls.students.length+'</span></td></tr>'+
-   '<tr><td class="l">'+L.avgG+'</td><td class="v" style="color:'+(res.classAvg!=null&&res.classAvg<10?'#c00000':'inherit')+'">'+fmt1(res.classAvg)+'<span class="b-den">&nbsp;/20</span></td></tr>';
-  prev.forEach((a,i)=>{sums+='<tr><td class="l">'+L.prev(i+1)+'</td><td class="v" style="color:'+(a!=null&&a<10?'#c00000':'inherit')+'">'+fmt1(a)+'<span class="b-den">&nbsp;/20</span></td></tr>'});
-  if(t===3&&prev.every(a=>a!=null)&&P.avg!=null){const ann=(prev[0]+prev[1]+P.avg)/3;sums+='<tr><td class="l">'+L.annual+'</td><td class="v" style="color:'+(ann<10?'#c00000':'inherit')+'">'+fmt1(ann)+'<span class="b-den">&nbsp;/20</span></td></tr>'}
+  let ann=null;
+  if(t===3&&prev.every(a=>a!=null)&&P.avg!=null)ann=(prev[0]+prev[1]+P.avg)/3;
   const remark=(cls.remarks[sid]&&cls.remarks[sid]['t'+t])||'';
   const pp=ppName(cls),tel=ppTel(cls);
   const photoSrc=studentPhotoSrc(cls,st);
@@ -573,8 +620,8 @@ function bulletinHtml(cls,sid,t){
    '<table class="b-table"><colgroup><col style="width:34%">'+L.order.map(k=>'<col style="width:'+({n1:8,n2:8,m:8,coef:7,pts:10}[k])+'%">').join('')+'<col style="width:8%"><col style="width:'+(L.order.length===5?'17':'17')+'%"></colgroup>'+
    '<thead><tr><th>'+L.subject+'</th>'+L.order.map(k=>'<th>'+hd[k]+'</th>').join('')+'<th>'+L.rank+'</th><th>'+L.obs+'</th></tr></thead><tbody>'+b+'</tbody></table>'+
    '<div class="b-legend">'+esc(L.legend)+'</div>'+
-   '<div class="b-foot"><div class="b-foot-pair"><table class="b-sum">'+sums+'</table><div class="b-mentions"><div class="b-mentions-title">Mentions</div><div class="b-mentions-option"><span class="b-mentions-check" aria-hidden="true"></span><span>Tableau d’honneur</span></div><div class="b-mentions-option"><span class="b-mentions-check" aria-hidden="true"></span><span>Félicitations</span></div><div class="b-mentions-option"><span class="b-mentions-check" aria-hidden="true"></span><span>Encouragement</span></div></div><div class="b-disciple"><div class="b-disciple-title">DISCIPLE</div><div class="b-disciple-row"><span>HA</span><span class="b-disciple-write" aria-hidden="true"></span></div><div class="b-disciple-row"><span>HAJ</span><span class="b-disciple-write" aria-hidden="true"></span></div><div class="b-disciple-row"><span>HANJ</span><span class="b-disciple-write" aria-hidden="true"></span></div></div></div><div class="b-sign"><div>'+esc(sc.city||'Douala')+' '+L.at+' _______________</div><div class="pr">'+L.principal+'</div><div class="nm">'+esc(sc.principal||'M. ATANGANA Jean')+'</div></div></div>'+
-   '<div class="b-lines">'+esc(remark)+'</div></section>';
+   bBottomHtml(cls,st,res,P,t,ann,remark,pp,sc)+
+   '</section>';
 }
 
 /* ---------- Rendu principal ---------- */
