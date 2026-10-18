@@ -372,7 +372,7 @@ function loadDB(){
 let DB=loadDB();
 let saveT=null,calcCache={};
 function dirty(){calcCache={};clearTimeout(saveT);saveT=setTimeout(saveNow,250)}
-function saveNow(){clearTimeout(saveT);try{localStorage.setItem(KEY,JSON.stringify(DB))}catch(e){memOnly=true;toast("Enregistrement impossible dans ce navigateur : exportez une sauvegarde.",'err')}}
+function saveNow(){clearTimeout(saveT);try{localStorage.setItem(KEY,JSON.stringify(DB))}catch(e){memOnly=true;toast("Enregistrement impossible dans ce navigateur : exportez une sauvegarde.",'err')}try{if(typeof Cloud!=='undefined')Cloud.schedule()}catch(e){}}
 addEventListener('pagehide',saveNow);
 document.addEventListener('visibilitychange',()=>{if(document.hidden)saveNow()});
 
@@ -516,7 +516,7 @@ function newClass(key,name){
 /* ---------- UI utilitaires ---------- */
 function toast(msg,type){const el=document.createElement('div');el.className='toast '+(type||'');el.textContent=msg;$('#toastRoot').appendChild(el);setTimeout(()=>el.remove(),type==='err'?5200:3000)}
 function openModal(html,cls){$('#modalRoot').innerHTML='<div class="backdrop" data-bd="1"><div class="modal '+(cls||'')+'" role="dialog" aria-modal="true">'+html+'</div></div>';const f=$('#modalRoot [autofocus]');if(f)f.focus()}
-function closeModal(){$('#modalRoot').innerHTML=''}
+function closeModal(){$('#modalRoot').innerHTML='';try{if(typeof Cloud!=='undefined'&&Cloud.pendingRender){Cloud.pendingRender=false;render()}}catch(e){}}
 let confirmCb=null;
 function askConfirm(title,msg,okLabel,cb,danger){
   confirmCb=cb;
@@ -630,9 +630,288 @@ function bulletinHtml(cls,sid,t){
    '</section>';
 }
 
+// ===================== Synchronisation Supabase (production) =====================
+// Le stockage local reste la source de vérité hors ligne.
+// Dès qu'une URL + clé anon + code école sont renseignés, les données sont
+// partagées entre l'administrateur et tous les professeurs.
+const CLOUD_KEY='mbi_cloud_v1';
+
+const Cloud={
+  cfg:{url:'',key:'',schoolId:''},
+  client:null,online:false,busy:false,snap:null,pollT:null,ch:null,localAt:0,last:'',msg:'',
+  _lib:null,
+
+  load(){try{const c=JSON.parse(localStorage.getItem(CLOUD_KEY)||'{}');this.cfg={url:c.url||'',key:c.key||'',schoolId:c.schoolId||''}}catch(e){}return this.cfg},
+  store(){try{localStorage.setItem(CLOUD_KEY,JSON.stringify(this.cfg))}catch(e){}},
+  enabled(){return !!(this.cfg.url&&this.cfg.key&&this.cfg.schoolId)},
+  newSchoolId(){const c='0123456789abcdef';let s='sch-';for(let i=0;i<24;i++)s+=c[Math.floor(Math.random()*16)];return s},
+
+  libLoad(){
+    if(window.supabase)return Promise.resolve(true);
+    if(this._lib)return this._lib;
+    this._lib=new Promise(res=>{
+      const s=document.createElement('script');
+      s.src='https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js';
+      s.onload=()=>res(!!window.supabase);
+      s.onerror=()=>res(false);
+      document.head.appendChild(s);
+    });
+    // filet de sécurité : si le CDN ne répond pas, on continue en mode local
+    return Promise.race([this._lib,new Promise(r=>setTimeout(()=>r(!!window.supabase),8000))]);
+  },
+
+  badge(){
+    const b=document.getElementById('cloudBadge');if(!b)return;
+    if(!this.enabled()){b.style.display='none';return}
+    b.style.display='';b.className='badge '+(this.online?'ok':'warn');
+    b.textContent=this.online?'☁️ En ligne':'☁️ Hors ligne';
+    b.title=this.last?('Dernière synchronisation : '+this.last):'Aucune synchronisation';
+  },
+  setMsg(m){this.msg=m;const el=document.getElementById('cloud-status');if(el)el.textContent=m;this.badge()},
+
+  async connect(){
+    if(!this.enabled()){this.setMsg('Synchronisation non configurée — mode local.');return false}
+    this.setMsg('Connexion à Supabase…');
+    if(!await this.libLoad()){this.setMsg('Bibliothèque Supabase inaccessible (pas d’Internet ?). Mode local actif.');return false}
+    try{
+      this.client=window.supabase.createClient(this.cfg.url,this.cfg.key,{auth:{persistSession:false,autoRefreshToken:false}});
+      // Connexion anonyme si l'option est activée dans Supabase (mode sécurisé).
+      try{await this.client.auth.signInAnonymously()}catch(e){}
+      const {error}=await this.client.rpc('app_pull',{p_school:this.cfg.schoolId});
+      if(error)throw new Error(error.message||'Connexion refusée');
+      this.online=true;
+      this.setMsg('Connecté à Supabase ('+this.cfg.url.replace(/^https?:\/\//,'')+'). Synchronisation active.');
+      this.startPoll();this.startRealtime();
+      return true;
+    }catch(e){
+      this.online=false;this.client=null;
+      this.setMsg('Connexion impossible : '+(e.message||e)+' — vérifiez l’URL, la clé et que le script SQL a bien été exécuté.');
+      return false;
+    }
+  },
+
+  // -------- lecture / écriture locale sans repasser par le cloud --------
+  saveLocal(){try{localStorage.setItem(KEY,JSON.stringify(DB))}catch(e){}},
+  renderIfPossible(){try{if(typeof ME!=='undefined'&&ME)render()}catch(e){}},
+
+  // -------- conversion de la base locale en lignes SQL --------
+  rows(){
+    const o={users:[],classes:[],subjects:[],students:[],grades:[],remarks:[],lessons:[]};
+    (DB.users||[]).forEach(u=>o.users.push({id:u.id,username:u.username,name:u.name,phone:u.phone||'',role:u.role,salt:u.salt||'',hash:u.hash||''}));
+    (DB.classes||[]).forEach(c=>{
+      o.classes.push({id:c.id,name:c.name,preset_key:c.presetKey||'',ord:c.ord||0,lang:c.lang||'fr',pp_id:c.ppId||'',pp_name:c.ppName||'',pp_tel:c.ppTel||'',locks:c.locks||{}});
+      (c.subjects||[]).forEach((s,i)=>o.subjects.push({id:s.id,class_id:c.id,name:s.name,coef:Number(s.coef)||0,is_opt:!!s.opt,group_name:s.group||'',teacher_id:s.teacherId||'',ord:i}));
+      (c.students||[]).forEach((s,i)=>o.students.push({id:s.id,class_id:c.id,name:s.name,sex:s.sex||'',mat:s.mat||'',dob:s.dob||'',pob:s.pob||'',photo:s.photo||'',session_tag:s.sessionTag||'N',ord:i}));
+      for(const sid in (c.grades||{})){
+        for(const sub in c.grades[sid]){
+          const arr=c.grades[sid][sub]||[];
+          if(!arr.some(v=>v!=null&&v!==''))continue;
+          const seqs=[0,1,2,3,4].map(i=>(arr[i]==null||arr[i]==='')?null:Number(arr[i]));
+          o.grades.push({id:sid+':'+sub,student_id:sid,subject_id:sub,seqs});
+        }
+      }
+      for(const sid in (c.remarks||{})){
+        const r=c.remarks[sid]||{};
+        [1,2,3].forEach(t=>{if(r['t'+t])o.remarks.push({id:sid+':t'+t,student_id:sid,trim:t,text:r['t'+t]})});
+      }
+      for(const sub in (c.lessons||{})){
+        const l=c.lessons[sub]||{};
+        o.lessons.push({id:c.id+':'+sub,class_id:c.id,subject_id:sub,planned:Number(l.planned)||0,done:Number(l.done)||0});
+      }
+    });
+    return o;
+  },
+
+  diff(rows){
+    const prev=this.snap||{};
+    const payload={},deleted={};let n=0;
+    for(const t in rows){
+      const old={};(prev[t]||[]).forEach(r=>old[r.id]=r);
+      const seen={},changed=[];
+      rows[t].forEach(r=>{seen[r.id]=1;const p=old[r.id];if(!p||JSON.stringify(p)!==JSON.stringify(r)){changed.push(r);n++}});
+      const gone=(prev[t]||[]).filter(r=>!seen[r.id]).map(r=>r.id);
+      if(changed.length)payload[t]=changed;
+      if(gone.length){deleted[t]=gone;n+=gone.length}
+    }
+    return {payload,deleted,n};
+  },
+
+  // -------- envoi (delta uniquement) --------
+  async push(force){
+    if(!this.client||!this.enabled())return false;
+    if(this.busy)return false;
+    const rows=this.rows();
+    const {payload,deleted,n}=this.diff(rows);
+    if(!n&&!force){this.snap=rows;return true}
+    this.busy=true;this.setMsg('Envoi des modifications…');
+    try{
+      const school={name:DB.school.name||'',city:DB.school.city||'',year:DB.school.year||'',principal:DB.school.principal||'',header:DB.school.header||null};
+      const head={school,deleted:{}};
+      ['users','classes','subjects','students','remarks','lessons'].forEach(t=>{if(payload[t])head[t]=payload[t]});
+      if(deleted.users)head.deleted.users=deleted.users;
+      if(deleted.classes)head.deleted.classes=deleted.classes;
+      if(deleted.subjects)head.deleted.subjects=deleted.subjects;
+      if(deleted.students)head.deleted.students=deleted.students;
+      if(deleted.remarks)head.deleted.remarks=deleted.remarks;
+      if(deleted.lessons)head.deleted.lessons=deleted.lessons;
+      let {error}=await this.client.rpc('app_push',{p_school:this.cfg.schoolId,p_payload:head});
+      if(error)throw new Error(error.message||'Écriture refusée');
+      // notes par lots de 600 pour ne pas dépasser la taille maximale d'une requête
+      const grades=payload.grades||[];
+      for(let i=0;i<grades.length;i+=600){
+        const chunk={grades:grades.slice(i,i+600)};
+        const res=await this.client.rpc('app_push',{p_school:this.cfg.schoolId,p_payload:chunk});
+        if(res.error)throw new Error(res.error.message||'Écriture des notes refusée');
+      }
+      if(deleted.grades&&deleted.grades.length){
+        const res=await this.client.rpc('app_push',{p_school:this.cfg.schoolId,p_payload:{deleted:{grades:deleted.grades}}});
+        if(res.error)throw new Error(res.error.message);
+      }
+      this.snap=rows;this.last=new Date().toLocaleTimeString('fr-FR');
+      this.online=true;this.setMsg('Synchronisé — '+this.last+' ('+n+' élément'+(n>1?'s':'')+' envoyé'+(n>1?'s':'')+').');
+      return true;
+    }catch(e){
+      this.setMsg('Erreur d’envoi : '+(e.message||e));
+      return false;
+    }finally{this.busy=false}
+  },
+
+  schedule(){
+    this.localAt=Date.now();
+    if(!this.client||!this.enabled())return;
+    clearTimeout(this._t);
+    this._t=setTimeout(()=>{this.push(false)},2500);
+  },
+
+  // -------- récupération --------
+  async pull(force){
+    if(!this.client||!this.enabled())return false;
+    if(!force&&Date.now()-this.localAt<2500)return false; // ne pas écraser une saisie en cours
+    try{
+      const {data,error}=await this.client.rpc('app_pull',{p_school:this.cfg.schoolId});
+      if(error)throw new Error(error.message||'Lecture refusée');
+      const remoteClasses=(data&&Array.isArray(data.classes))?data.classes:[];
+      if(!remoteClasses.length&&(DB.classes||[]).length){
+        // Cloud vide : on y envoie les données locales
+        this.snap=this.rows();
+        await this.push(true);
+        return true;
+      }
+      if(!remoteClasses.length)return false;
+      const before=this.snap?JSON.stringify(this.snap):'';
+      this.apply(data);
+      const after=this.rows();
+      const changed=before!==JSON.stringify(after);
+      this.snap=after;
+      this.last=new Date().toLocaleTimeString('fr-FR');
+      this.online=true;
+      this.setMsg('Données reçues du cloud — '+this.last+'.');
+      this.saveLocal();
+      if(typeof calcCache!=='undefined')calcCache={};
+      if(changed){
+        this.badge();
+        const busy=document.querySelector('#modalRoot .modal')||document.activeElement&&/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName);
+        if(busy){this.pendingRender=true}
+        else{this.pendingRender=false;this.renderIfPossible()}
+      }
+      return true;
+    }catch(e){
+      this.setMsg('Erreur de réception : '+(e.message||e));
+      return false;
+    }
+  },
+
+  apply(d){
+    if(!d)return false;
+    if(d.school){
+      const s=d.school;
+      DB.school.name=s.name||DB.school.name;
+      DB.school.city=s.city||DB.school.city;
+      DB.school.year=s.year||DB.school.year;
+      DB.school.principal=s.principal||DB.school.principal;
+      if(s.header)DB.school.header=s.header;
+    }
+    if(Array.isArray(d.users)&&d.users.length){
+      DB.users=d.users.map(u=>({id:u.id,username:String(u.username||'').toLowerCase(),name:u.name||'',phone:u.phone||'',role:u.role==='admin'?'admin':'prof',salt:u.salt||'',hash:u.hash||''}));
+      try{if(typeof ME!=='undefined'&&ME&&!DB.users.some(u=>u.id===ME.id)){ME=null;try{sessionStorage.removeItem(SKEY)}catch(e){}}}catch(e){}
+    }
+    const byId={};
+    (d.classes||[]).forEach(c=>{
+      byId[c.id]={id:c.id,name:c.name,presetKey:c.preset_key||'',ord:c.ord||0,lang:c.lang||'fr',
+        ppId:c.pp_id||'',ppName:c.pp_name||'',ppTel:c.pp_tel||'',
+        locks:c.locks||{1:false,2:false,3:false},
+        subjects:[],students:[],grades:{},remarks:{},lessons:{}};
+    });
+    const stuCls={},subCls={};
+    (d.students||[]).forEach(s=>stuCls[s.id]=s.class_id);
+    (d.subjects||[]).forEach(s=>subCls[s.id]=s.class_id);
+    (d.subjects||[]).forEach(s=>{const c=byId[s.class_id];if(c)c.subjects.push({id:s.id,name:s.name,coef:Number(s.coef)||1,group:s.group_name||'',opt:!!s.is_opt,teacherId:s.teacher_id||'',_ord:s.ord||0})});
+    (d.students||[]).forEach(s=>{const c=byId[s.class_id];if(c)c.students.push({id:s.id,name:s.name,sex:s.sex||'',mat:s.mat||'',dob:s.dob||'',pob:s.pob||'',photo:s.photo||'',sessionTag:s.session_tag||'N'})});
+    (d.grades||[]).forEach(g=>{
+      const c=byId[stuCls[g.student_id]];if(!c)return;
+      const arr=(g.seqs||[]).slice(0,5).map(v=>v==null||v===''?null:Number(v));
+      while(arr.length<5)arr.push(null);
+      (c.grades[g.student_id]||(c.grades[g.student_id]={}))[g.subject_id]=arr;
+    });
+    (d.remarks||[]).forEach(r=>{
+      const c=byId[stuCls[r.student_id]];if(!c)return;
+      const o=c.remarks[r.student_id]||(c.remarks[r.student_id]={});
+      o['t'+r.trim]=r.text;
+    });
+    (d.lessons||[]).forEach(l=>{
+      const c=byId[l.class_id];if(!c)return;
+      c.lessons[l.subject_id]={planned:Number(l.planned)||0,done:Number(l.done)||0};
+    });
+    const ordered=(d.classes||[]).map(c=>byId[c.id]).filter(Boolean);
+    ordered.forEach(c=>{
+      c.subjects.sort((a,b)=>(a._ord||0)-(b._ord||0));
+      c.subjects.forEach(s=>{delete s._ord});
+    });
+    if(ordered.length)DB.classes=ordered;
+    return true;
+  },
+
+  startPoll(){
+    clearInterval(this.pollT);
+    this.pollT=setInterval(()=>{if(this.online&&!document.hidden)this.pull(false)},20000);
+  },
+
+  startRealtime(){
+    if(!this.client||this.ch)return;
+    try{
+      this.ch=this.client.channel('mbi-sync')
+        .on('postgres_changes',{event:'*',schema:'public',table:'lessons'},()=>this.pull(false))
+        .on('postgres_changes',{event:'*',schema:'public',table:'grades'},()=>this.pull(false))
+        .on('postgres_changes',{event:'*',schema:'public',table:'remarks'},()=>this.pull(false))
+        .subscribe();
+    }catch(e){this.ch=null}
+  },
+
+  stop(){
+    clearInterval(this.pollT);this.pollT=null;
+    try{if(this.ch&&this.client)this.client.removeChannel(this.ch)}catch(e){}
+    this.ch=null;this.client=null;this.online=false;
+  },
+
+  async boot(){
+    this.load();
+    if(!this.enabled()){this.setMsg('Mode local — aucune synchronisation configurée.');return}
+    const ok=await this.connect();
+    if(ok){await this.pull(true)}
+  }
+};
+
 /* ---------- Rendu principal ---------- */
 function render(){
   const app=$('#app');
+  if(!DB.users.length && typeof Cloud!=='undefined' && Cloud.enabled() && !Cloud.online){
+    app.innerHTML='<div class="auth"><div class="auth-box"><h1>Synchronisation en cours…</h1>'+
+      '<p>Connexion à la base partagée Supabase. Si ce message persiste, vérifiez l’URL, la clé et le code d’école dans <b>Paramètres</b>.</p>'+
+      '<p class="small muted">'+esc(Cloud.msg||'')+'</p>'+
+      '<div class="toolbar" style="justify-content:center"><button class="btn primary" data-act="cloud-retry">Réessayer</button>'+
+      '<button class="btn" data-act="cloud-force-setup">Créer un établissement</button></div></div></div>';
+    return;
+  }
   if(!DB.users.length){app.innerHTML=setupHtml();return}
   if(!ME){app.innerHTML=loginHtml();return}
   const cls=curClass();
@@ -663,7 +942,7 @@ function shellHtml(){
   const nav=cl.map(c=>'<a class="nav '+(S.view==='class'&&S.classId===c.id?'on':'')+'" data-act="open-class" data-id="'+c.id+'"><span>'+esc(c.name)+'</span><small>'+c.students.length+'</small></a>').join('');
   return '<header class="topbar"><div class="brand"><span class="dot">M</span><span class="t">'+esc(viewSchool().name)+'</span></div>'+(isReadOnlySession()?'<span class="role">Consultation · '+esc(viewYear())+'</span>':'<span class="role">Session en cours · '+esc(viewYear())+'</span>')+
    '<div class="tri" role="group" aria-label="Trimestre">'+[1,2,3].map(t=>'<button data-act="trim" data-t="'+t+'" class="'+(S.trim===t?'on':'')+'">'+TRN[t-1]+' trimestre</button>').join('')+'</div>'+
-   '<div class="me"><span>'+esc(ME.name)+' <span class="role">'+(isAdmin()?'Administrateur':'Professeur')+'</span></span><button class="btn sm" data-act="logout">Quitter</button></div></header>'+
+   '<div class="me"><span id="cloudBadge" class="badge ok" style="display:none;margin-right:8px">☁️</span><span>'+esc(ME.name)+' <span class="role">'+(isAdmin()?'Administrateur':'Professeur')+'</span></span><button class="btn sm" data-act="logout">Quitter</button></div></header>'+
    '<div class="shell"><nav class="side" aria-label="Navigation">'+
    '<a class="nav '+(S.view==='dash'?'on':'')+'" data-act="go" data-v="dash">Tableau de bord</a>'+
    '<a class="nav '+(S.view==='lessons'?'on':'')+'" data-act="go" data-v="lessons">📚 Leçons</a>'+
@@ -1425,7 +1704,15 @@ function schoolHtml(){
   '<div class="panel"><h3>Établissement</h3><div class="row"><label class="f">Nom de l’établissement<input data-sc="name" value="'+esc(sc.name)+'"></label><label class="f">Ville (« Douala le … »)<input data-sc="city" value="'+esc(sc.city)+'"></label></div>'+
    '<div class="row"><label class="f">Année scolaire<input data-sc="year" value="'+esc(sc.year)+'" placeholder="2025/2026"></label><label class="f">Nom du Principal (imprimé sous « Le Principal »)<input data-sc="principal" value="'+esc(sc.principal||'')+'"></label></div></div>'+
   '<div class="panel"><h3>En-tête des bulletins</h3><img src="'+headerSrc()+'" alt="En-tête actuel" style="max-width:100%;border:1px solid var(--line);border-radius:6px;display:block;margin-bottom:12px"><div class="toolbar"><label class="btn" style="cursor:pointer">Remplacer l’image…<input type="file" accept="image/*" data-file="header" class="hide"></label>'+(sc.header?'<button class="btn" data-act="header-reset">Rétablir l’en-tête d’origine</button>':'')+'</div><p class="small muted" style="margin:0">Image large (bandeau République du Cameroun / logo / établissement). Elle est réduite automatiquement.</p></div>'+
-  '<div class="panel"><h3>Sauvegarde et partage des notes</h3><p style="margin-top:0">Les données vivent dans le navigateur de cet ordinateur. Exportez une sauvegarde régulièrement et avant tout nettoyage du navigateur.</p>'+
+  '<div class="panel"><h3>☁️ Synchronisation Supabase (production)</h3>'+
+   '<p style="margin-top:0" class="small muted">Relie l’administrateur et tous les professeurs à une <b>même base de données</b> : les leçons, notes et appréciations saisies par chaque professeur remontent automatiquement chez l’administrateur. Sans configuration, l’application continue de fonctionner en local.</p>'+
+   '<div class="row"><label class="f">URL du projet Supabase<input id="sb-url" placeholder="https://xxxxxxx.supabase.co" value="'+esc(Cloud.cfg.url)+'" autocapitalize="none"></label>'+
+   '<label class="f">Clé « anon public »<input id="sb-key" type="password" placeholder="eyJhbGciOiJIUzI1NiIs…" value="'+esc(Cloud.cfg.key)+'" autocapitalize="none"></label></div>'+
+   '<label class="f">Code de l’école (identique sur tous les postes)<input id="sb-school" value="'+esc(Cloud.cfg.schoolId)+'" placeholder="Généré automatiquement" autocapitalize="none"></label>'+
+   '<div class="toolbar"><button class="btn primary" data-act="cloud-save">Enregistrer et connecter</button><button class="btn" data-act="cloud-pull">⬇️ Recevoir du cloud</button><button class="btn" data-act="cloud-push">⬆️ Envoyer mes données</button>'+(Cloud.enabled()?'<button class="btn danger" data-act="cloud-off">Déconnecter</button>':'')+'</div>'+
+   '<div id="cloud-status" class="small muted" style="margin-top:6px">'+esc(Cloud.msg||'Mode local — aucune synchronisation configurée.')+'</div>'+
+   '<p class="small muted" style="margin-bottom:0">Les professeurs doivent saisir la <b>même</b> URL, la <b>même</b> clé et le <b>même</b> code d’école. Le script SQL à exécuter une fois dans Supabase se trouve dans <code>supabase/01-schema.sql</code>.</p></div>'+
+  '<div class="panel"><h3>Sauvegarde et partage des notes</h3><p style="margin-top:0">Sans synchronisation Supabase, les données vivent dans le navigateur de cet ordinateur. Exportez une sauvegarde régulièrement et avant tout nettoyage du navigateur.</p>'+
    '<div class="toolbar"><button class="btn primary" data-act="backup">Exporter une sauvegarde complète</button><button class="btn" data-act="restore-start">Restaurer une sauvegarde…</button></div>'+
    '<p class="small muted"><b>Plusieurs ordinateurs :</b> envoyez la sauvegarde aux enseignants, qui la restaurent chez eux, saisissent leurs notes puis utilisent « Exporter mes notes » (onglet Notes). Importez ensuite chaque fichier ci-dessous pour fusionner les notes.</p>'+
    '<div class="toolbar"><button class="btn" data-act="merge-start">Importer un fichier de notes d’enseignant…</button></div></div>'+
@@ -1584,6 +1871,53 @@ A.preview=el=>openPreview(el.dataset.id);
 A['prev-b']=el=>{if(el.dataset.id)openPreview(el.dataset.id)};
 A['print-results']=()=>{if(!isAdmin())return toast('Impression réservée à l’administrateur.','err');printHtml(resultsSheet(curClass(),S.trim))};
 A['export-csv']=()=>exportCsv(curClass(),S.trim);
+A['cloud-retry']=async()=>{
+  const ok=await Cloud.connect();
+  if(ok)await Cloud.pull(true);
+  render();
+  if(!ok)toast(Cloud.msg,'err');
+};
+A['cloud-force-setup']=()=>{Cloud.online=false;Cloud.client=null;Cloud.cfg={url:'',key:'',schoolId:''};Cloud.store();render()};
+A['cloud-save']=async()=>{
+  const url=($('#sb-url')&&$('#sb-url').value||'').trim().replace(/\/+$/,'');
+  const key=($('#sb-key')&&$('#sb-key').value||'').trim();
+  let sid=($('#sb-school')&&$('#sb-school').value||'').trim();
+  if(!url||!key)return toast('Renseignez l’URL du projet et la clé anon Supabase.','err');
+  if(!/^https?:\/\//.test(url))return toast('L’URL doit commencer par https://','err');
+  if(!sid){sid=Cloud.newSchoolId()}
+  Cloud.stop();
+  Cloud.cfg={url,key,schoolId:sid};Cloud.store();
+  toast('Connexion à Supabase…','');
+  const ok=await Cloud.connect();
+  if(ok){
+    const hadRemote=await Cloud.pull(true);
+    if(!hadRemote)await Cloud.push(true);
+    render();
+    toast('Connecté à Supabase — synchronisation active.','ok');
+  }else{
+    render();
+    toast('Connexion impossible : '+Cloud.msg,'err');
+  }
+};
+A['cloud-push']=async()=>{
+  if(!Cloud.enabled())return toast('Configurez d’abord la synchronisation.','err');
+  if(!Cloud.client){const ok=await Cloud.connect();if(!ok)return toast(Cloud.msg,'err')}
+  const ok=await Cloud.push(true);
+  render();
+  toast(ok?'Données envoyées vers Supabase.':'Échec : '+Cloud.msg,ok?'ok':'err');
+};
+A['cloud-pull']=async()=>{
+  if(!Cloud.enabled())return toast('Configurez d’abord la synchronisation.','err');
+  if(!Cloud.client){const ok=await Cloud.connect();if(!ok)return toast(Cloud.msg,'err')}
+  const ok=await Cloud.pull(true);
+  render();
+  toast(ok?'Données reçues du cloud.':'Aucune donnée reçue : '+Cloud.msg,ok?'ok':'err');
+};
+A['cloud-off']=()=>{
+  if(!confirm('Désactiver la synchronisation sur cet ordinateur ? Les données locales sont conservées.'))return;
+  Cloud.stop();Cloud.cfg={url:'',key:'',schoolId:''};Cloud.store();Cloud.snap=null;
+  render();toast('Synchronisation désactivée. Mode local.','ok');
+};
 A['sim-lessons']=()=>{
   if(!isAdmin())return;
   if(!confirm('Simuler des leçons prévues et faites pour tous les professeurs de toutes les classes ? Les valeurs actuelles seront remplacées.'))return;
@@ -1887,14 +2221,16 @@ async function seedDemoData(){
 
 async function seedThenRender(){
   try{
-    if(!DB.users.length && !DB.classes.length){
+    if(!DB.users.length && !DB.classes.length && !(typeof Cloud!=='undefined' && Cloud.enabled())){
       await seedDemoData();
     }
   }catch(e){ console.error(e); }
   render();
 }
 
+try{ if(typeof Cloud!=='undefined'){ Cloud.load(); Cloud.badge(); } }catch(e){}
 seedThenRender();
+try{ if(typeof Cloud!=='undefined'){ setTimeout(()=>Cloud.boot(),1200); } }catch(e){}
 </script>
 </body>
 </html>
