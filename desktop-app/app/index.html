@@ -339,7 +339,7 @@ const PRESETS=[
  {key:'TA',label:'Tle A',lang:'fr',subs:()=>PRESETS[6].subs()},
  {key:'TD',label:'Tle D',lang:'fr',subs:()=>[P('LANGUE FRANÇAISE',2,LIT),P('LITTÉRATURE FRANÇAISE',3,LIT),P('ANGLAIS',3,LIT),P('PHILOSOPHIE',2,LIT),P('ECM',2,LIT),P('HISTOIRE/GÉOGRAPHIE',2,LIT),P('MATHÉMATIQUES',4,SCI),P('INFORMATIQUE',2,SCI),P('SVTEEHB',4,SCI),P('SVTEEHB PRATIQUE',2,SCI),P('PHYSIQUE',2,SCI),P('CHIMIE',1.5,SCI),P('CHIMIE PRATIQUE',.5,SCI),P('EPS',2)]},
  {key:'F1',label:'Form I',lang:'en',subs:()=>[P('BIOLOGY',2),P('CHEMISTRY',2),P('CITIZENSHIP',2),P('COMPUTER',2),P('ENGLISH',4),P('FRENCH',3),P('GEOGRAPHY',2),P('HISTORY',2),P('LITERATURE',2),P('MATHEMATICS',3),P('PHYSICS',2)]},
- {key:'F2',label:'Form II',lang:'en',subs:()=>PRESETS[11].subs()},
+ {key:'F2',label:'Form II',lang:'en',subs:()=>PRESETS[10].subs()},
  {key:'X',label:'Classe personnalisée (vierge)',lang:'fr',subs:()=>[P('MATIÈRE 1',1),P('MATIÈRE 2',1)]}
 ];
 const LB={
@@ -357,6 +357,7 @@ let memOnly=false;
 function loadDB(){
   try{const r=localStorage.getItem(KEY);if(r){const d=JSON.parse(r);if(d&&d.school&&Array.isArray(d.users)&&Array.isArray(d.classes)){
     // RÉPARATION AUTOMATIQUE : corrige l'état incohérent après activation interrompue
+    if(!Array.isArray(d.sessions))d.sessions=[];
     if(Array.isArray(d.sessions)){
       // Supprime les doublons d'archives
       const seenYears=new Set();
@@ -519,8 +520,8 @@ function openModal(html,cls){$('#modalRoot').innerHTML='<div class="backdrop" da
 function closeModal(){$('#modalRoot').innerHTML='';try{if(typeof Cloud!=='undefined'&&Cloud.pendingRender){Cloud.pendingRender=false;render()}}catch(e){}}
 let confirmCb=null;
 function askConfirm(title,msg,okLabel,cb,danger){
-  confirmCb=cb;
   openModal('<h2>'+esc(title)+'</h2><p>'+msg+'</p><div class="acts"><button class="btn" data-act="mclose">Annuler</button><button class="btn '+(danger?'danger':'primary')+'" data-act="confirm-ok" autofocus>'+esc(okLabel)+'</button></div>');
+  confirmCb=cb;   // posé APRÈS openModal pour que le bouton autofocus ne déclenche rien avant
 }
 function download(name,text,mime){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type:mime||'text/plain'}));a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},500)}
 function printHtml(html){
@@ -968,7 +969,7 @@ function mainHtml(){
 }
 
 /* ---------- Sessions scolaires ---------- */
-function sessionTotals(classes){return{classes:(classes||[]).length,students:(classes||[]).reduce((n,c)=>n+(c.students||[]).length,0)}}
+function sessionTotals(classes){const a=Array.isArray(classes)?classes:[];return{classes:a.length,students:a.reduce((n,c)=>n+((c&&c.students)||[]).length,0)}}
 function sessionDate(iso){if(!iso)return'—';const d=new Date(iso);return isNaN(d)?'—':d.toLocaleDateString('fr-FR')}
 function sessionsHtml(){
   // Nettoie automatiquement les doublons d'archives au chargement
@@ -980,10 +981,18 @@ function sessionsHtml(){
     });
   }
   const archived=archivedSessions(),tot=sessionTotals(DB.classes);
+  if(!Array.isArray(DB.sessions))DB.sessions=[];
+  const nextY=nextSchoolYear(DB.school.year);
   const needActivate = DB.school.year!=='2027/2028';
-  let h='<div class="page-h"><div><h1>Sessions scolaires</h1><p>Session active : <b>'+esc(DB.school.year)+'</b> — Consultez les années clôturées ou préparez la nouvelle session.</p></div>'+(needActivate?'<div class="session-actions"><button class="btn green" data-act="direct-activate" style="font-size:16px;padding:12px 24px">⚡ ACTIVER 2027/2028 EN UN CLIC</button></div>':'')+'</div>';
-  if(needActivate && DB.sessions && DB.sessions.length>0){
-    const hasArchive = DB.sessions.some(s=>s.year==='2026/2027');
+  const actions='<div class="session-actions">'+
+    '<button class="btn" data-act="simulate-year">👁️ Simuler la nouvelle session ('+esc(nextY)+')</button>'+
+    (needActivate?'<button class="btn green" data-act="direct-activate">⚡ Activer '+esc(nextY)+' en un clic</button>':'')+
+    '<button class="btn primary" data-act="close-year">🚀 Créer une nouvelle session</button>'+
+    '</div>';
+  let h='<div class="page-h"><div><h1>Sessions scolaires</h1><p>Session active : <b>'+esc(DB.school.year)+'</b> — Consultez les années clôturées ou préparez la nouvelle session.</p></div>'+
+    (isAdmin()&&!isReadOnlySession()?actions:'')+'</div>';
+  if(needActivate && Array.isArray(DB.sessions) && DB.sessions.length>0){
+    const hasArchive = DB.sessions.some(s=>s&&s.year==='2026/2027');
     // Vérifier si les notes ont été effacées (classes vides de notes = essai précédent échoué)
     let anyGrades=false;
     for(let ci=0;ci<DB.classes.length;ci++){for(let sid in DB.classes[ci].grades){for(let subid in DB.classes[ci].grades[sid]){const g=DB.classes[ci].grades[sid][subid];if(g&&g.some(x=>x!=null)){anyGrades=true;break}}if(anyGrades)break}if(anyGrades)break}
@@ -1007,9 +1016,35 @@ function sessionsHtml(){
   return h;
 }
 function closeKey(classId,studentId){return classId+'::'+studentId}
+const NEXT_LEVEL_MAP={'6e':'5e','5e':'4e','4e':'3e','3e':'2A','2A':'1A','2C':'1D','1A':'TA','1D':'TD','F1':'F2','TA':'','TD':'','F2':''};
 function startCloseYear(){
-  const nextClasses=DB.classes.map(c=>({sourceId:c.id,id:uid(),name:c.name,ord:c.ord})),decisions={};
-  DB.classes.forEach(c=>c.students.forEach(st=>{decisions[closeKey(c.id,st.id)]={sourceClassId:c.id,studentId:st.id,decision:'',targetClassId:''}}));
+  // 1) les classes actuelles (recréées à l'identique) + 2) les niveaux d'accueil manquants
+  const nextClasses=DB.classes.map(c=>({sourceId:c.id,id:uid(),name:c.name,ord:c.ord,presetKey:c.presetKey}));
+  const needed=new Set();
+  DB.classes.forEach(c=>{const n=NEXT_LEVEL_MAP[c.presetKey];if(n)needed.add(n)});
+  for(const pk of needed){
+    if(nextClasses.some(nc=>nc.presetKey===pk))continue;
+    const pr=PRESETS.find(x=>x.key===pk);
+    const label=pr?pr.label:pk;
+    let name=label,k=2;
+    while(nextClasses.some(nc=>nc.name===name)){name=label+' '+k;k++}
+    nextClasses.push({sourceId:null,id:uid(),name,ord:pr?PRESETS.findIndex(x=>x.key===pk):99,presetKey:pk,isNew:true});
+  }
+  nextClasses.sort((a,b)=>(a.ord-b.ord)||a.name.localeCompare(b.name,'fr',{numeric:true}));
+  const decisions={};
+  DB.classes.forEach(c=>{
+    const nextPreset=NEXT_LEVEL_MAP[c.presetKey]||'';
+    // classe d'accueil présélectionnée : la classe du niveau supérieur déjà existante
+    const defaultTarget=nextPreset?nextClasses.find(nc=>nc.presetKey===nextPreset):null;
+    c.students.forEach(st=>{
+      const avg=annualStudentAverage(c,st.id);
+      let decision,targetClassId='';
+      if(!nextPreset){decision='sorti'}                                   // Tle / Form II → sortie
+      else if(avg==null||avg<10){decision='redouble'}                     // pas de notes ou < 10 → redouble
+      else{decision='admis';targetClassId=defaultTarget?defaultTarget.id:''} // ≥ 10 → admis
+      decisions[closeKey(c.id,st.id)]={sourceClassId:c.id,studentId:st.id,decision,targetClassId};
+    });
+  });
   S.closeState={year:DB.school.year,nextYear:nextSchoolYear(DB.school.year),nextClasses,decisions};
 }
 function annualStudentAverage(cls,studentId){
@@ -1052,14 +1087,25 @@ function updateCloseProgress(){
   const ready=closePlanComplete();$$('[data-act="confirm-close-year"]').forEach(b=>b.disabled=!ready);
 }
 function cloneClassToNextSession(cls,id){
-  const c=JSON.parse(JSON.stringify(cls));c.id=id;c.students=[];c.grades={};c.remarks={};c.locks={1:false,2:false,3:false};
+  const c=JSON.parse(JSON.stringify(cls));c.id=id;c.students=[];c.grades={};c.remarks={};c.lessons={};c.locks={1:false,2:false,3:false};
   c.subjects=(cls.subjects||[]).map(s=>({...s,id:uid()}));return c;
 }
 function finishCloseYear(){
   const state=S.closeState;if(!state||!closePlanComplete()){toast('Choisissez une décision pour chaque élève et une classe pour chaque élève admis.','err');return}
   const archived={id:uid(),year:DB.school.year,closedAt:new Date().toISOString(),closedBy:ME?ME.name:'',school:JSON.parse(JSON.stringify(DB.school)),users:DB.users.map(u=>({id:u.id,name:u.name,phone:u.phone||'',role:u.role})),classes:JSON.parse(JSON.stringify(DB.classes))};
-  const nextClasses=DB.classes.map(c=>cloneClassToNextSession(c,state.nextClasses.find(n=>n.sourceId===c.id).id));
-  const nextBySource=new Map(DB.classes.map((c,i)=>[c.id,nextClasses[i]]));
+  const nextClasses=state.nextClasses.map(nc=>{
+    if(nc.sourceId){
+      const src=DB.classes.find(c=>c.id===nc.sourceId);
+      if(src)return cloneClassToNextSession(src,nc.id);
+    }
+    // niveau d'accueil qui n'existait pas : on le crée depuis le modèle officiel
+    const c=newClass(nc.presetKey,nc.name);
+    c.id=nc.id;c.students=[];c.grades={};c.remarks={};c.lessons={};
+    c.locks={1:false,2:false,3:false};
+    return c;
+  });
+  const nextBySource=new Map();
+  state.nextClasses.forEach(nc=>{if(nc.sourceId)nextBySource.set(nc.sourceId,nextClasses.find(x=>x.id===nc.id))});
   for(const oldClass of DB.classes)for(const st of oldClass.students){
     const plan=state.decisions[closeKey(oldClass.id,st.id)];if(plan.decision==='sorti')continue;
     const target=plan.decision==='redouble'?nextBySource.get(oldClass.id):nextClasses.find(c=>c.id===plan.targetClassId);
@@ -1912,6 +1958,8 @@ A['apply-simulation']=()=>{
   askConfirm('Activer la session 2027/2028 ?','L\'année scolaire actuelle sera archivée et la session 2027/2028 deviendra la session en cours avec les répartitions que vous avez définies.','Confirmer et activer la nouvelle session',applySimulationYear,true)
 };
 A['direct-activate']=()=>{
+  if(!isAdmin()||isReadOnlySession())return;
+  if(!Array.isArray(DB.sessions))DB.sessions=[];
   let anyGrades=false;
   for(let ci=0;ci<DB.classes.length;ci++){
     const c=DB.classes[ci];
@@ -1924,7 +1972,7 @@ A['direct-activate']=()=>{
     }
     if(anyGrades)break
   }
-  const hasArchive = DB.sessions.some(s=>s.year==='2026/2027');
+  const hasArchive = DB.sessions.some(s=>s&&s.year==='2026/2027');
   if(!anyGrades && hasArchive){
     alert('❌ AUCUNE NOTE TROUVÉE !\n\nLes notes ont été effacées par un essai précédent.\n\n👉 Cliquez d\'abord sur le bouton ROUGE "RESTAURER LES DONNÉES 2026/2027" en haut de la page, puis réessayez d\'activer.');
     return;
@@ -1933,7 +1981,8 @@ A['direct-activate']=()=>{
 };
 A['restore-archive']=()=>{
   askConfirm('🔄 Restaurer 2026/2027 depuis l\'archive ?','Cette opération annule toute activation précédente, restaure TOUTES les classes, élèves et notes de l\'année 2026/2027 depuis l\'archive, comme avant tout essai d\'activation. Vous pourrez ensuite réactiver la session correctement.','Restaurer 2026/2027',()=>{
-    const archive = DB.sessions.find(s=>s.year==='2026/2027');
+    if(!Array.isArray(DB.sessions))DB.sessions=[];
+    const archive = DB.sessions.find(s=>s&&s.year==='2026/2027');
     if(!archive){toast('Archive 2026/2027 introuvable','err');return}
     // Restaurer les classes et l'année
     DB.classes = JSON.parse(JSON.stringify(archive.classes));
@@ -1949,7 +1998,11 @@ A['restore-archive']=()=>{
     setTimeout(()=>location.reload(),800);
   },true);
 };
-A['close-year']=()=>{if(!isAdmin()||isReadOnlySession())return;S.simulationState=null;startCloseYear();S.view='close-year';S.classId=null;render()};
+A['close-year']=()=>{
+  if(!isAdmin()||isReadOnlySession())return;
+  if(!DB.classes.length)return toast('Créez au moins une classe avant de clôturer l’année.','err');
+  S.simulationState=null;startCloseYear();S.view='close-year';S.classId=null;render();
+};
 A['sessions-cancel-close']=()=>{S.closeState=null;S.view='sessions';render()};
 A['confirm-close-year']=()=>{
   if(!isAdmin()||!closePlanComplete()){toast('Complétez toutes les décisions avant de clôturer.','err');return}
