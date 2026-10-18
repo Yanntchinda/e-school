@@ -363,15 +363,17 @@ begin
 
   ---------------------------------------------------------------- leçons
   for r in select value from jsonb_array_elements(coalesce(p_payload->'lessons','[]'::jsonb)) loop
-    insert into public.lessons (id, school_id, class_id, subject_id, planned, done)
+    insert into public.lessons (id, school_id, class_id, subject_id, planned, done, updated_at)
     values (r->>'id', p_school,
             (r->>'class_id'),
             (r->>'subject_id'),
             greatest(coalesce((r->>'planned')::int,0),0),
-            greatest(coalesce((r->>'done')::int,0),0))
+            greatest(coalesce((r->>'done')::int,0),0),
+            coalesce(to_timestamp(nullif(r->>'at','')::bigint / 1000), now()))
     on conflict (id) do update set
-      planned = excluded.planned,
-      done    = excluded.done;
+      planned    = excluded.planned,
+      done       = excluded.done,
+      updated_at = excluded.updated_at;
     v_rows := v_rows + 1;
   end loop;
 
