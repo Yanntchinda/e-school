@@ -231,6 +231,9 @@ td.sumc{font-weight:700;min-width:64px;padding:0 8px;background:#fcfcf6}
   #printRoot .bulletin:last-child{break-after:auto;page-break-after:auto}
   #printRoot .sheet{break-after:page}
   #printRoot .sheet:last-child{break-after:auto}
+  body.no-print>*{display:none!important}
+  body.no-print::after{content:'';display:block!important;height:60mm}
+  body.no-print::before{content:'Impression réservée à l’administrateur.';display:block!important;font-size:16pt;text-align:center;padding:40mm 20mm 0;font-family:Arial,sans-serif}
 }
 @media (max-width:860px){
   .shell{grid-template-columns:1fr}
@@ -521,10 +524,12 @@ function askConfirm(title,msg,okLabel,cb,danger){
 }
 function download(name,text,mime){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type:mime||'text/plain'}));a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},500)}
 function printHtml(html){
+  if(!isAdmin()){toast('Impression réservée à l’administrateur.','err');return}
   $('#printRoot').innerHTML=html;document.body.classList.add('printing');
   setTimeout(()=>window.print(),180);
 }
-addEventListener('afterprint',()=>{document.body.classList.remove('printing');$('#printRoot').innerHTML=''});
+addEventListener('beforeprint',()=>{document.body.classList.toggle('no-print',!isAdmin())});
+addEventListener('afterprint',()=>{document.body.classList.remove('printing','no-print');$('#printRoot').innerHTML=''});
 const headerSrc=()=>viewSchool().header||DEFAULT_HEADER;
 
 /* ---------- Bulletin ---------- */
@@ -532,7 +537,8 @@ const headerSrc=()=>viewSchool().header||DEFAULT_HEADER;
 function bBottomHtml(cls,st,res,P,t,ann,remark,pp,sc){
   const avgs=res.ranked.map(s=>res.per[s.id].avg);
   const mn=avgs.length?Math.min.apply(null,avgs):null,mx=avgs.length?Math.max.apply(null,avgs):null;
-  const pass=avgs.length?avgs.filter(a=>a>=10).length/avgs.length:null;
+  const passCount=avgs.filter(a=>a>=10).length;
+  const pass=avgs.length?passCount/avgs.length:null;
   const v=x=>'<span class="val">'+x+'</span>',chk='<span class="chk" aria-hidden="true"></span>';
   const num=x=>x==null||x===''?'&nbsp;':x;
   let h='<div class="b-bottom"><table class="b-bottom-t">'+
@@ -557,7 +563,7 @@ function bBottomHtml(cls,st,res,P,t,ann,remark,pp,sc){
     '<td class="lbl">Exclusions (jrs)<i>Expelling (jrs)</i>'+v('&nbsp;')+'</td>'+
     '<td class="lbl center"><b>Moyenne annuelle</b>Annual average'+v(ann==null?'&nbsp;':fmt1(ann))+'</td>'+
     '<td class="lbl">Redouble / Repeat'+chk+'</td>'+
-    '<td class="lbl">Nombre de moyennes<i>Average number</i>'+v(avgs.length+' / '+cls.students.length)+'</td>'+
+    '<td class="lbl">Nombre de moyennes<i>Average number</i>'+v(passCount+' / '+cls.students.length)+'</td>'+
   '</tr>'+
   '<tr class="row-h">'+
     '<td class="lbl">Consignes (h)<i>Punishment</i>'+v('&nbsp;')+'</td>'+
@@ -1253,17 +1259,17 @@ function bulletinsTab(cls){
   const t=S.trim,res=getRes(cls,t),list=[...cls.students].sort(cmpName);
   if(!list.length)return '<div class="panel empty"><h3>Aucun élève dans cette classe</h3><p>Ajoutez d’abord les élèves dans l’onglet « Élèves ».</p></div>';
   const miss=list.reduce((a,s)=>a+(missingCount(cls,s.id,t)>0?1:0),0);
-  let h='<div class="toolbar"><button class="btn primary" data-act="print-all">Imprimer les '+list.length+' bulletins</button><button class="btn" data-act="preview" data-id="'+list[0].id+'">Aperçu du premier bulletin</button><span class="grow"></span>'+(miss?'<span class="badge warn">'+miss+' élève'+(miss>1?'s':'')+' avec des notes manquantes</span>':'<span class="badge ok">Toutes les notes sont saisies</span>')+'</div>'+
+  let h='<div class="toolbar">'+(isAdmin()?'<button class="btn primary" data-act="print-all">Imprimer les '+list.length+' bulletins</button>':'')+'<button class="btn" data-act="preview" data-id="'+list[0].id+'">Aperçu du premier bulletin</button><span class="grow"></span>'+(miss?'<span class="badge warn">'+miss+' élève'+(miss>1?'s':'')+' avec des notes manquantes</span>':'<span class="badge ok">Toutes les notes sont saisies</span>')+'</div>'+
    '<div class="tw"><table class="t"><thead><tr><th style="width:56px">N°</th><th>Noms et prénoms</th><th class="num">Moyenne</th><th>Rang</th><th>Notes manquantes</th><th></th></tr></thead><tbody>'+
   list.map((s,i)=>{const P=res.per[s.id],mc=missingCount(cls,s.id,t);
     return '<tr><td>'+(i+1)+'</td><td><b>'+esc(s.name)+'</b></td><td class="num">'+(P.avg==null?'—':'<span style="color:'+(P.avg<10?'var(--red)':'inherit')+';font-weight:700">'+fmt(P.avg)+'</span>')+'</td><td>'+(P.rank?rankStr(P.rank)+' / '+list.length:'—')+'</td><td>'+(mc?'<span class="badge warn">'+mc+' matière'+(mc>1?'s':'')+'</span>':'<span class="badge ok">Complet</span>')+'</td>'+
-    '<td class="right nowrap"><button class="btn sm" data-act="preview" data-id="'+s.id+'">Aperçu</button> <button class="btn sm" data-act="print-one" data-id="'+s.id+'">Imprimer</button></td></tr>'}).join('')+'</tbody></table></div>';
+    '<td class="right nowrap"><button class="btn sm" data-act="preview" data-id="'+s.id+'">Aperçu</button>'+(isAdmin()?' <button class="btn sm" data-act="print-one" data-id="'+s.id+'">Imprimer</button>':'')+'</td></tr>'}).join('')+'</tbody></table></div>';
   return h;
 }
 function openPreview(sid){
   const cls=curClass(),list=[...cls.students].sort(cmpName),i=list.findIndex(s=>s.id===sid);
   const t=S.trim,remark=(cls.remarks[sid]&&cls.remarks[sid]['t'+t])||'';
-  openModal('<div class="toolbar" style="margin-bottom:10px"><button class="btn sm" data-act="prev-b" data-id="'+(list[i-1]?list[i-1].id:'')+'" '+(i<1?'disabled':'')+'>‹ Précédent</button><button class="btn sm" data-act="prev-b" data-id="'+(list[i+1]?list[i+1].id:'')+'" '+(i>=list.length-1?'disabled':'')+'>Suivant ›</button><span class="grow"></span><button class="btn primary sm" data-act="print-one" data-id="'+sid+'">Imprimer ce bulletin</button><button class="btn sm" data-act="mclose">Fermer</button></div>'+
+  openModal('<div class="toolbar" style="margin-bottom:10px"><button class="btn sm" data-act="prev-b" data-id="'+(list[i-1]?list[i-1].id:'')+'" '+(i<1?'disabled':'')+'>‹ Précédent</button><button class="btn sm" data-act="prev-b" data-id="'+(list[i+1]?list[i+1].id:'')+'" '+(i>=list.length-1?'disabled':'')+'>Suivant ›</button><span class="grow"></span>'+(isAdmin()?'<button class="btn primary sm" data-act="print-one" data-id="'+sid+'">Imprimer ce bulletin</button>':'')+'<button class="btn sm" data-act="mclose">Fermer</button></div>'+
    '<div id="bprev">'+bulletinHtml(cls,sid,t)+'</div>'+
    '<label class="f" style="background:#fff;padding:12px 14px;border-radius:8px;margin:12px 0 0">Appréciation imprimée sur les lignes du bulletin<textarea id="remark" data-sid="'+sid+'" rows="3" '+(isReadOnlySession()?'readonly':'')+' placeholder="Facultatif — par exemple : Élève sérieux, doit poursuivre ses efforts.">'+esc(remark)+'</textarea></label>','xl');
 }
@@ -1305,7 +1311,7 @@ function statsTab(cls){
   if(!cls.students.length)return h+'<div class="panel empty"><h3>Aucun élève dans cette classe</h3><p>Les statistiques apparaîtront dès que des notes seront saisies.</p></div>';
   if(!D.rk.length)return h+'<div class="panel empty"><h3>Pas encore de notes pour le '+TRN[t-1]+' trimestre</h3><p>Saisissez des notes dans l’onglet « Notes » pour voir les statistiques.</p></div>';
   const best=D.rk[0],worst=D.rk[D.rk.length-1],maxBin=Math.max(1,...D.bins.map(b=>b.n));
-  h+='<div class="toolbar"><button class="btn" data-act="print-results">Imprimer le tableau des résultats</button><button class="btn" data-act="export-csv">Exporter en CSV (Excel)</button></div>'+
+  h+='<div class="toolbar">'+(isAdmin()?'<button class="btn" data-act="print-results">Imprimer le tableau des résultats</button><button class="btn" data-act="export-csv">Exporter en CSV (Excel)</button>':'')+'</div>'+
   '<div class="kpis"><div class="kpi"><b>'+D.rk.length+'<small style="font-size:15px;color:var(--muted)"> / '+cls.students.length+'</small></b><span>élèves classés</span></div>'+
    '<div class="kpi"><b style="color:'+(D.mean!=null&&D.mean<10?'var(--red)':'inherit')+';font-weight:700">'+fmt(D.mean)+'</b><span>moyenne de la classe</span></div><div class="kpi"><b style="color:'+(D.med!=null&&D.med<10?'var(--red)':'inherit')+'">'+fmt(D.med)+'</b><span>médiane</span></div>'+
    '<div class="kpi"><b>'+Math.round(D.pass*100)+' %</b><span>élèves à 10 ou plus</span></div>'+
@@ -1541,11 +1547,11 @@ A['import-students']=()=>{
    '<div id="imp-prev"><p class="small muted">Rien à importer pour le moment.</p></div><div class="acts"><button class="btn" data-act="mclose">Annuler</button><button class="btn primary" id="imp-go" data-act="imp-go" disabled>Importer</button></div>','wide');
 };
 A['imp-go']=()=>{const cls=curClass();if(!confirm('Importer ces élèves dans la classe ?'))return;let n=0;for(const x of IMP){if(x.dup)continue;cls.students.push({id:uid(),name:x.name,sex:x.sex,mat:genMat(),dob:'',pob:'',photo:'',sessionTag:'N'});n++}cls.students.sort(cmpName);dirty();closeModal();render();toast(n+' élève'+(n>1?'s ajoutés':' ajouté')+'.','ok')};
-A['print-all']=()=>{const cls=curClass(),t=S.trim;printHtml([...cls.students].sort(cmpName).map(s=>bulletinHtml(cls,s.id,t)).join(''))};
-A['print-one']=el=>{printHtml(bulletinHtml(curClass(),el.dataset.id,S.trim))};
+A['print-all']=()=>{if(!isAdmin())return toast('Impression réservée à l’administrateur.','err');const cls=curClass(),t=S.trim;printHtml([...cls.students].sort(cmpName).map(s=>bulletinHtml(cls,s.id,t)).join(''))};
+A['print-one']=el=>{if(!isAdmin())return toast('Impression réservée à l’administrateur.','err');printHtml(bulletinHtml(curClass(),el.dataset.id,S.trim))};
 A.preview=el=>openPreview(el.dataset.id);
 A['prev-b']=el=>{if(el.dataset.id)openPreview(el.dataset.id)};
-A['print-results']=()=>printHtml(resultsSheet(curClass(),S.trim));
+A['print-results']=()=>{if(!isAdmin())return toast('Impression réservée à l’administrateur.','err');printHtml(resultsSheet(curClass(),S.trim))};
 A['export-csv']=()=>exportCsv(curClass(),S.trim);
 A['toggle-lock']=el=>{const cls=curClass(),t=+el.dataset.t;if(!cls)return;if(!confirm((cls.locks&&cls.locks[t]===false?'Débloquer':'Bloquer')+' la saisie des notes pour le '+TRN[t-1]+' trimestre ?'))return;if(!cls.locks)cls.locks={1:false,2:false,3:false};cls.locks[t]=!(cls.locks[t]!==false);dirty();render();toast('Saisie '+(cls.locks[t]!==false?'débloquée':'bloquée')+' pour le '+TRN[t-1]+' trimestre.','ok')};
 A['export-my-notes']=()=>{
