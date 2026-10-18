@@ -1,4 +1,4 @@
-# ☁️ Mise en production — Supabase
+# Mise en production — Supabase
 
 Guide complet pour brancher l'application sur une base partagée : **ce que saisit un professeur arrive immédiatement chez l'administrateur**.
 
@@ -28,7 +28,7 @@ La synchronisation Supabase corrige exactement ce point : une seule base, plusie
 Résultat attendu en bas de l'éditeur :
 
 ```
-Schéma e-school installé ✅   tables_creees: 9   fonctions_creees: 2
+Schéma e-school installé tables_creees: 9 fonctions_creees: 2
 ```
 
 > Le script est idempotent : vous pouvez le relancer sans perdre de données.
@@ -42,18 +42,18 @@ Menu **Project Settings → API** :
 | **Project URL** | ex. `https://abcdefgh.supabase.co` | champ « URL du projet » |
 | **anon public** | longue chaîne `eyJhbGciOi…` | champ « Clé anon public » |
 
-⚠️ Ne **jamais** utiliser la clé `service_role` dans l'application : elle contourne toute la sécurité.
+ Ne **jamais** utiliser la clé `service_role` dans l'application : elle contourne toute la sécurité.
 
 ## 4. Configurer l'application
 
 ### Sur le poste administrateur
 
 1. Se connecter en **admin**
-2. Menu **Paramètres** → panneau **☁️ Synchronisation Supabase**
+2. Menu **Paramètres** → panneau ** Synchronisation Supabase**
 3. Renseigner **URL** + **clé anon**
 4. Laisser le **code de l'école** se générer (ou le choisir, ex. `sch-ming-douala`)
 5. Cliquer **Enregistrer et connecter**
-   → l'application teste la connexion, puis **envoie automatiquement les données locales** (classes, élèves, notes, professeurs)
+ → l'application teste la connexion, puis **envoie automatiquement les données locales** (classes, élèves, notes, professeurs)
 6. Relever le **code de l'école** : il doit être identique partout
 
 ### Sur chaque poste professeur
@@ -70,10 +70,10 @@ Menu **Project Settings → API** :
 | Test | Attendu |
 |---|---|
 | Professeur saisit leçons prévues/faites | La barre passe au vert/orange/rouge chez lui |
-| Admin → 📚 Leçons | Même valeur, **sans recharger** (temps réel + rafraîchissement 20 s) |
+| Admin → Leçons | Même valeur, **sans recharger** (temps réel + rafraîchissement 20 s) |
 | Admin → Statistiques d'une classe | Progression par matière + TOTAL GÉNÉRAL à jour |
-| Badge en haut à droite | `☁️ En ligne` |
-| Coupure Internet | `☁️ Hors ligne`, la saisie continue et repart seule au retour |
+| Badge en haut à droite | ` En ligne` |
+| Coupure Internet | ` Hors ligne`, la saisie continue et repart seule au retour |
 
 ---
 
@@ -120,9 +120,9 @@ Pour aller plus loin (comptes nominatifs Supabase Auth + politiques par professe
 - **Automatiques** : Supabase → Database → Backups (quotidiennes sur les offres payantes)
 - **Manuelles** : Paramètres → *Exporter une sauvegarde complète* (fichier JSON)
 - **Export SQL** : SQL Editor →
-  ```sql
-  select jsonb_pretty(app_pull('VOTRE-CODE-ECOLE'));
-  ```
+ ```sql
+ select jsonb_pretty(app_pull('VOTRE-CODE-ECOLE'));
+ ```
 
 ---
 
@@ -146,14 +146,14 @@ Pour que chaque professeur ne puisse lire **que** ses propres matières au nivea
 1. Passer les comptes dans **Supabase Auth** (email = `identifiant@votre-ecole.local`)
 2. Ajouter une colonne `auth_id uuid` dans `app_users`
 3. Remplacer les politiques par :
-   ```sql
-   create policy prof_lecture on public.lessons for select to authenticated
-   using (exists (
-     select 1 from public.subjects s
-     join public.app_users u on u.id = s.teacher_id
-     where s.id = lessons.subject_id and u.auth_id = auth.uid()
-   ));
-   ```
+ ```sql
+ create policy prof_lecture on public.lessons for select to authenticated
+ using (exists (
+ select 1 from public.subjects s
+ join public.app_users u on u.id = s.teacher_id
+ where s.id = lessons.subject_id and u.auth_id = auth.uid()
+ ));
+ ```
 4. Même principe pour `grades`, puis laisser les politiques admin complètes.
 
 Le mode actuel (clé anon + code école) est le bon compromis pour démarrer rapidement sans casser l'existant.

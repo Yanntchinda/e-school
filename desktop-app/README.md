@@ -2,7 +2,7 @@
 
 Application desktop installable pour Windows, Mac et Linux, basée sur la version web du logiciel de gestion des notes et bulletins.
 
-## 🚀 Installation pour les utilisateurs finaux
+## Installation pour les utilisateurs finaux
 
 ### Windows
 Téléchargez le fichier `.exe` depuis le dossier `dist/installers/`, lancez-le et suivez l'assistant d'installation.
@@ -16,13 +16,13 @@ Téléchargez le fichier `.dmg`, ouvrez-le et glissez l'application dans votre d
 - Utilisez le fichier `.AppImage` : rendez-le exécutable et lancez-le (pas d'installation nécessaire)
 - Ou le paquet `.deb` pour Debian/Ubuntu : `sudo apt install ./e-school-bulletins.deb`
 
-## 💾 Données
+## Données
 Toutes les données (classes, élèves, notes) sont enregistrées **localement sur votre ordinateur** dans le dossier de l'application. Aucune connexion internet n'est nécessaire.
 
 ### Sauvegardes
 Utilisez le menu `Fichier > Exporter une sauvegarde` régulièrement pour conserver une copie de vos données sur une clé USB.
 
-## 🛠️ Pour compiler l'application depuis les sources
+## Pour compiler l'application depuis les sources
 
 ### Prérequis
 - Node.js 18+

@@ -1,4 +1,4 @@
-# 📦 Comment générer l'installateur Windows sur votre ordinateur
+# Comment générer l'installateur Windows sur votre ordinateur
 
 Le code est ENTIÈREMENT PRÊT. Vous n'avez qu'à lancer ces 3 commandes sur votre ordinateur pour générer le fichier .exe d'installation :
 
@@ -23,6 +23,6 @@ Lancez ce fichier .exe sur n'importe quel ordinateur Windows pour installer l'ap
 
 ---
 
-## ✅ Version PORTABLE SANS INSTALLATION DISPONIBLE
+## Version PORTABLE SANS INSTALLATION DISPONIBLE
 En attendant la compilation, vous pouvez utiliser la version portable : il suffit de double-cliquer sur `LANCER-E-SCHOOL.bat` dans le dossier `version-portable/`, l'application s'ouvre dans votre navigateur et fonctionne exactement comme l'application installée, sans rien installer.
 Toutes vos données sont sauvegardées localement dans le navigateur.
