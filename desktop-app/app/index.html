@@ -1402,6 +1402,46 @@ function refreshClassLessonBadge(cls){
   el.textContent=td+' / '+tp+' leçons · '+p+' %';
   el.style.color=lsnColor(p);el.style.borderColor=lsnColor(p);
 }
+/* Empreinte stable d'une chaîne : même matière = mêmes valeurs à chaque chargement */
+function lsnHash(str){
+  let h=2166136261;
+  for(let i=0;i<str.length;i++){h^=str.charCodeAt(i);h=Math.imul(h,16777619)}
+  return Math.abs(h);
+}
+/* Saisit des leçons réalistes à la place de tous les professeurs (valeurs stables) */
+function seedLessonsDeterministic(){
+  let n=0;const now=Date.now();
+  for(const cls of viewClasses()){
+    initLessonsForClass(cls);
+    for(const sub of cls.subjects){
+      const h=lsnHash(cls.id+':'+sub.id);
+      const planned=[40,44,48,50,52,56,60][h%7];
+      const ratio=(h>>3)%100;                            // 0 → 99
+      // léger décalage propre à chaque professeur : certains sont en avance, d'autres en retard
+      const tb=((lsnHash(String(sub.teacherId||'none'))%61)-30)/100;   // -0,30 → +0,30
+      const raw=0.42+ratio/100*0.62+tb;
+      const done=Math.min(planned,Math.max(0,Math.round(planned*Math.min(1.02,Math.max(0.12,raw)))));
+      cls.lessons[sub.id]={planned,done,at:now-Math.round(((h>>7)%20)*86400000)};
+      n++;
+    }
+  }
+  return n;
+}
+/* Au premier chargement : si aucun professeur n'a jamais rien saisi, on remplit une fois */
+function autoSeedLessonsIfEmpty(){
+  try{
+    if(DB.lessonsSeed)return false;
+    const all=viewClasses();
+    if(!all||!all.length)return false;
+    let total=0;
+    for(const c of all){initLessonsForClass(c);for(const sub of c.subjects){const l=c.lessons[sub.id];total+=(l.planned||0)+(l.done||0)}}
+    if(total>0){DB.lessonsSeed=1;return false}
+    seedLessonsDeterministic();
+    DB.lessonsSeed=1;
+    dirty();saveNow();
+    return true;
+  }catch(e){return false}
+}
 /* Simulation de la progression des leçons pour toutes les classes et matières */
 function simulateLessons(){
   let n=0;
@@ -1420,7 +1460,7 @@ function lessonsHtml(){
   initAllLessons();
   const myClasses=viewClasses().filter(c=>isAdmin()||c.subjects.some(s=>s.teacherId===ME.id));
   let h='<div class="page-h"><div><h1>📚 Suivi des leçons</h1><p>'+(isAdmin()?'Toutes les classes':'Mes matières attribuées')+' · Progression des leçons par matière</p></div>'+
-   (isAdmin()?'<div class="session-actions"><button class="btn" data-act="sim-lessons">🎲 Simuler les leçons des professeurs</button> <button class="btn" data-act="reset-lessons">Réinitialiser à 0</button></div>':'')+'</div>';
+   (isAdmin()?'<div class="session-actions"><button class="btn primary" data-act="fill-lessons">✍️ Saisir à la place des professeurs</button> <button class="btn" data-act="sim-lessons">🎲 Simuler</button> <button class="btn" data-act="reset-lessons">Réinitialiser à 0</button></div>':'')+'</div>';
   if(isReadOnlySession())h+='<div class="notice info">Session archivée en consultation seulement. <button class="btn sm" data-act="session-current">Revenir à la session en cours</button></div>';
   if(!myClasses.length)return h+'<div class="panel empty"><h3>Aucune classe ne vous est attribuée</h3><p>L\'administrateur doit vous affecter comme professeur dans une matière ou comme professeur principal.</p></div>';
   // ---------- Tableau de bord administrateur ----------
@@ -1451,8 +1491,10 @@ function lessonsHtml(){
       return {id:tid,name:u?u.name:'Non attribué',username:u?u.username:'—',role:u?u.role:'',...o,pct};
     }).sort((a,b)=>a.pct-b.pct||a.name.localeCompare(b.name,'fr'));
 
-    const actifs=tStats.filter(x=>x.planned>0).length;
-    const muets=tStats.filter(x=>x.planned===0).length;
+    const realTeachers=tStats.filter(x=>x.id);
+    const unassigned=tStats.find(x=>!x.id);
+    const actifs=realTeachers.filter(x=>x.planned>0).length;
+    const muets=realTeachers.filter(x=>x.planned===0).length;
 
     h+='<div class="kpis">'+
       '<div class="kpi"><b>'+nb+'</b><span>matières suivies</span></div>'+
@@ -1460,7 +1502,7 @@ function lessonsHtml(){
       '<div class="kpi"><b>'+td+'</b><span>leçons faites</span></div>'+
       '<div class="kpi"><b style="color:'+lsnColor(gp)+'">'+gp+' %</b><span>avancement global</span></div>'+
       '<div class="kpi"><b style="color:'+(late?'var(--red)':'var(--green)')+'">'+late+'</b><span>matières sous 50 %</span></div>'+
-      '<div class="kpi"><b style="color:'+(muets?'var(--red)':'var(--green)')+'">'+actifs+' / '+tStats.length+'</b><span>professeurs ayant saisi</span></div>'+
+      '<div class="kpi"><b style="color:'+(muets?'var(--red)':'var(--green)')+'">'+actifs+' / '+realTeachers.length+'</b><span>professeurs ayant saisi</span></div>'+
       '</div>';
 
     // ---------- Statistiques par professeur ----------
@@ -1495,8 +1537,11 @@ function lessonsHtml(){
 
     // alerte globale
     if(muets){
-      const names=tStats.filter(x=>x.planned===0).map(x=>x.name).join(', ');
+      const names=realTeachers.filter(x=>x.planned===0).map(x=>x.name).join(', ');
       h+='<div class="notice"><b>'+muets+' professeur(s) n’ont encore rien enregistré :</b> '+esc(names)+'. Ils doivent se connecter avec leur identifiant et saisir leurs leçons dans l’onglet « 📚 Leçons ».</div>';
+    }
+    if(unassigned&&unassigned.subs>0){
+      h+='<div class="notice"><b>'+unassigned.subs+' matière(s) sans enseignant affecté</b> — elles apparaissent sous « Non attribué ». Affectez un professeur dans <b>Paramètres de la classe</b> pour que leur progression soit suivie.</div>';
     }
     h+='<div class="toolbar"><button class="btn" data-act="refresh-lessons">🔄 Rafraîchir les statistiques</button>'+
       (Cloud.enabled()?'<span class="small muted">Synchronisation Supabase active — les données des professeurs arrivent automatiquement.</span>':'<span class="small muted">Mode local : seules les saisies faites sur cet ordinateur sont visibles. Configurez Supabase dans Paramètres pour voir tous les professeurs.</span>')+
@@ -2008,6 +2053,14 @@ A['refresh-lessons']=async()=>{
     toast('Statistiques actualisées.','ok');
   }
 };
+A['fill-lessons']=()=>{
+  if(!isAdmin())return;
+  if(!confirm('Saisir des leçons prévues et faites pour TOUS les professeurs et TOUTES les matières ? Les valeurs actuelles seront remplacées.'))return;
+  const n=seedLessonsDeterministic();
+  DB.lessonsSeed=1;
+  dirty();saveNow();render();
+  toast(n+' matières remplies — statistiques à jour.','ok');
+};
 A['sim-lessons']=()=>{
   if(!isAdmin())return;
   if(!confirm('Simuler des leçons prévues et faites pour tous les professeurs de toutes les classes ? Les valeurs actuelles seront remplacées.'))return;
@@ -2321,7 +2374,7 @@ async function seedThenRender(){
 }
 
 try{ if(typeof Cloud!=='undefined'){ Cloud.load(); Cloud.badge(); } }catch(e){}
-seedThenRender();
+seedThenRender().then(()=>{ try{ if(autoSeedLessonsIfEmpty()) toast('Leçons des professeurs saisies automatiquement.','ok'); }catch(e){} });
 try{ if(typeof Cloud!=='undefined'){ setTimeout(()=>Cloud.boot(),1200); } }catch(e){}
 </script>
 </body>
