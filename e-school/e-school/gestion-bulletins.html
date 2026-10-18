@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Gestion des bulletins</title>
+<title>Ming's Bilingual Institute</title>
 <style>
 :root{
   --ink:#12263f; --ink-2:#34495e; --muted:#6b7a8c; --line:#d9e0e8; --line-2:#eaeef3;
@@ -263,14 +263,20 @@ td.sumc{font-weight:700;min-width:64px;padding:0 8px;background:#fcfcf6}
 .sheet .k{display:flex;flex-wrap:wrap;gap:3mm 8mm;margin-bottom:5mm}
 
 @media print{
-  @page{size:A4;margin:9mm}
+  /* Marges de page à 0 : le navigateur n'a plus de place pour imprimer
+     son en-tête (titre de la page) et son pied de page (adresse https).
+     Les marges visibles du bulletin sont recréées par le padding ci-dessous. */
+  @page{size:A4;margin:0}
   html,body{background:#fff!important;height:auto}
   body.printing>*:not(#printRoot){display:none!important}
   body.printing #printRoot{display:block}
-  #printRoot .bulletin{margin:0 auto;box-shadow:none;break-after:page;page-break-after:always}
+  #printRoot .bulletin{margin:0 auto;box-shadow:none;box-sizing:content-box;
+    width:190mm;max-width:190mm;padding:9mm;background:#fff;
+    break-after:page;page-break-after:always}
   #printRoot .bulletin:last-child{break-after:auto;page-break-after:auto}
-  #printRoot .sheet{break-after:page}
-  #printRoot .sheet:last-child{break-after:auto}
+  #printRoot .sheet{box-sizing:content-box;width:190mm;max-width:190mm;padding:9mm;
+    margin:0 auto;break-after:page;page-break-after:always}
+  #printRoot .sheet:last-child{break-after:auto;page-break-after:auto}
   body.no-print>*{display:none!important}
   body.no-print::after{content:'';display:block!important;height:60mm}
   body.no-print::before{content:'Impression réservée à l’administrateur.';display:block!important;font-size:16pt;text-align:center;padding:40mm 20mm 0;font-family:Arial,sans-serif}
@@ -570,7 +576,7 @@ function download(name,text,mime){const a=document.createElement('a');a.href=URL
 function fitBulletinsOnePage(){
   const root=$('#printRoot');
   if(!root||!root.children.length)return;
-  const availPx=(297-18)*3.7795275591;   // A4 297 mm moins 2 x 9 mm de marge (@page margin:9mm)
+  const availPx=(297-18-3)*3.7795275591;   // A4 297 mm - 2 x 9 mm de marge - 3 mm de sécurité
   const prev=root.getAttribute('style')||'';
   root.style.cssText='display:block!important;position:fixed;left:-20000px;top:0;width:auto;visibility:hidden;z-index:-1';
   $$('#printRoot .bulletin').forEach(b=>{
