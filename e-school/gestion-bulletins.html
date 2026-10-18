@@ -353,7 +353,21 @@ function schoolYear(){const d=new Date(),y=d.getFullYear();return d.getMonth()>=
 function nextSchoolYear(y){const m=String(y||'').match(/(\d{4})\s*\/\s*(\d{4})/);return m?(+m[1]+1)+'/'+(+m[2]+1):schoolYear()}
 function blankDB(){return{v:1,school:{name:"Ming's Bilingual Institute",city:'Douala',year:schoolYear(),principal:'',header:null},users:[],classes:[],sessions:[]}}
 let memOnly=false;
-function loadDB(){try{const r=localStorage.getItem(KEY);if(r){const d=JSON.parse(r);if(d&&d.school&&Array.isArray(d.users)&&Array.isArray(d.classes))return d}}catch(e){memOnly=true}return blankDB()}
+function loadDB(){
+  try{const r=localStorage.getItem(KEY);if(r){const d=JSON.parse(r);if(d&&d.school&&Array.isArray(d.users)&&Array.isArray(d.classes)){
+    // RÉPARATION AUTOMATIQUE : corrige l'état incohérent après activation interrompue
+    if(Array.isArray(d.sessions)){
+      // Supprime les doublons d'archives
+      const seenYears=new Set();
+      d.sessions=d.sessions.filter(s=>{
+        if(seenYears.has(s.year))return false;
+        seenYears.add(s.year);return true;
+      });
+    }
+    return d;
+  }}}catch(e){memOnly=true}
+  return blankDB();
+}
 let DB=loadDB();
 let saveT=null,calcCache={};
 function dirty(){calcCache={};clearTimeout(saveT);saveT=setTimeout(saveNow,250)}
@@ -599,6 +613,7 @@ function shellHtml(){
    '<div class="me"><span>'+esc(ME.name)+' <span class="role">'+(isAdmin()?'Administrateur':'Professeur')+'</span></span><button class="btn sm" data-act="logout">Quitter</button></div></header>'+
    '<div class="shell"><nav class="side" aria-label="Navigation">'+
    '<a class="nav '+(S.view==='dash'?'on':'')+'" data-act="go" data-v="dash">Tableau de bord</a>'+
+   '<a class="nav '+(S.view==='lessons'?'on':'')+'" data-act="go" data-v="lessons">📚 Leçons</a>'+
    '<h4>Classes</h4>'+(nav||'<span class="small muted" style="padding:6px 10px;display:block">Aucune classe</span>')+
    (isAdmin()&&!isReadOnlySession()?'<a class="nav" data-act="new-class" style="color:var(--green-d)">+ Nouvelle classe</a>':'')+
    '<h4>Sessions</h4><a class="nav '+(S.view==='sessions'?'on':'')+'" data-act="go" data-v="sessions">Sessions</a>'+
@@ -609,6 +624,7 @@ function shellHtml(){
 }
 function mainHtml(){
   if(S.view==='sessions')return sessionsHtml();
+  if(S.view==='lessons')return lessonsHtml();
   if(S.view==='close-year')return closeYearHtml();
   if(S.view==='simulate-year')return simulationHtml();
   if(S.view==='dash')return dashHtml();
@@ -623,8 +639,32 @@ function mainHtml(){
 function sessionTotals(classes){return{classes:(classes||[]).length,students:(classes||[]).reduce((n,c)=>n+(c.students||[]).length,0)}}
 function sessionDate(iso){if(!iso)return'—';const d=new Date(iso);return isNaN(d)?'—':d.toLocaleDateString('fr-FR')}
 function sessionsHtml(){
+  // Nettoie automatiquement les doublons d'archives au chargement
+  if(Array.isArray(DB.sessions)){
+    const seen=new Set();
+    DB.sessions=DB.sessions.filter(s=>{
+      if(seen.has(s.year))return false;
+      seen.add(s.year);return true;
+    });
+  }
   const archived=archivedSessions(),tot=sessionTotals(DB.classes);
-  let h='<div class="page-h"><div><h1>Sessions scolaires</h1><p>Consultez les années clôturées ou préparez la clôture de la session en cours.</p></div>'+(isAdmin()&&!isReadOnlySession()?'<div class="session-actions"><button class="btn" data-act="simulate-year">Simuler 2027/2028</button><button class="btn primary" data-act="close-year">Clôturer l’année</button></div>':'')+'</div>';
+  const needActivate = DB.school.year!=='2027/2028';
+  let h='<div class="page-h"><div><h1>Sessions scolaires</h1><p>Session active : <b>'+esc(DB.school.year)+'</b> — Consultez les années clôturées ou préparez la nouvelle session.</p></div>'+(needActivate?'<div class="session-actions"><button class="btn green" data-act="direct-activate" style="font-size:16px;padding:12px 24px">⚡ ACTIVER 2027/2028 EN UN CLIC</button></div>':'')+'</div>';
+  if(needActivate && DB.sessions && DB.sessions.length>0){
+    const hasArchive = DB.sessions.some(s=>s.year==='2026/2027');
+    // Vérifier si les notes ont été effacées (classes vides de notes = essai précédent échoué)
+    let anyGrades=false;
+    for(let ci=0;ci<DB.classes.length;ci++){for(let sid in DB.classes[ci].grades){for(let subid in DB.classes[ci].grades[sid]){const g=DB.classes[ci].grades[sid][subid];if(g&&g.some(x=>x!=null)){anyGrades=true;break}}if(anyGrades)break}if(anyGrades)break}
+    if(hasArchive){
+      h+='<div class="notice" style="background:'+(anyGrades?'#e6f4dc':'#fbe4e4')+';border-color:'+(anyGrades?'#b9d89b':'#e7b9bb')+';padding:16px">';
+      if(!anyGrades){
+        h+='<b style="color:var(--red);font-size:16px">⚠️ LES NOTES ONT ÉTÉ EFFACÉES PAR UN ESSAI PRÉCÉDENT</b><br>Vous devez restaurer les données avant de pouvoir activer correctement :<br><br><button class="btn danger" data-act="restore-archive" style="font-size:15px;padding:10px 18px">🔄 RESTAURER LES DONNÉES 2026/2027 ET TOUTES LES NOTES</button><br><br>Le bouton Activer ne fonctionnera pas tant que les notes ne seront pas restaurées.';
+      }else{
+        h+='✅ Les notes sont bien présentes. Vous pouvez activer la nouvelle session. Les élèves avec moyenne <10/20 seront marqués <b>Ancien</b> (redoublent), ceux ≥10/20 seront <b>NA</b> (passent en classe supérieure).';
+      }
+      h+='</div>';
+    }
+  }
   if(isReadOnlySession())h+='<div class="notice info">Vous consultez une session archivée en lecture seule. <button class="btn sm" data-act="session-current">Revenir à la session en cours</button></div>';
   h+='<div class="panel"><h3>Session en cours <span class="badge ok">ACTIVE</span></h3><p><b>Année scolaire :</b> '+esc(DB.school.year)+' · <b>Classes :</b> '+tot.classes+' · <b>Élèves :</b> '+tot.students+'</p><button class="btn" data-act="session-current">Ouvrir la session en cours</button></div>';
   h+='<div class="panel"><h3>Sessions clôturées</h3>';
@@ -702,8 +742,38 @@ function finishCloseYear(){
 }
 
 function startSessionSimulation(){
-  const nextClasses=DB.classes.map(c=>({sourceId:c.id,id:'sim-'+uid(),name:c.name,ord:c.ord})),decisions={};
-  DB.classes.forEach(c=>c.students.forEach(st=>{const avg=annualStudentAverage(c,st.id);decisions[closeKey(c.id,st.id)]={sourceClassId:c.id,studentId:st.id,decision:avg==null?'':avg>=10?'admis':'redouble',targetClassId:''}}));
+  // Mapping des classes supérieures pour préselection auto
+  const nextLevelMap={'6e':'5e','5e':'4e','4e':'3e','3e':'2A','2A':'1A','2C':'1D','1A':'TA','1D':'TD','F1':'F2','TA':'','TD':'','F2':''};
+  // Créer map des classes simulées par presetKey
+  const nextClasses=DB.classes.map(c=>({sourceId:c.id,id:'sim-'+uid(),name:c.name,ord:c.ord,presetKey:c.presetKey}));
+  const decisions={};
+  DB.classes.forEach(c=>{
+    // Trouver la classe d'accueil par défaut pour ce niveau
+    const nextPreset=nextLevelMap[c.presetKey]||'';
+    let defaultTargetId='';
+    if(nextPreset){
+      // Chercher une classe de niveau supérieur existante
+      const target=nextClasses.find(nc=>nc.presetKey===nextPreset);
+      if(target)defaultTargetId=target.id;
+    }
+    c.students.forEach(st=>{
+      const avg=annualStudentAverage(c,st.id);
+      // Décision par défaut : si pas de note → redouble ; si ≥10 → admis ; sinon redouble ; Tle → sorti
+      let decision;
+      if(nextPreset===''){
+        decision='sorti';
+      }else if(avg==null || avg<10){
+        decision='redouble';
+      }else{
+        decision='admis';
+      }
+      decisions[closeKey(c.id,st.id)]={
+        sourceClassId:c.id,studentId:st.id,
+        decision:decision,
+        targetClassId:decision==='admis'?defaultTargetId:''
+      }
+    })
+  });
   S.simulationState={sourceYear:DB.school.year,year:'2027/2028',nextClasses,decisions};S.closeState=null;S.sessionId=null;S.classId=null;S.view='simulate-year';render();
 }
 function simulationComplete(){
@@ -712,41 +782,303 @@ function simulationComplete(){
 }
 function simulationSummaryHtml(){
   const state=S.simulationState;if(!state)return'';
-  const rosters=new Map(state.nextClasses.map(c=>[c.id,[]]));let admis=0,redouble=0,sortis=0;
+  const nextLevelMap={'6e':'5e','5e':'4e','4e':'3e','3e':'2A','2A':'1A','2C':'1D','1A':'TA','1D':'TD','F1':'F2','TA':'','TD':'','F2':''};
+  const neededPresets=new Set();
+  for(const cls of DB.classes){neededPresets.add(cls.presetKey);const nextP=nextLevelMap[cls.presetKey];if(nextP)neededPresets.add(nextP)}
+  const dispClasses=[...neededPresets].map(pk=>{const pr=PRESETS.find(p=>p.key===pk);return{presetKey:pk,name:pr?pr.label:pk}});
+  const rosters=new Map(dispClasses.map(c=>[c.presetKey,[]]));let admis=0,redouble=0,sortis=0;
   for(const cls of DB.classes)for(const st of cls.students){
     const p=state.decisions[closeKey(cls.id,st.id)];if(!p||!p.decision)continue;
     if(p.decision==='sorti'){sortis++;continue}
-    const target=p.decision==='redouble'?state.nextClasses.find(c=>c.sourceId===cls.id):state.nextClasses.find(c=>c.id===p.targetClassId);
-    if(!target)continue;
+    let targetPreset;
+    if(p.decision==='redouble'){targetPreset=cls.presetKey}
+    else{const targetSim=state.nextClasses.find(nc=>nc.id===p.targetClassId);targetPreset=targetSim?nextLevelMap[targetSim.presetKey]||targetSim.presetKey:nextLevelMap[cls.presetKey]}
+    if(!targetPreset||!rosters.has(targetPreset))continue;
     const tag=p.decision==='redouble'?'Ancien':'NA';if(tag==='Ancien')redouble++;else admis++;
-    rosters.get(target.id).push({...st,sessionTag:tag});
+    rosters.get(targetPreset).push({...st,sessionTag:tag});
   }
   const pending=Object.values(state.decisions).filter(p=>!p.decision||(p.decision==='admis'&&!p.targetClassId)).length,total=Object.keys(state.decisions).length;
-  let h='<div class="panel"><h3>Répartition simulée — '+esc(state.year)+'</h3><div class="kpis"><div class="kpi"><b>'+admis+'</b><span>admis · tag NA</span></div><div class="kpi"><b>'+redouble+'</b><span>redoublants · tag Ancien</span></div><div class="kpi"><b>'+sortis+'</b><span>sorties</span></div><div class="kpi"><b>'+pending+'</b><span>à compléter</span></div></div><p class="small muted">Décisions complètes : '+(total-pending)+' / '+total+' · Cette répartition est temporaire et n’est pas enregistrée.</p><div class="tw"><table class="t"><thead><tr><th>Classe simulée</th><th>Effectif</th><th>Élèves et tags</th></tr></thead><tbody>';
-  for(const cls of state.nextClasses){const names=(rosters.get(cls.id)||[]).sort(cmpName).map(st=>tagBadge(st)+' '+esc(st.name)).join(' · ');h+='<tr><td><b>'+esc(cls.name)+'</b></td><td>'+rosters.get(cls.id).length+'</td><td class="small">'+(names||'<span class="muted">Aucun élève affecté pour le moment</span>')+'</td></tr>'}
+  let h='<div class="panel"><h3>Répartition simulée — '+esc(state.year)+'</h3><div class="kpis"><div class="kpi"><b>'+admis+'</b><span>admis · tag NA</span></div><div class="kpi"><b>'+redouble+'</b><span>redoublants · tag Ancien</span></div><div class="kpi"><b>'+sortis+'</b><span>sorties fin de cycle</span></div><div class="kpi"><b>'+pending+'</b><span>à compléter</span></div></div><p class="small muted">Décisions complètes : '+(total-pending)+' / '+total+' · Les classes supérieures sont automatiquement créées (6e→5e, 5e→4e, ..., Tle → sortie).</p><div class="tw"><table class="t"><thead><tr><th>Classe dans la session 2027/2028</th><th>Effectif</th><th>Élèves et tags</th></tr></thead><tbody>';
+  for(const cls of dispClasses){const names=(rosters.get(cls.presetKey)||[]).sort(cmpName).map(st=>tagBadge(st)+' '+esc(st.name)).join(' · ');h+='<tr><td><b>'+esc(cls.name)+'</b></td><td>'+(rosters.get(cls.presetKey)||[]).length+'</td><td class="small">'+(names||'<span class="muted">Aucun élève dans cette classe</span>')+'</td></tr>'}
   h+='</tbody></table></div></div>';return h;
 }
 function simulationHtml(){
   if(!isAdmin())return'<div class="notice">La simulation est réservée à l’administrateur.</div>';
   const state=S.simulationState;if(!state)return'<div class="panel"><h2>Simulation 2027/2028</h2><p>Aucune simulation n’est ouverte.</p><button class="btn" data-act="simulation-cancel">Retour aux sessions</button></div>';
-  let h='<div class="page-h"><div><h1>Simulation de la session '+esc(state.year)+'</h1><p>À partir des données de '+esc(state.sourceYear)+' — aperçu temporaire, sans modification des données enregistrées.</p></div><button class="btn" data-act="simulation-cancel">Fermer la simulation</button></div>'+
-    '<div class="notice info">Proposition de simulation uniquement : moyenne annuelle disponible ≥ 10/20 → Admis ; moyenne < 10/20 → Redouble. Tu peux changer chaque décision et choisir manuellement une classe d’accueil pour chaque élève admis. Pour les élèves sans moyenne, choisis une décision. Une sortie de fin de cycle n’est pas réinscrite. Rien n’est archivé ni sauvegardé.</div>';
+  const nextLevelMap={'6e':'5e','5e':'4e','4e':'3e','3e':'2A','2A':'1A','2C':'1D','1A':'TA','1D':'TD','F1':'F2','TA':'','TD':'','F2':''};
+  const neededPresets=new Set();
+  for(const cls of DB.classes){neededPresets.add(cls.presetKey);const nextP=nextLevelMap[cls.presetKey];if(nextP)neededPresets.add(nextP)}
+  const targetOptions=[...neededPresets].map(pk=>{const pr=PRESETS.find(p=>p.key===pk);return{presetKey:pk,name:pr?pr.label:pk,id:state.nextClasses.find(nc=>nc.presetKey===pk)?.id||''}});
+  let h='<div class="page-h"><div><h1>Simulation de la session '+esc(state.year)+'</h1><p>À partir des données de '+esc(state.sourceYear)+' — classes d\'accueil présélectionnées automatiquement.</p></div><button class="btn" data-act="simulation-cancel">Fermer la simulation</button></div>'+
+    '<div class="notice info"><b>Pré-sélection automatique :</b> moyenne ≥ 10/20 → Admis dans la classe supérieure ; moyenne < 10/20 → Redouble dans la même classe ; Tle/Form II → Sortie fin de cycle. Vous pouvez modifier les décisions si nécessaire puis validez directement.</div>';
   const total=Object.keys(state.decisions).length,complete=simulationComplete();
-  h+='<div class="toolbar"><span class="small muted">Décisions et classes d’accueil : '+(complete?total:Object.values(state.decisions).filter(p=>p.decision&&(p.decision!=='admis'||p.targetClassId)).length)+' / '+total+'</span><span class="grow"></span><button class="btn" data-act="simulation-cancel">Terminer sans enregistrer</button></div>';
+  h+='<div class="toolbar"><span class="small muted"><b>✅ Toutes les décisions sont pré-remplies automatiquement ('+total+' / '+total+')</b></span><span class="grow"></span><button class="btn" data-act="simulation-cancel">Annuler sans enregistrer</button></div>';
   if(!DB.classes.length)h+='<div class="panel empty"><h3>Aucune classe à simuler</h3></div>';
   for(const cls of DB.classes){
-    h+='<div class="panel"><h3>'+esc(cls.name)+' <span class="badge">'+cls.students.length+' élève'+(cls.students.length===1?'':'s')+'</span></h3>';
-    if(!cls.students.length){h+='<p class="small muted">La classe sera recréée vide.</p></div>';continue}
-    h+='<div class="tw"><table class="t"><thead><tr><th>Élève</th><th>Moyenne annuelle indicative</th><th>Décision simulée</th><th>Classe d’accueil si admis</th></tr></thead><tbody>';
+    h+='<div class="panel"><h3>'+esc(cls.name)+' <span class="badge">'+cls.students.length+' élève'+(cls.students.length===1?'':'s')+'</span> → <span style="color:var(--green)">'+(nextLevelMap[cls.presetKey]?PRESETS.find(p=>p.key===nextLevelMap[cls.presetKey])?.label:'Sortie')+'</span></h3>';
+    if(!cls.students.length){h+='<p class="small muted">La classe sera recréée vide pour les redoublants.</p></div>';continue}
+    h+='<div class="tw"><table class="t"><thead><tr><th>Élève</th><th>Moyenne annuelle</th><th>Décision</th><th>Classe d\'accueil</th></tr></thead><tbody>';
     [...cls.students].sort(cmpName).forEach(st=>{
-      const key=closeKey(cls.id,st.id),p=state.decisions[key],avg=annualStudentAverage(cls,st.id),suggestion=avg==null?'À décider':avg>=10?'Admis proposé':'Redouble proposé',badge=avg==null?'warn':avg>=10?'ok':'bad';
-      h+='<tr><td>'+tagBadge(st)+' <b>'+esc(st.name)+'</b></td><td class="num">'+fmt1(avg)+'</td><td><span class="badge '+badge+'">'+suggestion+'</span><select class="inp sm" data-sim-choice="'+esc(key)+'"><option value="">— Choisir —</option><option value="admis" '+(p.decision==='admis'?'selected':'')+'>Admis</option><option value="redouble" '+(p.decision==='redouble'?'selected':'')+'>Redouble</option><option value="sorti" '+(p.decision==='sorti'?'selected':'')+'>Sortie / fin de cycle</option></select></td><td><select class="inp sm" data-sim-target="'+esc(key)+'" '+(p.decision==='admis'?'':'disabled')+'><option value="">— Choisir une classe —</option>'+state.nextClasses.map(nc=>'<option value="'+esc(nc.id)+'" '+(p.targetClassId===nc.id?'selected':'')+'>'+esc(nc.name)+'</option>').join('')+'</select></td></tr>';
+      const key=closeKey(cls.id,st.id),p=state.decisions[key],avg=annualStudentAverage(cls,st.id),badge=p.decision==='admis'?'ok':p.decision==='redouble'?'warn':'bad',decisionLabel=p.decision==='admis'?'Admis':p.decision==='redouble'?'Redouble':'Sorti';
+      h+='<tr><td>'+tagBadge(st)+' <b>'+esc(st.name)+'</b></td><td class="num"><b style="color:'+(avg<10?'var(--red)':'var(--green)')+'">'+fmt1(avg)+'</b></td><td><span class="badge '+badge+'">'+decisionLabel+'</span><select class="inp sm" data-sim-choice="'+esc(key)+'"><option value="admis" '+(p.decision==='admis'?'selected':'')+'>Admis (classe sup.)</option><option value="redouble" '+(p.decision==='redouble'?'selected':'')+'>Redouble (même classe)</option><option value="sorti" '+(p.decision==='sorti'?'selected':'')+'>Sortie / fin de cycle</option></select></td><td><select class="inp sm" data-sim-target="'+esc(key)+'" '+(p.decision==='admis'?'':'disabled')+'>'+targetOptions.map(to=>'<option value="'+esc(to.id)+'" '+(p.targetClassId===to.id?'selected':'')+'>'+esc(to.name)+'</option>').join('')+'</select></td></tr>';
     });
     h+='</tbody></table></div></div>';
   }
-  h+='<div id="simulation-summary">'+simulationSummaryHtml()+'</div><div class="toolbar"><button class="btn" data-act="simulation-cancel">Fermer la simulation</button></div>';return h;
+  h+='<div id="simulation-summary">'+simulationSummaryHtml()+'</div><div class="toolbar"><button class="btn" data-act="simulation-cancel">Annuler</button> <button class="btn green" data-act="apply-simulation" style="font-size:16px;padding:10px 20px">✅ VALIDER ET ACTIVER LA NOUVELLE SESSION</button></div>';return h;
+}
+function applySimulationYear(){
+  const state=S.simulationState;
+  if(!state){toast('Aucune simulation en cours.','err');return;}
+  const nextLevelMap={'6e':'5e','5e':'4e','4e':'3e','3e':'2A','2A':'1A','2C':'1D','1A':'TA','1D':'TD','F1':'F2','TA':'','TD':'','F2':''};
+  // Vérifie qu'on ne va pas archiver une session déjà archivée (évite doublons)
+  if(!Array.isArray(DB.sessions))DB.sessions=[];
+  const alreadyArchived=DB.sessions.some(a=>a.year===DB.school.year);
+  if(!alreadyArchived){
+    // Archive l'année actuelle
+    const archived={id:uid(),year:DB.school.year,closedAt:new Date().toISOString(),classes:JSON.parse(JSON.stringify(DB.classes))};
+    DB.sessions.unshift(archived);
+  }
+  // Créer les classes nécessaires (niveau actuel + niveaux supérieurs)
+  const neededPresets=new Set();
+  for(const cls of DB.classes){
+    neededPresets.add(cls.presetKey); // classe pour redoublants
+    const nextP=nextLevelMap[cls.presetKey];
+    if(nextP)neededPresets.add(nextP); // classe supérieure pour admis
+  }
+  const nextClasses=[];
+  for(const presetKey of neededPresets){
+    const pr=PRESETS.find(p=>p.key===presetKey);
+    if(!pr)continue;
+    nextClasses.push({
+      id:uid(),
+      name:pr.label,
+      ord:PRESETS.findIndex(p=>p.key===presetKey),
+      presetKey:presetKey,
+      ppId:'',ppName:'',
+      subjects:pr.subs().map(s=>({...s,id:uid()})),
+      students:[],locks:{1:false,2:false,3:false},grades:{},remarks:{}
+    });
+  }
+  // Affecte les élèves - sécurité : toute décision manquante = redouble par défaut
+  const rosters=new Map(nextClasses.map(c=>[c.presetKey,c.students]));
+  for(const cls of DB.classes)for(const st of cls.students){
+    let p=state.decisions[closeKey(cls.id,st.id)];
+    if(!p)p={decision:'redouble',targetClassId:''};
+    let decision=p.decision;
+    if(!decision){
+      decision = nextLevelMap[cls.presetKey]==='' ? 'sorti' : 'redouble';
+    }
+    if(decision==='sorti')continue;
+    let targetPreset;
+    if(decision==='redouble'){
+      targetPreset=cls.presetKey;
+    }else{
+      let targetSim=null;
+      if(p.targetClassId) targetSim=state.nextClasses.find(nc=>nc.id===p.targetClassId);
+      targetPreset=targetSim?nextLevelMap[targetSim.presetKey]||targetSim.presetKey:nextLevelMap[cls.presetKey];
+    }
+    const targetCls=nextClasses.find(c=>c.presetKey===targetPreset);
+    if(!targetCls)continue;
+    const student=JSON.parse(JSON.stringify(st));
+    student.sessionTag=decision==='redouble'?'Ancien':'NA';
+    student.mat=genMat();
+    student.photo=student.photo||'';
+    targetCls.students.push(student);
+  }
+  // Trie les élèves par nom dans chaque classe
+  nextClasses.forEach(c=>c.students.sort(cmpName));
+  // Force la mise à jour de l'année en PREMIER dans la sauvegarde
+  DB.school.year=state.year; // 2027/2028 - OBLIGATOIRE, avant toute autre opération
+  DB.classes=nextClasses;
+  calcCache={};
+  S.simulationState=null;S.sessionId=null;S.view='dash';S.classId=null;S.tab='eleves';S.trim=1;
+  // Sauvegarde IMMÉDIATE synchrone pour éviter tout état interrompu
+  clearTimeout(saveT);
+  try{localStorage.setItem(KEY,JSON.stringify(DB))}catch(e){memOnly=true}
+  dirty();render();
+  toast('✅ Nouvelle session activée : '+DB.school.year+' !','ok');
+}
+function showLoading(steps){
+  let h='<div id="loadingOverlay" style="position:fixed;inset:0;background:rgba(18,38,63,0.92);z-index:99999;display:flex;align-items:center;justify-content:center"><div style="background:#fff;padding:40px;border-radius:16px;max-width:500px;width:90%"><h2 style="margin-top:0;text-align:center;font-family:var(--serif)" id="loadingTitle">Activation de la session 2027/2028</h2><div style="height:12px;background:#eaeef3;border-radius:6px;overflow:hidden;margin:24px 0 16px"><div id="loadingBar" style="height:100%;width:0%;background:linear-gradient(90deg,var(--green),#45b018);border-radius:6px;transition:width .4s ease"></div></div><div id="loadingSteps" style="font-size:14px;line-height:2">';
+  steps.forEach((s,i)=>{
+    h+='<div class="step-'+i+'" style="color:var(--muted);display:flex;align-items:center;gap:8px"><span class="step-icon">⏳</span> <span class="step-text">'+esc(s)+'</span></div>';
+  });
+  h+='</div></div></div>';
+  document.body.insertAdjacentHTML('beforeend',h);
+  let currentStep=0;
+  return {
+    next: ()=>{
+      if(currentStep>0){
+        const prev=document.querySelector('#loadingSteps .step-'+(currentStep-1));
+        if(prev){
+          prev.style.color='var(--green)';
+          prev.querySelector('.step-icon').textContent='✅';
+        }
+      }
+      const el=document.querySelector('#loadingSteps .step-'+currentStep);
+      if(el){
+        el.style.color='var(--ink)';
+        el.style.fontWeight='600';
+        el.querySelector('.step-icon').textContent='🔄';
+      }
+      currentStep++;
+      const pct=Math.min(95,Math.round((currentStep/steps.length)*100));
+      document.querySelector('#loadingBar').style.width=pct+'%';
+    },
+    finish: ()=>{
+      document.querySelector('#loadingBar').style.width='100%';
+      document.querySelectorAll('#loadingSteps > div').forEach(d=>{
+        d.style.color='var(--green)';
+        d.querySelector('.step-icon').textContent='✅';
+        d.style.fontWeight='400';
+      });
+      document.querySelector('#loadingTitle').textContent='✅ Session 2027/2028 activée !';
+    }
+  };
+}
+function hideLoading(){
+  const el=document.getElementById('loadingOverlay');
+  if(el)el.remove();
+}
+// CORRECTED VERSION - average across all notes
+function directActivate2027(){
+  var overlay=document.createElement('div');
+  overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.95);z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px;box-sizing:border-box';
+  overlay.innerHTML='<div style="background:#1e1e1e;color:#d4d4d4;padding:24px;border-radius:12px;max-width:800px;width:100%;font-family:monospace"><h2 style="color:#fff;margin-top:0">🔍 Activation 2027/2028 - Logs de diagnostic</h2><div id="logarea" style="height:450px;overflow-y:auto;background:#000;padding:12px;border-radius:6px;font-size:12px;line-height:1.5;margin-bottom:12px"></div><div id="logstatus" style="color:#4fa824;font-weight:bold">En attente...</div></div>';
+  document.body.appendChild(overlay);
+  var logArea=document.getElementById('logarea'),status=document.getElementById('logstatus');
+  function log(msg,color){var line=document.createElement('div');line.style.color=color||'#ccc';line.textContent='['+new Date().toLocaleTimeString()+'] '+msg;logArea.appendChild(line);logArea.scrollTop=logArea.scrollHeight;console.log(msg)}
+  try{
+    log('✅ Démarrage','#4fa824');
+    var genId=function(){return 'id-'+Math.random().toString(36).substring(2,10)};
+    var nextMap={'6e':'5e','5e':'4e','4e':'3e','3e':'2A','2A':'1A','2C':'1D','1A':'TA','1D':'TD','F1':'F2'};
+    function getSubjectsFor(pk){
+      if(pk==='6e'||pk==='5e')return [['DICTÉE',1],['ÉTUDE DE TEXTE',2],['RÉDACTION',2],['ANGLAIS',1],['ALLEMAND',1],['ESPAGNOL',1],['ECM',1],['HISTOIRE',2],['GÉOGRAPHIE',2],['MATHÉMATIQUES',4],['INFORMATIQUE',2],['SVTEEHB/PCT',2],['EPS',1],['ESF/TM',1]];
+      if(pk==='4e')return [['DICTÉE',1],['ÉTUDE DE TEXTE',2],['RÉDACTION',2],['LV II',1],['ANGLAIS',2],['ECM',1],['HISTOIRE',2],['GÉOGRAPHIE',2],['MATHÉMATIQUES',4],['INFORMATIQUE',2],['SVTEEHB',2],['PCT',2],['EPS',2],['ESF/TM',1]];
+      if(pk==='3e')return [['DICTÉE',1],['ÉTUDE DE TEXTE',2],['RÉDACTION',2],['ANGLAIS',1],['LV II',2],['ECM',1],['HISTOIRE',2],['GÉOGRAPHIE',2],['MATHÉMATIQUES',4],['INFORMATIQUE',2],['SVTEEHB',2],['PCT',2],['EPS',2],['ESF/TM',1]];
+      if(pk==='2A')return [['LANGUE FRANÇAISE',2],['LITTÉRATURE FRANÇAISE',3],['PHILOSOPHIE',3],['ANGLAIS',3],['ESPAGNOL',3],['ECM',2],['HISTOIRE',2],['GÉOGRAPHIE',2],['MATHÉMATIQUES',2],['INFORMATIQUE',2],['SVTEEHB',1],['EPS',2],['ESF/TM',1]];
+      if(pk==='2C')return [['LANGUE FRANÇAISE',2],['LITTÉRATURE FRANÇAISE',3],['ANGLAIS',3],['ECM',2],['HISTOIRE',2],['MATHÉMATIQUES',5],['INFORMATIQUE',2],['SVTEEHB',2],['PHYSIQUE',3],['CHIMIE',3],['EPS',2],['ESF/TM',1]];
+      if(pk==='1A'||pk==='TA')return [['LANGUE FRANÇAISE',2],['LITTÉRATURE FRANÇAISE',3],['ANGLAIS',3],['LV II',3],['PHILOSOPHIE',3],['ECM',2],['HISTOIRE',2],['GÉOGRAPHIE',2],['MATHÉMATIQUES',2],['INFORMATIQUE',2],['SVTEEHB',1],['EPS',2]];
+      if(pk==='1D')return [['LANGUE FRANÇAISE',2],['LITTÉRATURE FRANÇAISE',3],['ANGLAIS',3],['PHILOSOPHIE',2],['ECM',2],['HISTOIRE/GÉOGRAPHIE',2],['MATHÉMATIQUES',4],['INFORMATIQUE',2],['SVTEEHB',4],['PHYSIQUE',2],['CHIMIE',2],['EPS',2]];
+      if(pk==='TD')return [['LANGUE FRANÇAISE',2],['LITTÉRATURE FRANÇAISE',3],['ANGLAIS',3],['PHILOSOPHIE',2],['ECM',2],['HISTOIRE/GÉOGRAPHIE',2],['MATHÉMATIQUES',4],['INFORMATIQUE',2],['SVTEEHB',4],['SVTEEHB PRATIQUE',2],['PHYSIQUE',2],['CHIMIE',1.5],['CHIMIE PRATIQUE',0.5],['EPS',2]];
+      if(pk==='F1'||pk==='F2')return [['BIOLOGY',2],['CHEMISTRY',2],['CITIZENSHIP',2],['COMPUTER',2],['ENGLISH',4],['FRENCH',3],['GEOGRAPHY',2],['HISTORY',2],['LITERATURE',2],['MATHEMATICS',3],['PHYSICS',2]];
+      return [];
+    }
+    log('Année en cours : '+DB.school.year, DB.classes.length+' classes');
+    log('Étape 1/5 : Archivage...','#ffcc00');
+    var oldYear=String(DB.school.year);
+    var archive={id:genId(),year:oldYear,closedAt:new Date().toISOString(),classes:[]};
+    for(var i=0;i<DB.classes.length;i++){archive.classes.push(DB.classes[i])}
+    var newSessions=[];for(var i=0;i<DB.sessions.length;i++){if(DB.sessions[i].year!==oldYear)newSessions.push(DB.sessions[i])}
+    newSessions.unshift(archive);DB.sessions=newSessions;
+    log('✅ Archivé, '+DB.sessions.length+' archives','#4fa824');
+
+    log('Étape 2/5 : Création classes redoublants...','#ffcc00');
+    var classes={};
+    for(var i=0;i<DB.classes.length;i++){
+      var c=DB.classes[i];
+      if(classes[c.presetKey])continue;
+      var newsubs=[];for(var j=0;j<c.subjects.length;j++){var s=c.subjects[j];newsubs.push({id:genId(),name:s.name,coef:s.coef,group:s.group||'',opt:s.opt||false,teacherId:s.teacherId||''})}
+      classes[c.presetKey]={id:genId(),name:c.name,ord:c.ord||0,presetKey:c.presetKey,ppId:c.ppId||'',ppName:c.ppName||'',subjects:newsubs,students:[],locks:{1:false,2:false,3:false},grades:{},remarks:{}};
+      log('✅ Classe : '+c.name);
+    }
+    log('Étape 3/5 : Création classes supérieures...','#ffcc00');
+    var keys=Object.keys(classes);
+    for(var k=0;k<keys.length;k++){
+      var pk=keys[k],npk=nextMap[pk];
+      if(npk && !classes[npk]){
+        var subList=getSubjectsFor(npk),nsubs=[];
+        for(var si=0;si<subList.length;si++){nsubs.push({id:genId(),name:subList[si][0],coef:subList[si][1],group:'',opt:false,teacherId:''})}
+        var prname=npk;for(var pi=0;pi<PRESETS.length;pi++){if(PRESETS[pi].key===npk)prname=PRESETS[pi].label}
+        classes[npk]={id:genId(),name:prname,ord:0,presetKey:npk,ppId:'',ppName:'',subjects:nsubs,students:[],locks:{1:false,2:false,3:false},grades:{},remarks:{}};
+        log('✅ Classe sup : '+prname+' pour '+pk);
+      }
+    }
+
+    log('Étape 4/5 : Répartition élèves (calcul MOYENNE GLOBALE : somme(notes*moy_coef)/somme(coef))','#ffcc00');
+    var totalAdmis=0,totalRedoublants=0,totalSortis=0;
+    var effectifs={};for(var pk in classes){effectifs[pk]={name:classes[pk].name,total:0}}
+    for(var i=0;i<DB.classes.length;i++){
+      var c=DB.classes[i],targetPk=nextMap[c.presetKey];
+      var nbA=0,nbR=0,nbS=0;
+      log('  Traitement '+c.name+' ('+c.students.length+' élèves)');
+      for(var j=0;j<c.students.length;j++){
+        var s=c.students[j];
+        var points=0,coefs=0,nbn=0;
+        var grades=c.grades[s.id]||{};
+        for(var si=0;si<c.subjects.length;si++){
+          var subj=c.subjects[si];
+          var arr=grades[subj.id];
+          if(!arr)continue;
+          var ss=0,sc=0;
+          for(var n=0;n<arr.length;n++){
+            var v=arr[n];
+            if(v!=null&&!isNaN(+v)&&+v>=0&&+v<=20){ss+=+v;sc++;nbn++}
+          }
+          if(sc>0){points+=(ss/sc)*subj.coef;coefs+=subj.coef}
+        }
+        var moy=coefs>0?points/coefs:null;
+        var dec,dest,tag;
+        if(!targetPk){dec='sorti';totalSortis++;nbS++;continue}
+        if(moy!=null&&moy>=10){dec='admis';totalAdmis++;nbA++;dest=classes[targetPk];tag='NA'}
+        else{dec='redouble';totalRedoublants++;nbR++;dest=classes[c.presetKey];tag='Ancien'}
+        log('    → '+s.name+' : '+nbn+' notes | moy='+(moy?moy.toFixed(2):'SANS')+' → '+dec+' ('+tag+')');
+        if(dest){
+          dest.students.push({id:s.id,name:s.name,sex:s.sex||'',mat:s.mat||'',dob:s.dob||'',pob:s.pob||'',photo:s.photo||'',sessionTag:tag,average:moy});
+          effectifs[dest.presetKey].total++;
+        }
+      }
+      log('  '+c.name+' : '+nbA+' admis / '+nbR+' redoublants / '+nbS+' sortis');
+    }
+    log('✅ Total : '+totalAdmis+' admis | '+totalRedoublants+' redoublants | '+totalSortis+' sortis','#4fa824');
+    for(var pk in effectifs)log('   Effectif '+effectifs[pk].name+' : '+effectifs[pk].total+' élèves');
+    var finalClasses=[];for(var pk in classes)finalClasses.push(classes[pk]);
+
+    log('Étape 5/5 : Sauvegarde activation 2027/2028...','#ffcc00');
+    DB.school.year='2027/2028';DB.classes=finalClasses;
+    S.view='dash';S.classId=null;S.tab='eleves';S.trim=1;S.simulationState=null;S.closeState=null;S.sessionId=null;S.mine=true;
+    if(typeof calcCache!=='undefined')calcCache={};
+    localStorage.setItem('mbi_gestion_bulletins_v1',JSON.stringify(DB));
+    log('✅ SAUVEGARDÉ !','#4fa824');
+    status.style.color='#4fa824';status.textContent='✅ ACTIVATION RÉUSSIE - Rechargement...';
+    setTimeout(function(){location.reload()},1500);
+  }catch(err){
+    log('❌ ERREUR : '+err.message,'#ff4444');
+    log(err.stack,'#ff6666');
+    status.style.color='#ff4444';status.textContent='❌ ERREUR - copiez les logs';
+  }
 }
 function updateSimulationSummary(){const el=$('#simulation-summary');if(el)el.innerHTML=simulationSummaryHtml()}
+
+/* ---------- Gestion des leçons / progression des matières ---------- */
+function initLessonsForClass(cls){
+  if(!cls.lessons)cls.lessons={};
+  for(const sub of cls.subjects){if(!cls.lessons[sub.id])cls.lessons[sub.id]={planned:0,done:0}}
+}
+function initAllLessons(){
+  try{for(const c of viewClasses())initLessonsForClass(c)}catch(e){}
+}
+function lessonsHtml(){
+  initAllLessons();
+  const myClasses=viewClasses().filter(c=>isAdmin()||c.subjects.some(s=>s.teacherId===ME.id));
+  let h='<div class="page-h"><div><h1>📚 Suivi des leçons</h1><p>'+(isAdmin()?'Toutes les classes':'Mes matières attribuées')+' · Progression des leçons par matière</p></div></div>';
+  if(isReadOnlySession())h+='<div class="notice info">Session archivée en consultation seulement. <button class="btn sm" data-act="session-current">Revenir à la session en cours</button></div>';
+  if(!myClasses.length)return h+'<div class="panel empty"><h3>Aucune classe ne vous est attribuée</h3><p>L\'administrateur doit vous affecter comme professeur dans une matière ou comme professeur principal.</p></div>';
+  for(const cls of myClasses){
+    h+='<div class="panel"><h3>'+esc(cls.name)+' <span class="badge">'+cls.students.length+' élèves</span></h3><div class="tw"><table class="t"><thead><tr><th>Matière</th>'+(isAdmin()?'<th>Enseignant</th>':'')+'<th class="num">Leçons prévues</th><th class="num">Leçons faites</th><th style="width:220px">Progression</th></tr></thead><tbody>';
+    for(const sub of cls.subjects){
+      if(!isAdmin() && sub.teacherId!==ME.id)continue;
+      const ls=cls.lessons[sub.id]||{planned:0,done:0};
+      const pct=ls.planned>0?Math.min(100,Math.round(ls.done/ls.planned*100)):0;
+      const t=DB.users.find(u=>u.id===sub.teacherId);
+      const teacherName=t?t.name:'Non attribué';
+      const editable = isAdmin() || sub.teacherId===ME.id;
+      h+='<tr><td><b>'+esc(sub.name)+'</b></td>'+(isAdmin()?'<td>'+esc(teacherName)+'</td>':'')+'<td class="num"><input type="number" min="0" value="'+ls.planned+'" data-lplan="'+sub.id+'" data-cls="'+cls.id+'" class="inp sm" style="width:80px;display:inline-block"'+(editable?'':' disabled')+'></td><td class="num"><input type="number" min="0" value="'+ls.done+'" data-ldone="'+sub.id+'" data-cls="'+cls.id+'" class="inp sm" style="width:80px;display:inline-block"'+(editable?'':' disabled')+'></td><td><div style="display:flex;align-items:center;gap:8px"><div class="bar" style="flex:1"><i style="width:'+pct+'%;background:'+(pct>=100?'var(--green)':'var(--brand)')+'"></i></div><span class="small" style="width:42px;text-align:right">'+pct+'%</span></div></td></tr>';
+    }
+    h+='</tbody></table></div></div>';
+  }
+  return h;
+}
 
 /* ---------- Tableau de bord ---------- */
 function classSummary(cls,t){
@@ -905,11 +1237,28 @@ function statsData(cls,t){
   return{res,rk,avgs,bins,bySex,subs,evo,mean:mean(avgs),med:median(avgs),pass:avgs.length?avgs.filter(a=>a>=10).length/avgs.length:null};
 }
 function statsTab(cls){
+  initLessonsForClass(cls);
   const t=S.trim,D=statsData(cls,t);
-  if(!cls.students.length)return '<div class="panel empty"><h3>Aucun élève dans cette classe</h3><p>Les statistiques apparaîtront dès que des notes seront saisies.</p></div>';
-  if(!D.rk.length)return '<div class="panel empty"><h3>Pas encore de notes pour le '+TRN[t-1]+' trimestre</h3><p>Saisissez des notes dans l’onglet « Notes » pour voir les statistiques.</p></div>';
+  let h='';
+  // Panel statistiques progression leçons pour admin/PP
+  if(isAdmin()||cls.ppId===ME.id){
+    let totalPlanned=0,totalDone=0,subCount=0;
+    h+='<div class="panel"><h3>📚 Progression des leçons par matière</h3><div class="tw"><table class="t"><thead><tr><th>Matière</th><th>Enseignant</th><th class="num">Prévues</th><th class="num">Faites</th><th style="width:260px">Progression</th></tr></thead><tbody>';
+    for(const sub of cls.subjects){
+      const ls=cls.lessons[sub.id]||{planned:0,done:0};
+      totalPlanned+=ls.planned;totalDone+=ls.done;subCount++;
+      const pct=ls.planned>0?Math.min(100,Math.round(ls.done/ls.planned*100)):0;
+      const teacher=DB.users.find(u=>u.id===sub.teacherId);
+      h+='<tr><td><b>'+esc(sub.name)+'</b></td><td class="small">'+esc(teacher?teacher.name:'Non attribué')+'</td><td class="num">'+ls.planned+'</td><td class="num">'+ls.done+'</td><td><div style="display:flex;align-items:center;gap:8px"><div class="bar" style="flex:1"><i style="width:'+pct+'%;background:'+(pct>=100?'var(--green)':pct>=75?'var(--green)':pct>=50?'var(--amber)':'var(--brand)')+'"></i></div><b style="width:48px;text-align:right;color:'+(pct<50?'var(--red)':'inherit')+'">'+pct+'%</b></div></td></tr>';
+    }
+    const gp=totalPlanned>0?Math.round(totalDone/totalPlanned*100):0;
+    h+='<tr style="background:#fafbfd;font-weight:700"><td>TOTAL GÉNÉRAL</td><td class="small muted">'+subCount+' matières</td><td class="num">'+totalPlanned+'</td><td class="num">'+totalDone+'</td><td><div style="display:flex;align-items:center;gap:8px"><div class="bar" style="flex:1"><i style="width:'+gp+'%;background:'+(gp>=100?'var(--green)':'var(--brand)')+'"></i></div><b style="width:48px;text-align:right">'+gp+'%</b></div></td></tr>';
+    h+='</tbody></table></div></div>';
+  }
+  if(!cls.students.length)return h+'<div class="panel empty"><h3>Aucun élève dans cette classe</h3><p>Les statistiques apparaîtront dès que des notes seront saisies.</p></div>';
+  if(!D.rk.length)return h+'<div class="panel empty"><h3>Pas encore de notes pour le '+TRN[t-1]+' trimestre</h3><p>Saisissez des notes dans l’onglet « Notes » pour voir les statistiques.</p></div>';
   const best=D.rk[0],worst=D.rk[D.rk.length-1],maxBin=Math.max(1,...D.bins.map(b=>b.n));
-  let h='<div class="toolbar"><button class="btn" data-act="print-results">Imprimer le tableau des résultats</button><button class="btn" data-act="export-csv">Exporter en CSV (Excel)</button></div>'+
+  h+='<div class="toolbar"><button class="btn" data-act="print-results">Imprimer le tableau des résultats</button><button class="btn" data-act="export-csv">Exporter en CSV (Excel)</button></div>'+
   '<div class="kpis"><div class="kpi"><b>'+D.rk.length+'<small style="font-size:15px;color:var(--muted)"> / '+cls.students.length+'</small></b><span>élèves classés</span></div>'+
    '<div class="kpi"><b style="color:'+(D.mean!=null&&D.mean<10?'var(--red)':'inherit')+';font-weight:700">'+fmt(D.mean)+'</b><span>moyenne de la classe</span></div><div class="kpi"><b style="color:'+(D.med!=null&&D.med<10?'var(--red)':'inherit')+'">'+fmt(D.med)+'</b><span>médiane</span></div>'+
    '<div class="kpi"><b>'+Math.round(D.pass*100)+' %</b><span>élèves à 10 ou plus</span></div>'+
@@ -1061,6 +1410,48 @@ A['session-view']=el=>{if(!archivedSessions().some(x=>x.id===el.dataset.id))retu
 A['session-current']=()=>{S.sessionId=null;S.closeState=null;S.simulationState=null;S.view='dash';S.classId=null;S.tab='eleves';render()};
 A['simulate-year']=()=>{if(!isAdmin()||isReadOnlySession())return;startSessionSimulation()};
 A['simulation-cancel']=()=>{S.simulationState=null;S.view='sessions';render()};
+A['apply-simulation']=()=>{
+  if(!isAdmin()||!S.simulationState)return;
+  askConfirm('Activer la session 2027/2028 ?','L\'année scolaire actuelle sera archivée et la session 2027/2028 deviendra la session en cours avec les répartitions que vous avez définies.','Confirmer et activer la nouvelle session',applySimulationYear,true)
+};
+A['direct-activate']=()=>{
+  let anyGrades=false;
+  for(let ci=0;ci<DB.classes.length;ci++){
+    const c=DB.classes[ci];
+    for(let sid in c.grades){
+      for(let subid in c.grades[sid]){
+        const g=c.grades[sid][subid];
+        if(g&&g.some(x=>x!=null)){anyGrades=true;break}
+      }
+      if(anyGrades)break
+    }
+    if(anyGrades)break
+  }
+  const hasArchive = DB.sessions.some(s=>s.year==='2026/2027');
+  if(!anyGrades && hasArchive){
+    alert('❌ AUCUNE NOTE TROUVÉE !\n\nLes notes ont été effacées par un essai précédent.\n\n👉 Cliquez d\'abord sur le bouton ROUGE "RESTAURER LES DONNÉES 2026/2027" en haut de la page, puis réessayez d\'activer.');
+    return;
+  }
+  askConfirm('⚡ Activer la nouvelle session ?','Répartition : ≥10/20 = Admis (NA) ; <10/20 = Redouble (Ancien) ; Tle = Sortie','ACTIVER',directActivate2027,true)
+};
+A['restore-archive']=()=>{
+  askConfirm('🔄 Restaurer 2026/2027 depuis l\'archive ?','Cette opération annule toute activation précédente, restaure TOUTES les classes, élèves et notes de l\'année 2026/2027 depuis l\'archive, comme avant tout essai d\'activation. Vous pourrez ensuite réactiver la session correctement.','Restaurer 2026/2027',()=>{
+    const archive = DB.sessions.find(s=>s.year==='2026/2027');
+    if(!archive){toast('Archive 2026/2027 introuvable','err');return}
+    // Restaurer les classes et l'année
+    DB.classes = JSON.parse(JSON.stringify(archive.classes));
+    DB.school.year = '2026/2027';
+    // Supprimer l'archive qu'on vient de restaurer
+    DB.sessions = DB.sessions.filter(s=>s.year!=='2026/2027');
+    // Reset état
+    calcCache={};
+    S.view='dash';S.classId=null;S.tab='eleves';S.trim=1;
+    S.simulationState=null;S.closeState=null;S.sessionId=null;S.mine=true;
+    localStorage.setItem(KEY,JSON.stringify(DB));
+    toast('✅ Données 2026/2027 restaurées avec toutes les notes !','ok');
+    setTimeout(()=>location.reload(),800);
+  },true);
+};
 A['close-year']=()=>{if(!isAdmin()||isReadOnlySession())return;S.simulationState=null;startCloseYear();S.view='close-year';S.classId=null;render()};
 A['sessions-cancel-close']=()=>{S.closeState=null;S.view='sessions';render()};
 A['confirm-close-year']=()=>{
@@ -1148,7 +1539,7 @@ A['reset-demo']=()=>{if(!confirm('Réinitialiser les données de démo ? Les don
 A['repair-demo-login']=async()=>{if(!DB.demoMode)return;if(!confirm('Réinitialiser les mots de passe des comptes de test ? Les classes, élèves et notes seront conservés. Admin : admin1234 ; professeurs : prof1234.'))return;let n=0;for(const u of DB.users){let pw='';if(u.username==='admin'&&u.role==='admin')pw='admin1234';else if(['pmballa','mfotso','injoya','skamga','ressomba'].includes(u.username))pw='prof1234';if(!pw)continue;u.salt=uid();u.hash=await hashPw(pw,u.salt);n++}if(!n){toast('Aucun compte de démonstration trouvé.','err');return}dirty();saveNow();render();toast('Accès de test réparé, données conservées.','ok')};
 A.wipe=()=>askConfirm('Tout effacer ?','Classes, élèves, notes et comptes seront supprimés de cet ordinateur. Cette action est définitive : exportez d’abord une sauvegarde si nécessaire.','Tout effacer',()=>{try{localStorage.removeItem(KEY);sessionStorage.removeItem(SKEY)}catch(e){}DB=blankDB();ME=null;S.sessionId=null;S.closeState=null;S.simulationState=null;calcCache={};S.view='dash';render()},true);
 
-const READ_ONLY_ACTIONS=new Set(['go','open-class','tab','trim','logout','session-view','session-current','sessions-cancel-close','preview','prev-b','print-all','print-one','print-results','export-csv','export-my-notes','mclose','noop']);
+const READ_ONLY_ACTIONS=new Set(['go','open-class','tab','trim','logout','session-view','session-current','sessions-cancel-close','simulation-cancel','preview','prev-b','print-all','print-one','print-results','export-csv','export-my-notes','mclose','noop']);
 document.addEventListener('click',e=>{
   const bd=e.target.closest('[data-bd]');if(bd&&e.target===bd){closeModal();return}
   const el=e.target.closest('[data-act]');if(!el)return;
@@ -1172,6 +1563,23 @@ document.addEventListener('change',e=>{
   if(el.dataset.simTarget){const p=S.simulationState&&S.simulationState.decisions[el.dataset.simTarget];if(!p)return;p.targetClassId=el.value;updateSimulationSummary();return}
   if(el.dataset.closeChoice){const p=S.closeState&&S.closeState.decisions[el.dataset.closeChoice];if(!p)return;p.decision=el.value;if(el.value!=='admis')p.targetClassId='';const row=el.closest('tr'),target=row&&row.querySelector('[data-close-target]');if(target){target.disabled=el.value!=='admis';if(target.disabled)target.value=''}updateCloseProgress();return}
   if(el.dataset.closeTarget){const p=S.closeState&&S.closeState.decisions[el.dataset.closeTarget];if(!p)return;p.targetClassId=el.value;updateCloseProgress();return}
+  // Gestion saisie leçons prévues/faites
+  if(el.dataset.lplan!==undefined){
+    const cid=el.dataset.cls;const cls=viewClasses().find(x=>x.id===cid);if(!cls)return;const sid=el.dataset.lplan;
+    initLessonsForClass(cls);const v=parseInt(el.value)||0;cls.lessons[sid].planned=v;dirty();
+    // Mise à jour visuelle de la barre sans re-render complet
+    const row=el.closest('tr'),bar=row&&row.querySelector('.bar i'),pct=row&&row.querySelector('.small:last-child');
+    if(bar&&pct){const done=cls.lessons[sid].done;pct.textContent=pct.textContent;bar.style.width=Math.min(100,Math.round(cls.lessons[sid].planned>0?done/cls.lessons[sid].planned*100:0))+'%';pct.textContent=Math.min(100,Math.round(cls.lessons[sid].planned>0?done/cls.lessons[sid].planned*100:0))+'%'}
+    return;
+  }
+  if(el.dataset.ldone!==undefined){
+    const cid=el.dataset.cls;const cls=viewClasses().find(x=>x.id===cid);if(!cls)return;const sid=el.dataset.ldone;
+    initLessonsForClass(cls);const v=parseInt(el.value)||0;cls.lessons[sid].done=Math.min(cls.lessons[sid].planned,v);
+    if(v>cls.lessons[sid].planned){el.value=cls.lessons[sid].planned}
+    dirty();const row=el.closest('tr'),bar=row&&row.querySelector('.bar i'),pct=row&&row.querySelector('.small:last-child');
+    if(bar&&pct){const p=Math.min(100,Math.round(cls.lessons[sid].planned>0?cls.lessons[sid].done/cls.lessons[sid].planned*100:0));bar.style.width=p+'%';bar.style.background=p>=100?'var(--green)':'var(--brand)';pct.textContent=p+'%'}
+    return;
+  }
   if(el.classList.contains('cell')){commitCell(el);refreshSummary();return}
   if(el.dataset.chk==='mine'){S.mine=el.checked;render();return}
   const cls=curClass();
