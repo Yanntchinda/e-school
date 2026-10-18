@@ -1,0 +1,20 @@
+DEPOT E-SCHOOL — PUBLICATION DES MODIFICATIONS
+
+État : les 17 commits de la branche main sont dans e-school-github.bundle.
+Dernier commit inclus : 72e48cf (Ajoute une simulation non destructive de 2027/2028).
+Dépôt GitHub d'origine identifié : https://github.com/Yanntchinda/e-school.git
+
+IMPORTANT : aucun accès GitHub authentifié n'est disponible dans cette session. Le push distant n'a donc pas été effectué. Le dépôt source local ne configure actuellement aucun remote.
+
+Pour publier le bundle depuis un ordinateur où Git est installé et où vous êtes authentifié sur GitHub :
+
+1. Téléchargez e-school-github.bundle.
+2. Dans un terminal, depuis le dossier de téléchargement, exécutez :
+   git clone e-school-github.bundle e-school
+   cd e-school
+   git remote set-url origin https://github.com/Yanntchinda/e-school.git
+   git push -u origin main
+
+Si GitHub refuse le push car la branche distante a divergé, ne forcez pas le push ; récupérez d'abord la branche distante et fusionnez-la.
+
+Le fichier e-school-source.zip contient la version des fichiers du projet au dernier commit, sans l'historique Git.
