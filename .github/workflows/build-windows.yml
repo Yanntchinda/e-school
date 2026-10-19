@@ -1,0 +1,90 @@
+name: Construire l'installateur Windows
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - arena/86c7fea5-e-school
+    paths:
+      - 'desktop-app/**'
+      - '.github/workflows/build-windows.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Compilation Windows
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: desktop-app
+
+    steps:
+      - name: Recuperer le depot
+        uses: actions/checkout@v4
+
+      - name: Installer Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Verifier les fichiers du programme
+        shell: pwsh
+        run: |
+          foreach ($f in @('main.js','app/index.html','app/icon.ico','package.json')) {
+            if (Test-Path $f) {
+              $size = (Get-Item $f).Length
+              Write-Host "[OK] $f ($size octets)"
+            } else {
+              throw "Fichier manquant : $f"
+            }
+          }
+
+      - name: Installer les composants
+        run: npm install --no-audit --no-fund
+
+      - name: Construire l'installateur
+        run: npm run build:win
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Verifier le resultat
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem -Path "dist/installers" -Filter "*.exe" -ErrorAction SilentlyContinue
+          if (-not $exe) { throw "Aucun .exe produit" }
+          foreach ($f in $exe) {
+            Write-Host ("[OK] " + $f.Name + " - " + [math]::Round($f.Length/1MB,1) + " Mo")
+          }
+
+      - name: Publier le fichier telechargeable
+        uses: actions/upload-artifact@v4
+        with:
+          name: installateur-windows
+          path: desktop-app/dist/installers/*.exe
+          retention-days: 90
+
+      - name: Creer la version telechargeable
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.0
+          name: e-School 1.0.0 - Installateur Windows
+          body: |
+            Installateur Windows de e-School - Gestion des bulletins.
+
+            Telecharger le fichier Setup.exe ci-dessous, le double-cliquer et suivre
+            l'assistant. Une icone "e-School Bulletins" apparait sur le Bureau et dans
+            le menu Demarrer.
+
+            Windows affiche un avertissement (fichier non signe) : cliquer sur
+            "Informations complementaires" puis "Executer quand meme".
+
+            Le logiciel fonctionne sans connexion internet.
+          files: desktop-app/dist/installers/*.exe
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
