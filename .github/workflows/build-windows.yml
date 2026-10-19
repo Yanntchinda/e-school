@@ -12,6 +12,7 @@ on:
 
 permissions:
   contents: write
+  issues: write
 
 jobs:
   build:
@@ -35,21 +36,37 @@ jobs:
         run: |
           foreach ($f in @('main.js','app/index.html','app/icon.ico','package.json')) {
             if (Test-Path $f) {
-              $size = (Get-Item $f).Length
-              Write-Host "[OK] $f ($size octets)"
+              Write-Host "[OK] $f ($((Get-Item $f).Length) octets)"
             } else {
               throw "Fichier manquant : $f"
             }
           }
 
       - name: Installer les composants
-        run: npm install --no-audit --no-fund
+        shell: pwsh
+        run: |
+          npm install --no-audit --no-fund 2>&1 | Tee-Object -FilePath install.log
+          if ($LASTEXITCODE -ne 0) {
+            $tail = (Get-Content install.log -Tail 120) -join "`n"
+            $body = "Installation des composants en echec.`n`n``````n$tail`n``````"
+            $j = @{ body = $body } | ConvertTo-Json
+            Invoke-RestMethod -Method Post -Uri "https://api.github.com/repos/${{ github.repository }}/issues/2/comments" -Headers @{ Authorization = "Bearer ${{ secrets.GITHUB_TOKEN }}" } -Body $j -ContentType 'application/json'
+            exit 1
+          }
 
       - name: Construire l'installateur
-        run: npm run build:win
+        shell: pwsh
+        run: |
+          npm run build:win -- --publish never 2>&1 | Tee-Object -FilePath build.log
+          if ($LASTEXITCODE -ne 0) {
+            $tail = (Get-Content build.log -Tail 150) -join "`n"
+            $body = "Compilation en echec (code $LASTEXITCODE).`n`n``````n$tail`n``````"
+            $j = @{ body = $body } | ConvertTo-Json
+            Invoke-RestMethod -Method Post -Uri "https://api.github.com/repos/${{ github.repository }}/issues/2/comments" -Headers @{ Authorization = "Bearer ${{ secrets.GITHUB_TOKEN }}" } -Body $j -ContentType 'application/json'
+            exit 1
+          }
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Verifier le resultat
         shell: pwsh
@@ -88,3 +105,13 @@ jobs:
           prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Annoncer le succes
+        if: success()
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem -Path "dist/installers" -Filter "*.exe"
+          $list = ($exe | ForEach-Object { "- " + $_.Name + " (" + [math]::Round($_.Length/1MB,1) + " Mo)" }) -join "`n"
+          $body = "Compilation reussie.`n`n$list`n`nTelechargement : https://github.com/${{ github.repository }}/releases/tag/v1.0.0"
+          $j = @{ body = $body } | ConvertTo-Json
+          Invoke-RestMethod -Method Post -Uri "https://api.github.com/repos/${{ github.repository }}/issues/2/comments" -Headers @{ Authorization = "Bearer ${{ secrets.GITHUB_TOKEN }}" } -Body $j -ContentType 'application/json'
