@@ -1,132 +1,162 @@
-# Installer e-School sur votre ordinateur
+# Obtenir e-School en .exe sur votre Bureau (Windows)
 
-Trois méthodes, de la plus « logiciel » à la plus simple. Choisissez la **méthode A** si vous voulez une vraie application installée avec une icône.
-
----
-
-## Méthode A — Installateur Windows (.exe) : la vraie application
-
-Résultat : une icône sur le bureau, un programme dans le menu Démarrer, qui s'ouvre comme Word ou Excel, sans navigateur visible.
-
-### Ce qu'il faut, une seule fois
-1. **Node.js** — https://nodejs.org → bouton **LTS** → installation en laissant tout par défaut.
-   Vérification : ouvrir `cmd` et taper `node -v` → doit afficher `v20.x` ou `v22.x`.
-2. Une **connexion internet** pour la première compilation (téléchargement d'Electron, ~150 Mo).
-
-### Construire l'installateur
-1. Copier le dossier `desktop-app` sur votre PC (clé USB, ou téléchargement depuis GitHub).
-2. Double-cliquer sur **`CONSTRUIRE-L-INSTALLEUR.bat`**.
-3. Attendre. Le script installe les composants puis fabrique l'installateur.
-   Durée totale : **5 à 12 minutes** la première fois.
-4. À la fin, le dossier `dist\installers` s'ouvre avec un fichier du type :
-   ```
-   e-School Gestion Bulletins Setup 1.0.0.exe
-   ```
-5. Double-cliquer sur ce fichier → installation → icône **e-School Bulletins**.
-
-### Si Windows affiche un avertissement bleu
-L'installateur n'est pas signé numériquement (un certificat coûte 200 à 400 €/an).
-Cliquer sur **Informations complémentaires** → **Exécuter quand même**. C'est normal et sans danger.
-
-### Configuration utilisée
-| Paramètre | Valeur |
-|---|---|
-| Nom du programme | e-School Gestion Bulletins |
-| Version | 1.0.0 |
-| Plateforme | Windows 10 / 11 (64 bits) |
-| Icône | `app/icon.ico` (6 tailles : 16 → 256 px) |
-| Raccourcis | Bureau + menu Démarrer |
-| Dossier d'installation | modifiable pendant l'installation |
-| Désinstallation | Panneau de configuration → Programmes |
-
-### Où sont mes données
-Dans `%APPDATA%\e-School Gestion Bulletins` — conservées même après désinstallation.
-Menu **Aide → Où sont mes données ?** ouvre le dossier directement.
+Deux chemins. **Commencez par le 1**, il donne une vraie application installée.
 
 ---
 
-## Méthode B — Version portable (aucune installation)
+# CHEMIN 1 — L'installateur .exe (recommandé)
 
-Dossier `version-portable/` : à copier sur une clé USB, fonctionne sur n'importe quel PC Windows.
+Résultat : une icône **e-School Bulletins** sur le Bureau et dans le menu Démarrer,
+qui s'ouvre dans sa propre fenêtre, sans navigateur, comme Word ou Excel.
 
-1. Double-cliquer sur **`LANCER-E-SCHOOL.bat`**
-2. L'application s'ouvre dans le navigateur
-3. Travailler normalement
-4. **`ARRETER-E-SCHOOL.bat`** pour fermer
+## Étape 1 — Installer Node.js (une seule fois dans la vie du PC)
 
-Nécessite Python (présent sur la plupart des PC ; sinon https://www.python.org → cocher **Add Python to PATH**).
+1. Aller sur **https://nodejs.org**
+2. Cliquer sur le bouton vert **LTS**
+3. Double-cliquer sur le fichier téléchargé, cliquer **Next** partout (tout est déjà bien réglé)
+4. **Redémarrer l'ordinateur**
 
----
+Vérification : appuyer sur `Windows + R`, taper `cmd`, valider, puis taper :
 
-## Méthode C — Le plus simple : double-clic sur le fichier HTML
-
-Le fichier `version-portable/e-school.html` contient **tout** le logiciel (code, styles, photo de connexion).
-Un double-clic l'ouvre dans le navigateur par défaut. Aucune installation, aucun outil.
-
-Limite : les données restent liées à ce navigateur et au chemin du fichier. Si vous déplacez le fichier, utilisez **Paramètres → Exporter une sauvegarde** pour les transférer.
-
----
-
-## Très important : transférer vos données existantes
-
-Le logiciel stocke ses données **dans le navigateur ou l'application**, pas dans le fichier HTML.
-Passer d'une méthode à une autre **ne transfère rien automatiquement**.
-
-Procédure, dans les deux sens :
-
-1. **Ancienne version** → écran **Paramètres** → **Exporter une sauvegarde complète** → un fichier `.json` est téléchargé
-2. **Nouvelle version** → écran de connexion → **Restaurer une sauvegarde existante** → choisir le `.json`
-3. Vérifier : nombre de classes, d'élèves, de notes
-
-À faire tant que l'ancienne version est encore accessible.
-
----
-
-## Compilation en ligne de commande (sans le .bat)
-
-```bash
-cd desktop-app
-npm install
-npm run build:win      # Windows  -> dist/installers/*.exe
-npm run build:linux    # Linux    -> AppImage + .deb
-npm run build:mac      # macOS    -> .dmg  (doit être lancé depuis un Mac)
+```
+node -v
 ```
 
-Lancer l'application sans la compiler :
-```bash
-npm start
-```
+Doit afficher quelque chose comme `v22.14.0`.
 
-Mettre à jour l'application après une modification de `e-school/e-school/index.html` :
-```bash
-copy ..\e-school\e-school\index.html app\index.html
-```
+> Si le message est *« 'node' n'est pas reconnu »* : Node.js n'est pas installé, ou l'ordinateur n'a pas été redémarré.
 
----
+## Étape 2 — Récupérer le dossier du programme
 
-## En cas de problème
+Sur la page GitHub du projet :
 
-| Symptôme | Cause | Solution |
+1. Bouton vert **Code** → **Download ZIP**
+2. Clic droit sur le fichier ZIP → **Extraire tout**
+3. Aller dans le dossier extrait, puis dans **`desktop-app`**
+
+## Étape 3 — Construire
+
+Double-cliquer sur **`CONSTRUIRE-L-INSTALLEUR.bat`**
+
+Le script enchaîne tout seul :
+
+| Étape affichée | Durée | Ce qu'il fait |
 |---|---|---|
-| `'node' n'est pas reconnu` | Node.js absent ou PATH non mis à jour | Réinstaller Node.js, redémarrer le PC |
-| Blocage à `npm install` | Antivirus ou proxy | Désactiver temporairement l'antivirus, relancer |
-| `ERR_ELECTRON_BUILDER_CANNOT_EXECUTE` | Chemin avec accents ou espaces | Déplacer le dossier dans `C:\e-school\` |
-| L'installateur ne se crée pas | Droits insuffisants | Clic droit sur le .bat → **Exécuter en tant qu'administrateur** |
-| Écran blanc au lancement | `app/index.html` manquant | Vérifier qu'il existe et fait ~515 Ko |
-| L'imprimante n'est pas proposée | Pilote absent | Installer l'imprimante dans Windows d'abord |
+| `[OK] Node.js v22 détecté` | instantané | vérifie l'outil |
+| `[1/2] Téléchargement des composants` | **3 à 8 min** | télécharge Electron (~150 Mo) |
+| `[2/2] Fabrication de l'installateur` | **2 à 5 min** | crée le .exe |
+
+> L'écran peut rester figé plusieurs minutes pendant le téléchargement. **C'est normal**, ne fermez pas la fenêtre.
+
+## Étape 4 — Installer
+
+À la fin, le dossier `dist\installers` s'ouvre avec :
+
+```
+e-School-Bulletins-1.0.0-Setup.exe
+```
+
+Double-cliquer dessus → **Suivant → Installer → Terminer**.
+
+L'icône **e-School Bulletins** apparaît sur le Bureau.
+
+### L'avertissement bleu de Windows
+L'installateur n'est pas signé numériquement (un certificat coûte 200 à 400 € par an).
+Si Windows affiche *« Windows a protégé votre ordinateur »* :
+
+> **Informations complémentaires** → **Exécuter quand même**
+
+C'est sans danger : le fichier est fabriqué sur votre propre ordinateur.
 
 ---
 
-## Vérifications déjà effectuées sur ce dossier
+# CHEMIN 2 — Icône sur le Bureau en 10 secondes (sans rien installer)
+
+Si vous ne voulez pas installer Node.js, ou si le téléchargement échoue.
+
+1. Ouvrir le dossier **`version-portable`**
+2. Double-cliquer sur **`INSTALLER-SUR-LE-BUREAU.bat`**
+3. Une icône **e-School Bulletins** apparaît sur le Bureau
+
+L'application s'ouvre dans une fenêtre propre, sans barre d'adresse, avec l'icône du logiciel.
+Utilise Chrome ou Edge, déjà présents sur tous les PC Windows.
+
+Différence avec le CHEMIN 1 : ce n'est pas un vrai programme compilé, c'est le navigateur
+en mode « application ». Le résultat visuel est très proche.
+
+---
+
+# IMPORTANT — à lire avant de changer de méthode : vos données
+
+Le logiciel enregistre tout **dans le navigateur ou l'application**, jamais dans le fichier HTML.
+Changer de méthode **ne transfère rien automatiquement**.
+
+Procédure :
+
+1. **Ancienne version** → menu **Paramètres** → **Exporter une sauvegarde complète**
+   → un fichier `.json` est téléchargé
+2. **Nouvelle version** → écran de connexion → **Restaurer une sauvegarde existante**
+   → choisir le `.json`
+3. Vérifier : nombre de classes, nombre d'élèves, notes
+
+À faire **tant que l'ancienne version est encore accessible**.
+
+## Où sont mes données dans la version .exe
+
+```
+%APPDATA%\e-School Gestion Bulletins
+```
+
+Accessible directement par le menu **Aide → Où sont mes données ?** de l'application.
+Elles sont conservées même si vous désinstallez le programme.
+
+---
+
+# Mettre à jour l'application plus tard
+
+Après une modification du logiciel :
+
+```bat
+cd desktop-app
+METTRE-A-JOUR-L-APP.bat        rem copie le nouveau index.html
+CONSTRUIRE-L-INSTALLEUR.bat    rem refabrique le .exe
+```
+
+Pour changer le numéro de version, modifier `"version": "1.0.0"` dans `package.json`.
+
+---
+
+# Dépannage
+
+| Message | Cause | Solution |
+|---|---|---|
+| `'node' n'est pas reconnu` | Node.js absent | Installer Node.js LTS, redémarrer le PC |
+| Blocage à `[1/2]` | Antivirus / pare-feu | Désactiver l'antivirus, relancer |
+| `npm ERR!` avec un code réseau | Pas d'internet ou proxy | Vérifier la connexion, essayer un autre réseau |
+| `ERR_ELECTRON_BUILDER` | Chemin avec accents ou espaces | Déplacer le dossier dans `C:\e-school\` |
+| Le .exe ne se crée pas | Droits insuffisants | Clic droit sur le .bat → **Exécuter en tant qu'administrateur** |
+| Fenêtre blanche au lancement | `app/index.html` manquant | Vérifier qu'il existe et pèse ~515 Ko |
+| Windows bloque l'installateur | Non signé | **Informations complémentaires → Exécuter quand même** |
+| L'imprimante n'apparaît pas | Pilote absent | Installer l'imprimante dans Windows d'abord |
+
+---
+
+# Vérifications déjà faites sur ce dossier
 
 | Contrôle | État |
 |---|---|
 | `main.js` — syntaxe | valide |
-| `app/index.html` | présent (526 Ko) |
-| `app/icon.png` | présent (1024 × 1024) |
-| `app/icon.ico` | généré (16/32/48/64/128/256 px) |
+| `app/index.html` | présent, 526 Ko |
+| `app/icon.png` | 1024 × 1024 |
+| `app/icon.ico` | 6 tailles : 16 / 32 / 48 / 64 / 128 / 256 px |
 | `preload.js` fantôme dans `package.json` | retiré |
-| Menu **Exporter une sauvegarde** | branché sur l'action réelle de l'application |
-| Menu **Imprimer** | branché sur l'impression de l'application |
-| Lien externe cliqué | ouvert dans le navigateur, pas dans l'app |
-| Instance multiple | bloquée (une seule fenêtre) |
+| Versions Electron / electron-builder | figées : 31.7.7 / 25.1.8 |
+| Menu **Exporter une sauvegarde** | relié à la vraie action de l'application |
+| Menu **Imprimer** | relié à l'impression des bulletins |
+| Liens externes | ouverts dans le navigateur, pas dans l'app |
+| Ouverture multiple | bloquée, une seule fenêtre |
+| Scripts `.bat` | 100 % ASCII (aucun problème d'accents) |
+| Emojis dans le dépôt | 0 |
+
+> La compilation elle-même **ne peut pas être faite à distance** : elle doit tourner sur votre
+> ordinateur Windows, car elle télécharge le moteur Electron et fabrique un exécutable Windows.

@@ -1,28 +1,14 @@
-# Comment générer l'installateur Windows sur votre ordinateur
+# Construire l'installateur sur votre PC
 
-Le code est ENTIÈREMENT PRÊT. Vous n'avez qu'à lancer ces 3 commandes sur votre ordinateur pour générer le fichier .exe d'installation :
+Ce document a été remplacé par un guide complet et à jour :
 
-## Étape 1 : Installer Node.js
-Téléchargez Node.js depuis https://nodejs.org/fr (version LTS recommandée) et installez-le.
-Redémarrez votre ordinateur après l'installation.
+## → [GUIDE-INSTALLATION.md](GUIDE-INSTALLATION.md)
 
-## Étape 2 : Ouvrir un invité de commandes
-Ouvrez un invité de commandes (cmd) dans le dossier `desktop-app` de ce projet.
+En résumé :
 
-## Étape 3 : Lancer ces commandes
-```cmd
-npm install
-npm run build:win
-```
+1. Installer **Node.js LTS** depuis https://nodejs.org puis redémarrer le PC
+2. Double-cliquer sur **`CONSTRUIRE-L-INSTALLEUR.bat`**
+3. L'installateur apparaît dans `dist\installers\`
+4. Le lancer pour installer **e-School Bulletins** sur le Bureau
 
-## Étape 4 : Récupérer l'installateur
-Le fichier d'installation Windows sera généré ici :
-`desktop-app/dist/installiers/e-School Gestion Bulletins Setup 1.0.0.exe`
-
-Lancez ce fichier .exe sur n'importe quel ordinateur Windows pour installer l'application. Un raccourci sera créé sur le bureau.
-
----
-
-## Version PORTABLE SANS INSTALLATION DISPONIBLE
-En attendant la compilation, vous pouvez utiliser la version portable : il suffit de double-cliquer sur `LANCER-E-SCHOOL.bat` dans le dossier `version-portable/`, l'application s'ouvre dans votre navigateur et fonctionne exactement comme l'application installée, sans rien installer.
-Toutes vos données sont sauvegardées localement dans le navigateur.
+Sans Node.js : dossier `version-portable`, fichier **`INSTALLER-SUR-LE-BUREAU.bat`**.
