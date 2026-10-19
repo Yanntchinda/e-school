@@ -1,35 +1,59 @@
 @echo off
-title e-School - Gestion des bulletins scolaires
-echo.
-echo ====================================================
-echo    e-School - Lancement de l'application
-echo ====================================================
-echo.
-echo Demarrage du serveur local...
-echo L'application va s'ouvrir automatiquement dans votre navigateur.
-echo Laissez cette fenetre ouverte pendant l'utilisation.
-echo Pour fermer l'application, fermez cette fenetre.
-echo.
-
-start "" "http://localhost:8765/e-school.html"
+setlocal
+title e-School - Gestion des bulletins
 cd /d "%~dp0"
+set PORT=8765
 
-if exist "%~dp0pythonw.exe" (
-    start /b "" "%~dp0pythonw.exe" -m http.server 8765
-) else (
-    where python >nul 2>&1
-    if %errorlevel% equ 0 (
-        start /b python -m http.server 8765
-    ) else (
-        echo ERREUR : Python n'est pas installe sur votre ordinateur.
-        echo Telechargez Python sur https://www.python.org/ et cochez "Add Python to PATH" pendant l'installation.
-        echo.
-        pause
-        exit /b
-    )
-)
+echo.
+echo ==========================================================
+echo    e-School - Gestion des bulletins
+echo ==========================================================
+echo.
+echo Demarrage du serveur local, puis ouverture de l'application.
+echo Gardez cette fenetre ouverte pendant l'utilisation.
+echo Pour fermer : fermez cette fenetre, ou lancez ARRETER-E-SCHOOL.bat
+echo.
 
-:loop
-timeout /t 2 >nul
-tasklist /fi "imagename eq chrome.exe" /fi "windowtitle eq e-School*" 2>nul | find ":" >nul
-goto loop
+rem ---------- Recherche d'un moteur Python ----------
+set ENGINE=
+if exist "%~dp0pythonw.exe" set ENGINE=EMBEDDED
+if defined ENGINE goto START
+where python >nul 2>&1
+if not errorlevel 1 set ENGINE=PYTHON
+if defined ENGINE goto START
+where py >nul 2>&1
+if not errorlevel 1 set ENGINE=PY
+if defined ENGINE goto START
+goto NOPYTHON
+
+rem ---------- Demarrage du serveur ----------
+:START
+echo Moteur detecte : %ENGINE%
+if "%ENGINE%"=="EMBEDDED" start /b "" "%~dp0pythonw.exe" -m http.server %PORT%
+if "%ENGINE%"=="PYTHON"   start /b python -m http.server %PORT%
+if "%ENGINE%"=="PY"       start /b py -3 -m http.server %PORT%
+
+echo Ouverture de l'application dans le navigateur...
+timeout /t 3 >nul
+start "" "http://localhost:%PORT%/e-school.html"
+goto LOOP
+
+rem ---------- Attente ----------
+:LOOP
+timeout /t 5 >nul
+goto LOOP
+
+rem ---------- Python absent ----------
+:NOPYTHON
+echo.
+echo ERREUR : Python n'a pas ete trouve sur cet ordinateur.
+echo.
+echo Deux solutions :
+echo   1. Installer Python : https://www.python.org
+echo      IMPORTANT : cochez "Add Python to PATH" pendant l'installation.
+echo.
+echo   2. Sans rien installer : double-cliquez sur le fichier e-school.html
+echo      situe dans ce meme dossier. Il s'ouvre directement dans le navigateur.
+echo.
+pause
+exit /b 1

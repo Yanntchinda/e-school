@@ -3,7 +3,9 @@
   "version": "1.0.0",
   "description": "Application de gestion des bulletins scolaires - Ming's Bilingual Institute",
   "main": "main.js",
-  "author": "Yanntchinda e-school",
+  "author": {
+    "name": "Ming's Bilingual Institute"
+  },
   "license": "MIT",
   "scripts": {
     "start": "electron .",
@@ -20,14 +22,15 @@
     },
     "files": [
       "main.js",
-      "preload.js",
       "app/**/*"
     ],
     "win": {
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ],
       "icon": "app/icon.ico"
@@ -37,18 +40,26 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "e-School Bulletins"
+      "shortcutName": "e-School Bulletins",
+      "installerIcon": "app/icon.ico",
+      "uninstallerIcon": "app/icon.ico",
+      "deleteAppDataOnUninstall": false
     },
     "mac": {
       "target": "dmg",
-      "icon": "app/icon.icns",
+      "icon": "app/icon.png",
       "category": "public.app-category.education"
     },
     "linux": {
-      "target": ["AppImage", "deb"],
+      "target": [
+        "AppImage",
+        "deb"
+      ],
       "icon": "app/icon.png",
       "category": "Education"
-    }
+    },
+    "asar": true,
+    "compression": "maximum"
   },
   "devDependencies": {
     "electron": "^28.0.0",
