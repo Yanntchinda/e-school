@@ -616,28 +616,37 @@ function sessionUser(){try{const id=sessionStorage.getItem(SKEY);return DB.users
 
 /* ---------- Calculs ---------- */
 const seqIdx=t=>t===3?[4]:[(t-1)*2,(t-1)*2+1];
+/* Une note existe des qu'une valeur numerique est saisie. 0 est une note a part entiere ;
+   une case vide, une chaine vide ou NaN signifient « aucune donnee » : la matiere et son
+   coefficient sont alors totalement ignores dans les calculs. */
+const isNote=v=>v!=null&&v!==''&&Number.isFinite(Number(v));
 function getG(cls,sid,sub){return(cls.grades[sid]&&cls.grades[sid][sub])||null}
 function setG(cls,sid,sub,i,v){const g=cls.grades[sid]||(cls.grades[sid]={});const a=g[sub]||(g[sub]=[null,null,null,null,null]);a[i]=v}
 function subAvg(cls,sid,sub,t){
   const g=getG(cls,sid,sub);if(!g)return null;
   if(t===3){
-    /* T3 : M/20 = moyenne generale de la matiere = (T1 x2 + T2 x2 + N5) / 5 */
-    const seqMean=i=>{const v=[g[i*2],g[i*2+1]].filter(x=>x!=null);return v.length?v.reduce((a,b)=>a+b,0)/v.length:null};
-    const t1=seqMean(0),t2=seqMean(1),n5=g[4]!=null?g[4]:null;
+    /* T3 : M/20 = moyenne generale de la matiere = (T1 x2 + T2 x2 + N5) / 5.
+       Les termes sans donnee ne sont pas ponderes : seul ce qui est saisi compte. */
+    const seqMean=i=>{const v=[g[i*2],g[i*2+1]].filter(isNote).map(Number);return v.length?v.reduce((a,b)=>a+b,0)/v.length:null};
+    const t1=seqMean(0),t2=seqMean(1),n5=isNote(g[4])?Number(g[4]):null;
     let sw=0,sp=0;
     if(t1!=null){sp+=t1*2;sw+=2}
     if(t2!=null){sp+=t2*2;sw+=2}
     if(n5!=null){sp+=n5;sw+=1}
     return sw?sp/sw:null;
   }
-  const v=seqIdx(t).map(i=>g[i]).filter(x=>x!=null);
+  const v=seqIdx(t).map(i=>g[i]).filter(isNote).map(Number);
   return v.length?v.reduce((a,b)=>a+b,0)/v.length:null
 }
 function compute(cls,t){
   const per={};
   for(const s of cls.students){
     const m={};let cs=0,pts=0;
-    for(const sub of cls.subjects){const v=subAvg(cls,s.id,sub.id,t);m[sub.id]=v;if(v!=null){cs+=sub.coef;pts+=v*sub.coef}}
+    for(const sub of cls.subjects){
+      const v=subAvg(cls,s.id,sub.id,t);m[sub.id]=v;
+      /* Aucune note dans la matiere : ni la matiere ni son coefficient n'entrent dans la moyenne */
+      if(v!=null&&isNote(v)){cs+=Number(sub.coef)||0;pts+=Number(v)*(Number(sub.coef)||0)}
+    }
     per[s.id]={m,cs,pts,avg:cs>0?pts/cs:null,sr:{}};
   }
   const key=s=>Math.round(per[s.id].avg*100);
@@ -660,8 +669,11 @@ function bulletinRows(cls,sid,res,t){
     const g=(sub.group||'').trim();
     if(g!==(cur||'')){flush();cur=g||null}
     const gr=getG(cls,sid,sub.id),m=res.per[sid].m[sub.id];
-    rows.push({type:'sub',sub,ns:seqs.map(i=>gr?gr[i]:null),n1:gr?gr[seqs[0]]:null,n2:seqs.length>1?(gr?gr[seqs[1]]:null):null,m,coef:sub.coef,pts:m!=null?m*sub.coef:null,rank:res.per[sid].sr[sub.id]});
-    if(m!=null&&cur){gc+=sub.coef;gp+=m*sub.coef}
+    /* Matiere sans aucune note : ni coefficient ni points imprimes, elle ne pese pas dans le total */
+    const notee=(m!=null&&isNote(m));
+    rows.push({type:'sub',sub,ns:seqs.map(i=>gr?gr[i]:null),n1:gr?gr[seqs[0]]:null,n2:seqs.length>1?(gr?gr[seqs[1]]:null):null,m,
+      coef:notee?sub.coef:null,pts:notee?m*sub.coef:null,rank:notee?res.per[sid].sr[sub.id]:null,notee});
+    if(notee&&cur){gc+=Number(sub.coef)||0;gp+=m*(Number(sub.coef)||0)}
   }
   flush();return rows;
 }
@@ -815,7 +827,7 @@ function bBottomHtml(cls,st,res,P,t,ann,remark,pp,sc){
     '<tr class="row-t3">'+
       '<td class="lbl" rowspan="2">Abs. non. J. (h)'+v(dv('absNJ'))+'</td>'+
       '<td class="lbl" rowspan="2">Avertissement de conduite'+chkOn(dOn.a)+v('&nbsp;')+'</td>'+
-      '<td class="lbl center" rowspan="2"><b>Total général</b>'+v(num(fmt(P.pts)))+'</td>'+
+      '<td class="lbl center" rowspan="2"><b>Total général</b>'+v(num(P.cs?fmt(P.pts):'&nbsp;'))+'</td>'+
       '<td class="lbl center dcc"><b>Décision du conseil de classe</b><i>Class council decision</i></td>'+
       '<td class="lbl" rowspan="2">Moyenne Générale / General Average'+v(pAvg==null?'&nbsp;':fmt1(pAvg))+'</td>'+
     '</tr>'+
@@ -856,7 +868,7 @@ function bBottomHtml(cls,st,res,P,t,ann,remark,pp,sc){
     '<tr class="row-h">'+
       '<td class="lbl">Abs. non. J. (h)'+v(dv('absNJ'))+'</td>'+
       '<td class="lbl">Avertissement de conduite'+chkOn(dOn.a)+v('&nbsp;')+'</td>'+
-      '<td class="lbl center"><b>Total général</b>'+v(num(fmt(P.pts)))+'</td>'+
+      '<td class="lbl center"><b>Total général</b>'+v(num(P.cs?fmt(P.pts):'&nbsp;'))+'</td>'+
       '<td class="lbl center dcc"><b>Décision du conseil de classe</b><i>Class council decision</i></td>'+
       '<td class="lbl">Moyenne Générale / General Average'+v(pAvg==null?'&nbsp;':fmt1(pAvg))+'</td>'+
     '</tr>'+
@@ -917,7 +929,9 @@ function bulletinHtml(cls,sid,t){
     if(r.type==='group'){
       b+='<tr class="grp"><td class="mt" colspan="'+(order.length-2)+'">'+esc(L.grp+r.label)+'</td>'+order.filter(k=>k!=='n1'&&k!=='n2').map(k=>'<td style="color:'+(k==='m'&&r.avg!=null&&r.avg<10?'#c00000':'inherit')+'">'+(k==='m'?fmt(r.avg):k==='coef'?(r.coef||''):fmt(r.pts))+'</td>').join('')+'<td></td><td></td></tr>';
     }else{
-      const cell={n1:fmt(r.n1),n2:fmt(r.n2),m:fmt(r.m),coef:r.coef,pts:fmt(r.pts)};
+      const cell={n1:fmt(r.n1),n2:fmt(r.n2),m:fmt(r.m),
+        coef:(r.coef==null?'':fmt(r.coef,r.coef%1?1:0)),
+        pts:fmt(r.pts)};
       const teacher=viewUsers().find(u=>u.id===r.sub.teacherId);b+='<tr><td class="mt"><span>'+esc(r.sub.name)+'</span>'+(teacher?' <span class="sub-teacher">/&nbsp;&nbsp;'+esc(teacher.name)+'</span>':'')+'</td>'+order.map(k=>{
         const val=k==='n1'?r.n1:k==='n2'?r.n2:k==='m'?r.m:null;
         let style='';
@@ -2156,7 +2170,7 @@ function gradesTab(cls){
   const res=getRes(cls,t);
   const unassigned=isAdmin()?cls.subjects.filter(s=>!s.teacherId).length:0;
   let h='<div class="toolbar">'+(!isAdmin()?'<label class="chk"><input type="checkbox" data-chk="mine" '+(S.mine?'checked':'')+'> Afficher seulement mes matières</label>':'')+
-   '<span class="small muted">Séquences '+seqs.map(i=>i+1).join(', ')+' · notes sur 20, virgule ou point · Entrée passe à l’élève suivant · vous pouvez coller une colonne copiée depuis Excel.</span><span class="grow"></span>'+(isReadOnlySession()?'':'<button class="btn" data-act="export-my-notes">Exporter mes notes (fichier)</button>')+'</div>';
+   '<span class="small muted">Séquences '+seqs.map(i=>i+1).join(', ')+' · notes sur 20, virgule ou point · Entrée passe à l’élève suivant · vous pouvez coller une colonne copiée depuis Excel. Une matière sans aucune note n’est pas comptée, ni son coefficient ; 0 est une note.</span><span class="grow"></span>'+(isReadOnlySession()?'':'<button class="btn" data-act="export-my-notes">Exporter mes notes (fichier)</button>')+'</div>';
   if(isAdmin()&&!isReadOnlySession()){
     h+='<div class="toolbar"><span class="small muted" style="font-weight:600">Verrouillage de la saisie :</span>'+
      [1,2,3].map(t=>'<button class="btn sm '+(cls.locks&&cls.locks[t]===false?'':'green')+'" data-act="toggle-lock" data-t="'+t+'">'+TRN[t-1]+' trim. '+(cls.locks&&cls.locks[t]===false?'bloqué':'débloqué')+'</button>').join('')+
