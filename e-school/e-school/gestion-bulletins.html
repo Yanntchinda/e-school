@@ -274,6 +274,19 @@ td.sumc{font-weight:700;min-width:64px;padding:0 8px;background:#fcfcf6}
 .bulletin .b-bottom-t td.mavg .val{font-size:13.2pt;min-height:5.4mm}
 .bulletin .b-bottom-t td.mavg .rk-mavg{margin-top:.6mm;font-size:8.2pt}
 .bulletin .b-bottom-t td.mavg .rk-mavg b{font-size:10.6pt}
+/* bascule de role sur la page de connexion */
+.role-switch{display:flex;gap:6px;padding:5px;margin:0 0 12px;border-radius:12px;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.24)}
+.role-switch button{flex:1;border:0;background:transparent;color:#e7eefb;font-size:12.5px;font-weight:600;padding:8px 6px;border-radius:9px;cursor:pointer;line-height:1.15}
+.role-switch button.on{background:#fff;color:var(--brand-d);box-shadow:0 2px 8px rgba(0,0,0,.16)}
+/* tableau de saisie de la discipline */
+.disc-t th{white-space:nowrap;font-size:12px;text-transform:uppercase;letter-spacing:.02em}
+.disc-t td{vertical-align:middle}
+.disc-t td.disc-name{font-weight:600;white-space:nowrap}
+.disc-t td.disc-cell{padding:4px 6px;width:150px}
+.disc-t .disc-in{width:100%;max-width:110px;text-align:center;font-variant-numeric:tabular-nums;font-weight:600;margin:0 auto;display:block;padding:7px 8px}
+.disc-t .disc-in::placeholder{color:#b6c0cc;font-weight:400}
+.disc-t tfoot td{background:#f6f8fb;font-weight:700;border-top:2px solid var(--line)}
+.disc-t tfoot td.disc-tot{text-align:center;color:var(--brand-d)}
 .bulletin .b-bottom-t td.dcc{vertical-align:middle;line-height:1.25}
 /* 3e trimestre : moyenne de chaque trimestre, moyenne annuelle, rangs */
 .bulletin .b-bottom-t tr.row-ann td{vertical-align:middle}
@@ -525,8 +538,13 @@ function verifyPw(pw,salt,stored){
   return sha256Hex(input)===stored||legacyHashPw(pw,salt)===stored;
 }
 let ME=null;
-const S={view:'dash',classId:null,tab:'eleves',trim:1,mine:true,sort:'name',sessionId:null,closeState:null,simulationState:null};
+const S={view:'dash',classId:null,tab:'eleves',trim:1,mine:true,sort:'name',sessionId:null,closeState:null,simulationState:null,loginRole:'staff'};
 const isAdmin=()=>ME&&ME.role==='admin';
+const isSurv=()=>ME&&ME.role==='surv';
+const isProf=()=>ME&&(ME.role==='prof'||ME.role==='teacher');
+const roleLabel=()=>isAdmin()?'Administrateur':isSurv()?'Surveillant général':isProf()?'Professeur':'';
+/* Personnel enseignant (les anciennes donnees utilisent encore « teacher ») */
+const teachingUsers=()=>(DB.users||[]).filter(u=>u.role==='prof'||u.role==='teacher');
 const archivedSessions=()=>Array.isArray(DB.sessions)?DB.sessions:[];
 const currentArchive=()=>S.sessionId?archivedSessions().find(x=>x.id===S.sessionId)||null:null;
 const isReadOnlySession=()=>!!currentArchive();
@@ -605,7 +623,7 @@ function mention(a){return a==null?'':a>=16?'Très bien':a>=14?'Bien':a>=12?'Ass
 /* ---------- Accès ---------- */
 function visibleClasses(){
   const classes=viewClasses();
-  const l=isAdmin()?classes:classes.filter(c=>c.ppId===ME.id||c.subjects.some(s=>s.teacherId===ME.id));
+  const l=(isAdmin()||isSurv())?classes:classes.filter(c=>c.ppId===ME.id||c.subjects.some(s=>s.teacherId===ME.id));
   return[...l].sort((a,b)=>(a.ord-b.ord)||a.name.localeCompare(b.name,'fr',{numeric:true}));
 }
 const curClass=()=>viewClasses().find(c=>c.id===S.classId)||null;
@@ -681,6 +699,24 @@ addEventListener('afterprint',()=>{document.body.classList.remove('printing','no
 const headerSrc=()=>viewSchool().header||DEFAULT_HEADER;
 
 /* ---------- Bulletin ---------- */
+/* ---------- Discipline : saisie par le surveillant general ---------- */
+const DISC_FIELDS=[
+  {k:'absNJ',fr:'Abs. non. J. (h)',             en:'Unexcused absences (h)'},
+  {k:'absJ', fr:'Abs. just. (h)',               en:'Excused absences (h)'},
+  {k:'ret',  fr:'Retards (nombre de fois)',     en:'Lateness (times)'},
+  {k:'cons', fr:'Consignes (h)',                en:'Punishment (h)'}
+];
+/* cls.disc = { [studentId]: { t1:{absNJ,absJ,ret,cons}, t2:{...}, t3:{...} } } */
+function discGet(cls,sid,t){const m=cls.disc&&cls.disc[sid];return (m&&m['t'+t])||null}
+function discVal(cls,sid,t,k){const d=discGet(cls,sid,t);if(!d)return null;const v=d[k];return (v==null||v===''||isNaN(v))?null:Number(v)}
+function discSet(cls,sid,t,k,v){
+  const m=cls.disc||(cls.disc={}),e=m[sid]||(m[sid]={}),d=e['t'+t]||(e['t'+t]={});
+  if(v==null||v===''||isNaN(v))delete d[k];else d[k]=Math.max(0,Number(v));
+}
+/* Synthese annuelle : somme des trois trimestres */
+function discSum(cls,sid,k){let a=0,any=false;for(const t of[1,2,3]){const v=discVal(cls,sid,t,k);if(v!=null){a+=v;any=true}}return any?a:null}
+const discNum=v=>{if(v==null)return null;const r=Math.round(v*100)/100;return Number.isInteger(r)?String(r):String(r).replace('.',',')};
+
 /* ---------- Bas du bulletin : discipline / travail / profil de classe / visas ---------- */
 function bBottomHtml(cls,st,res,P,t,ann,remark,pp,sc){
   const avgs=res.ranked.map(s=>res.per[s.id].avg);
@@ -689,6 +725,8 @@ function bBottomHtml(cls,st,res,P,t,ann,remark,pp,sc){
   const pass=avgs.length?passCount/avgs.length:null;
   const v=x=>'<span class="val">'+x+'</span>',chk='<span class="chk" aria-hidden="true"></span>';
   const chkOn=on=>'<span class="chk'+(on?' on':'')+'" aria-hidden="true"></span>';
+  /* Discipline : valeurs du trimestre, ou synthese annuelle au 3e trimestre */
+  const dv=k=>{const val=t===3?discSum(cls,st.id,k):discVal(cls,st.id,t,k);return discNum(val)==null?'&nbsp;':discNum(val)};
   const num=x=>x==null||x===''?'&nbsp;':x;
   /* 3e trimestre : les elements du profil de la classe sont calcules a l'annee */
   const A=t===3?annualStats(cls):null;
@@ -702,11 +740,11 @@ function bBottomHtml(cls,st,res,P,t,ann,remark,pp,sc){
              e: pAvg!=null&&pAvg>=16};
   let h='<div class="b-bottom"><table class="b-bottom-t">'+
   '<colgroup><col style="width:17%"><col style="width:18%"><col style="width:15%"><col style="width:23%"><col style="width:27%"></colgroup>'+
-  '<thead><tr><th colspan="2">Discipline</th><th colspan="2">Travail de l’élève <i>/ Student’s work</i></th><th>Profil de la classe</th></tr></thead><tbody>'+
+  '<thead><tr><th colspan="2">Discipline'+(t===3?'<i>Synthèse annuelle / Annual total</i>':'')+'</th><th colspan="2">Travail de l’élève <i>/ Student’s work</i></th><th>Profil de la classe</th></tr></thead><tbody>'+
   (t===3?
     /* --- 3e trimestre : 7 lignes, la colonne Decision recoit 3 cases de plus --- */
     '<tr class="row-t3">'+
-      '<td class="lbl" rowspan="2">Abs. non. J. (h)'+v('&nbsp;')+'</td>'+
+      '<td class="lbl" rowspan="2">Abs. non. J. (h)'+v(dv('absNJ'))+'</td>'+
       '<td class="lbl" rowspan="2">Avertissement de conduite'+chk+v('&nbsp;')+'</td>'+
       '<td class="lbl center" rowspan="2"><b>Total général</b>'+v(num(fmt(P.pts)))+'</td>'+
       '<td class="lbl center dcc"><b>Décision du conseil de classe</b><i>Class council decision</i></td>'+
@@ -716,7 +754,7 @@ function bBottomHtml(cls,st,res,P,t,ann,remark,pp,sc){
       '<td class="lbl center mtn-cell"><span class="mtn">Tableau d’honneur'+chkOn(mOn.h)+'</span></td>'+
     '</tr>'+
     '<tr class="row-t3">'+
-      '<td class="lbl" rowspan="2">Abs. just. (h)'+v('&nbsp;')+'</td>'+
+      '<td class="lbl" rowspan="2">Abs. just. (h)'+v(dv('absJ'))+'</td>'+
       '<td class="lbl" rowspan="2">Blâme de cond.'+chk+v('&nbsp;')+'</td>'+
       '<td class="lbl center" rowspan="2"><b>Coef.</b>'+v(num(P.cs||''))+'</td>'+
       '<td class="lbl center mtn-cell"><span class="mtn">Félicitations'+chkOn(mOn.f)+'</span></td>'+
@@ -726,7 +764,7 @@ function bBottomHtml(cls,st,res,P,t,ann,remark,pp,sc){
       '<td class="lbl center mtn-cell"><span class="mtn">Encouragement'+chkOn(mOn.e)+'</span></td>'+
     '</tr>'+
     '<tr class="row-t3">'+
-      '<td class="lbl" rowspan="2">Retards (nombre de fois)'+v('&nbsp;')+'</td>'+
+      '<td class="lbl" rowspan="2">Retards (nombre de fois)'+v(dv('ret'))+'</td>'+
       '<td class="lbl" rowspan="2">Exclusions (jrs)<i>Expelling (jrs)</i>'+v('&nbsp;')+'</td>'+
       '<td class="lbl center mavg" rowspan="3"><b>Moyenne annuelle</b>Annual average'+
         v(A&&A.per[st.id]&&A.per[st.id].avg!=null?fmt1(A.per[st.id].avg):'&nbsp;')+
@@ -739,7 +777,7 @@ function bBottomHtml(cls,st,res,P,t,ann,remark,pp,sc){
       '<td class="dec"><b>Redouble</b><i>Repeat</i></td>'+
     '</tr>'+
     '<tr class="row-t3">'+
-      '<td class="lbl">Consignes (h)<i>Punishment</i>'+v('&nbsp;')+'</td>'+
+      '<td class="lbl">Consignes (h)<i>Punishment</i>'+v(dv('cons'))+'</td>'+
       '<td class="lbl">Exclusion définitive'+v('&nbsp;')+'</td>'+
       '<td class="dec"><b>Exclu (e)</b><i>Expelled</i></td>'+
       '<td class="lbl">Taux de réussite / Success rate'+v(pPass==null?'&nbsp;':Math.round(pPass*100)+' %')+'</td>'+
@@ -747,28 +785,28 @@ function bBottomHtml(cls,st,res,P,t,ann,remark,pp,sc){
   :
     /* --- 1er et 2e trimestres : bloc inchange --- */
     '<tr class="row-h">'+
-      '<td class="lbl">Abs. non. J. (h)'+v('&nbsp;')+'</td>'+
+      '<td class="lbl">Abs. non. J. (h)'+v(dv('absNJ'))+'</td>'+
       '<td class="lbl">Avertissement de conduite'+chk+v('&nbsp;')+'</td>'+
       '<td class="lbl center"><b>Total général</b>'+v(num(fmt(P.pts)))+'</td>'+
       '<td class="lbl center dcc"><b>Décision du conseil de classe</b><i>Class council decision</i></td>'+
       '<td class="lbl">Moyenne Générale / General Average'+v(pAvg==null?'&nbsp;':fmt1(pAvg))+'</td>'+
     '</tr>'+
     '<tr class="row-h">'+
-      '<td class="lbl">Abs. just. (h)'+v('&nbsp;')+'</td>'+
+      '<td class="lbl">Abs. just. (h)'+v(dv('absJ'))+'</td>'+
       '<td class="lbl">Blâme de cond.'+chk+v('&nbsp;')+'</td>'+
       '<td class="lbl center"><b>Coef.</b>'+v(num(P.cs||''))+'</td>'+
       '<td class="lbl center mtn-cell"><span class="mtn">Tableau d’honneur'+chkOn(mOn.h)+'</span></td>'+
       '<td class="lbl center">[ Min - Max ]'+v(pMn==null?'&nbsp;':fmt1(pMn)+' – '+fmt1(pMx))+'</td>'+
     '</tr>'+
     '<tr class="row-h">'+
-      '<td class="lbl">Retards (nombre de fois)'+v('&nbsp;')+'</td>'+
+      '<td class="lbl">Retards (nombre de fois)'+v(dv('ret'))+'</td>'+
       '<td class="lbl">Exclusions (jrs)<i>Expelling (jrs)</i>'+v('&nbsp;')+'</td>'+
       '<td class="lbl center mavg" rowspan="2"><b>Moyenne trimestrielle</b>Term average'+v(P.avg==null?'&nbsp;':fmt1(P.avg))+'</td>'+
       '<td class="lbl center mtn-cell"><span class="mtn">Félicitations'+chkOn(mOn.f)+'</span></td>'+
       '<td class="lbl">Nombre de moyennes<i>Average number</i>'+v(pPassCount+' / '+cls.students.length)+'</td>'+
     '</tr>'+
     '<tr class="row-h">'+
-      '<td class="lbl">Consignes (h)<i>Punishment</i>'+v('&nbsp;')+'</td>'+
+      '<td class="lbl">Consignes (h)<i>Punishment</i>'+v(dv('cons'))+'</td>'+
       '<td class="lbl">Exclusion définitive'+v('&nbsp;')+'</td>'+
       '<td class="lbl center mtn-cell"><span class="mtn">Encouragement'+chkOn(mOn.e)+'</span></td>'+
       '<td class="lbl">Taux de réussite / Success rate'+v(pPass==null?'&nbsp;':Math.round(pPass*100)+' %')+'</td>'+
@@ -1142,20 +1180,40 @@ function setupHtml(){
   '<p class="small" style="margin:10px 0 0"><a href="#" data-act="restore-start">Restaurer une sauvegarde existante</a></p></form></div>';
 }
 function loginHtml(){
+  const surv=S.loginRole==='surv';
   return '<div class="auth"><div style="position:relative;z-index:2;width:min(462px,100%)">'+
-  '<form class="auth-box" data-form="login" style="width:100%"><img src="'+headerSrc()+'" alt="'+esc(DB.school.name)+'">'+
-  '<div class="auth-kicker">Espace sécurisé</div>'+
-  (DB.demoMode?'<div class="notice info" style="margin-bottom:12px;font-size:13px"><b>Mode démo</b> — comptes de test :<br>Administrateur : <code>admin</code> / <code>admin1234</code><br>Professeurs : <code>pmballa</code>, <code>mfotso</code>, <code>injoya</code>, <code>skamga</code>, <code>ressomba</code> / <code>prof1234</code><br><button type="button" class="btn sm" data-act="repair-demo-login" style="margin-top:8px">Réparer l’accès démo sans effacer les données</button></div>':'')+
-  '<h1>Connexion</h1><p>'+esc(DB.school.name)+' · année scolaire '+esc(DB.school.year)+'</p>'+
+  '<div class="role-switch" role="group" aria-label="Type de compte">'+
+    '<button type="button" data-act="login-role" data-r="staff" class="'+(surv?'':'on')+'">Administration · Enseignants</button>'+
+    '<button type="button" data-act="login-role" data-r="surv" class="'+(surv?'on':'')+'">Surveillant général</button>'+
+  '</div>'+
+  '<form class="auth-box" data-form="'+(surv?'login-surv':'login')+'" style="width:100%"><img src="'+headerSrc()+'" alt="'+esc(DB.school.name)+'">'+
+  '<div class="auth-kicker">'+(surv?'Espace surveillant général':'Espace sécurisé')+'</div>'+
+  (DB.demoMode?'<div class="notice info" style="margin-bottom:12px;font-size:13px"><b>Mode démo</b> — comptes de test :<br>Administrateur : <code>admin</code> / <code>admin1234</code><br>Professeurs : <code>pmballa</code>, <code>mfotso</code>, <code>injoya</code>, <code>skamga</code>, <code>ressomba</code> / <code>prof1234</code><br>Surveillant général : <code>surv</code> / <code>surv1234</code></div>':'')+
+  '<h1>'+(surv?'Surveillant général':'Connexion')+'</h1>'+
+  '<p>'+(surv?'Absences, retards et consignes de chaque élève':'')+(surv?'<br>':'')+esc(DB.school.name)+' · année scolaire '+esc(DB.school.year)+'</p>'+
   '<label class="f">Identifiant<input name="username" autocapitalize="none" autocomplete="username" placeholder="Votre identifiant" required autofocus></label>'+
   '<label class="f">Mot de passe<input name="pw" type="password" autocomplete="current-password" placeholder="••••••••" required></label>'+
   '<div class="err" id="fe"></div><button class="btn primary" style="width:100%;justify-content:center;padding:11px 14px;font-size:15px">Se connecter</button>'+
   '<div class="auth-sep"></div>'+
   '<p class="auth-links"><a href="#" data-act="reset-demo">Réinitialiser les données de démo</a></p></form>'+
-  '<div class="auth-foot">Accès réservé au personnel de <b>'+esc(DB.school.name)+'</b> · Gestion des bulletins et des sessions</div>'+
+  '<div class="auth-foot">Accès réservé au personnel de <b>'+esc(DB.school.name)+'</b> · '+(surv?'Saisie de la discipline':'Gestion des bulletins et des sessions')+'</div>'+
   '</div></div>';
 }
+function survShell(){
+  const cl=visibleClasses();
+  const nav=cl.map(c=>'<a class="nav '+(S.view==='discipline'&&S.classId===c.id?'on':'')+'" data-act="disc-class" data-id="'+c.id+'"><span>'+esc(c.name)+'</span><small>'+c.students.length+'</small></a>').join('');
+  return '<header class="topbar"><div class="brand"><span class="dot">M</span><span class="t">'+esc(viewSchool().name)+'</span></div>'+
+    (isReadOnlySession()?'<span class="role">Consultation · '+esc(viewYear())+'</span>':'<span class="role">Session en cours · '+esc(viewYear())+'</span>')+
+    '<div class="tri" role="group" aria-label="Trimestre">'+[1,2,3].map(t=>'<button data-act="trim" data-t="'+t+'" class="'+(S.trim===t?'on':'')+'">'+TRN[t-1]+' trimestre</button>').join('')+'</div>'+
+    '<div class="me"><span>'+esc(ME.name)+' <span class="role">Surveillant général</span></span><button class="btn sm" data-act="logout">Quitter</button></div></header>'+
+    '<div class="shell"><nav class="side" aria-label="Navigation">'+
+    '<a class="nav '+(S.view==='discipline'&&!S.classId?'on':'')+'" data-act="go" data-v="discipline">Discipline</a>'+
+    '<h4>Classes</h4>'+(nav||'<span class="small muted" style="padding:6px 10px;display:block">Aucune classe</span>')+
+    '<h4>Compte</h4><a class="nav '+(S.view==='account'?'on':'')+'" data-act="go" data-v="account">Mon compte</a></nav>'+
+    '<main id="main">'+mainHtml()+'</main></div>';
+}
 function shellHtml(){
+  if(isSurv())return survShell();
   const cl=visibleClasses();
   const nav=cl.map(c=>'<a class="nav '+(S.view==='class'&&S.classId===c.id?'on':'')+'" data-act="open-class" data-id="'+c.id+'"><span>'+esc(c.name)+'</span><small>'+c.students.length+'</small></a>').join('');
   return '<header class="topbar"><div class="brand"><span class="dot">M</span><span class="t">'+esc(viewSchool().name)+'</span></div>'+(isReadOnlySession()?'<span class="role">Consultation · '+esc(viewYear())+'</span>':'<span class="role">Session en cours · '+esc(viewYear())+'</span>')+
@@ -1172,6 +1230,49 @@ function shellHtml(){
    '<a class="nav '+(S.view==='account'?'on':'')+'" data-act="go" data-v="account">Mon compte</a></nav>'+
    '<main id="main">'+mainHtml()+'</main></div>';
 }
+/* ---------- Espace surveillant general : saisie de la discipline ---------- */
+const discClass=()=>{const l=visibleClasses();return l.find(c=>c.id===S.classId)||l[0]||null};
+function discRefreshTotals(){
+  const tbl=document.querySelector('.disc-t');if(!tbl)return;
+  DISC_FIELDS.forEach((f,i)=>{
+    let sum=0,any=false;
+    tbl.querySelectorAll('tbody tr').forEach(tr=>{
+      const el=tr.querySelectorAll('.disc-in')[i];if(!el)return;
+      const raw=String(el.value).replace(',','.').trim();if(raw==='')return;
+      const n=Number(raw);if(!isNaN(n)){sum+=n;any=true}
+    });
+    const cell=tbl.querySelectorAll('tfoot td')[i+1];
+    if(cell)cell.textContent=any?discNum(sum):'—';
+  });
+}
+function disciplineHtml(){
+  const classes=visibleClasses();
+  if(!classes.length)return '<div class="page-h"><div><h1>Discipline</h1><p>Aucune classe disponible pour le moment.</p></div></div>';
+  const cls=discClass(),t=S.trim,ro=isReadOnlySession();
+  const rows=[...cls.students].sort(cmpName);
+  const total=k=>{let a=0,any=false;rows.forEach(st=>{const v=discVal(cls,st.id,t,k);if(v!=null){a+=v;any=true}});return any?a:null};
+  const inp=(st,k)=>{
+    const v=discVal(cls,st.id,t,k);
+    return '<input class="inp sm disc-in" type="text" inputmode="decimal" autocomplete="off" '+(ro?'readonly ':'')+
+      'data-sid="'+st.id+'" data-f="'+k+'" value="'+(v==null?'':discNum(v))+'" placeholder="—">';
+  };
+  return '<div class="page-h"><div><h1>Discipline — '+esc(cls.name)+'</h1>'+
+      '<p>'+rows.length+' élève'+(rows.length>1?'s':'')+' · '+TRN[t-1]+' trimestre · absences, retards et consignes</p></div>'+
+      '<div class="toolbar"><button class="btn primary" data-act="disc-save"'+(ro?' disabled':'')+'>Enregistrer</button></div></div>'+
+    '<div class="panel"><div class="toolbar" style="margin-bottom:12px">'+
+      '<label class="f" style="max-width:260px;margin:0">Classe<select data-discsel="1">'+
+        classes.map(c=>'<option value="'+c.id+'" '+(c.id===cls.id?'selected':'')+'>'+esc(c.name)+'</option>').join('')+'</select></label>'+
+      '<span class="grow"></span><span class="small muted">Enregistrement automatique · les valeurs saisies apparaissent sur le bulletin</span></div>'+
+    '<div class="tw"><table class="t disc-t"><thead><tr><th>Élève</th>'+
+      DISC_FIELDS.map(f=>'<th>'+f.fr+'</th>').join('')+'<th style="width:58px"></th></tr></thead><tbody>'+
+      (rows.length?rows.map(st=>'<tr><td class="disc-name">'+esc(st.name)+'</td>'+
+        DISC_FIELDS.map(f=>'<td class="disc-cell">'+inp(st,f.k)+'</td>').join('')+
+        '<td class="right">'+(ro?'':'<button class="btn sm ghost" data-act="disc-clear" data-sid="'+st.id+'" title="Effacer cette ligne">×</button>')+'</td></tr>').join('')
+      :'<tr><td colspan="6" class="muted" style="text-align:center;padding:18px">Aucun élève dans cette classe.</td></tr>')+
+    '</tbody><tfoot><tr><td><b>Total du trimestre</b></td>'+
+      DISC_FIELDS.map(f=>{const v=total(f.k);return '<td class="disc-tot">'+(v==null?'—':discNum(v))+'</td>'}).join('')+'<td></td></tr></tfoot></table></div></div>'+
+    (t===3?'<div class="notice info">Au 3e trimestre, le bulletin affiche la <b>synthèse annuelle</b> : la somme des trois trimestres pour chaque rubrique.</div>':'');
+}
 function mainHtml(){
   if(S.view==='sessions')return sessionsHtml();
   if(S.view==='lessons')return lessonsHtml();
@@ -1181,6 +1282,7 @@ function mainHtml(){
   if(S.view==='class')return classHtml();
   if(S.view==='teachers'&&isAdmin())return teachersHtml();
   if(S.view==='school'&&isAdmin())return schoolHtml();
+  if(S.view==='discipline')return disciplineHtml();
   if(S.view==='account')return accountHtml();
   return dashHtml();
 }
@@ -2091,16 +2193,19 @@ function paramsTab(cls){
 
 /* ---------- Enseignants ---------- */
 function teachersHtml(){
-  const ts=DB.users.filter(u=>u.role==='prof');
-  let h='<div class="page-h"><div><h1>Enseignants</h1><p>Chaque enseignant se connecte avec son identifiant et ne saisit que les notes de ses matières.</p></div><button class="btn primary" data-act="add-teacher">Ajouter un enseignant</button></div>';
+  const ts=(DB.users||[]).filter(u=>u.role==='prof'||u.role==='teacher'||u.role==='surv');
+  let h='<div class="page-h"><div><h1>Personnel</h1><p>Chaque enseignant ne saisit que les notes de ses matières ; le surveillant général saisit la discipline (absences, retards, consignes).</p></div><button class="btn primary" data-act="add-teacher">Ajouter un compte</button></div>';
   if(!ts.length)return h+'<div class="panel empty"><h3>Aucun enseignant pour l’instant</h3><p>Créez un compte par enseignant, puis affectez chacun à ses matières dans les paramètres de chaque classe.</p></div>';
   h+='<div class="tw"><table class="t"><thead><tr><th>Nom</th><th>Identifiant</th><th>Téléphone</th><th>Classes et matières</th><th></th></tr></thead><tbody>'+ts.map(u=>{
+    if(u.role==='surv')return '<tr><td><b>'+esc(u.name)+'</b></td><td>'+esc(u.username)+'</td><td>'+esc(u.phone||'')+'</td><td class="small"><span class="badge">Surveillant général</span> Discipline de toutes les classes</td><td class="right nowrap"><button class="btn sm" data-act="edit-teacher" data-id="'+u.id+'">Modifier</button> <button class="btn sm ghost" data-act="del-teacher" data-id="'+u.id+'">Supprimer</button></td></tr>';
     const as=viewClasses().map(c=>{const m=c.subjects.filter(s=>s.teacherId===u.id).map(s=>s.name);return(m.length||c.ppId===u.id)?'<b>'+esc(c.name)+'</b>'+(c.ppId===u.id?' (prof. principal)':'')+(m.length?' : '+esc(m.join(', ')):''):''}).filter(Boolean);
     return '<tr><td><b>'+esc(u.name)+'</b></td><td>'+esc(u.username)+'</td><td>'+esc(u.phone||'')+'</td><td class="small">'+(as.join('<br>')||'<span class="muted">Aucune affectation</span>')+'</td><td class="right nowrap"><button class="btn sm" data-act="edit-teacher" data-id="'+u.id+'">Modifier</button> <button class="btn sm danger" data-act="del-teacher" data-id="'+u.id+'">Supprimer</button></td></tr>'}).join('')+'</tbody></table></div>';
   return h;
 }
 function teacherForm(u){
-  openModal('<form data-form="teacher" data-id="'+(u?u.id:'')+'"><h2>'+(u?'Modifier l’enseignant':'Nouvel enseignant')+'</h2>'+
+  const surv=!!u&&u.role==='surv';
+  openModal('<form data-form="teacher" data-id="'+(u?u.id:'')+'"><h2>'+(u?'Modifier ce compte':'Nouveau compte de personnel')+'</h2>'+
+   '<label class="f">Rôle<select name="role"><option value="prof" '+(surv?'':'selected')+'>Enseignant</option><option value="surv" '+(surv?'selected':'')+'>Surveillant général (discipline)</option></select></label>'+
    '<label class="f">Nom complet<input name="name" value="'+esc(u?u.name:'')+'" required autofocus></label>'+
    '<div class="row"><label class="f">Identifiant de connexion<input name="username" value="'+esc(u?u.username:'')+'" autocapitalize="none" required></label>'+
    '<label class="f">Téléphone<input name="phone" value="'+esc(u?u.phone||'':'')+'" inputmode="tel"></label></div>'+
@@ -2251,6 +2356,15 @@ A['confirm-close-year']=()=>{
 };
 A.tab=el=>{S.tab=el.dataset.k;render()};
 A.trim=el=>{S.trim=+el.dataset.t;render()};
+A['login-role']=el=>{S.loginRole=el.dataset.r;render()};
+A['disc-class']=el=>{S.view='discipline';S.classId=el.dataset.id;render()};
+A['disc-save']=()=>{if(isReadOnlySession())return;saveNow();toast('Discipline enregistrée.','ok')};
+A['disc-clear']=el=>{
+  const cls=discClass();if(!cls||isReadOnlySession())return;
+  if(!confirm('Effacer les valeurs de cet élève pour ce trimestre ?'))return;
+  if(cls.disc&&cls.disc[el.dataset.sid])delete cls.disc[el.dataset.sid]['t'+S.trim];
+  dirty();render();toast('Ligne effacée.','ok');
+};
 A.logout=()=>{try{sessionStorage.removeItem(SKEY)}catch(e){}ME=null;S.sessionId=null;S.closeState=null;S.simulationState=null;S.view='dash';render()};
 A.mclose=closeModal;
 A['confirm-ok']=()=>{const f=confirmCb;confirmCb=null;closeModal();if(f)f()};
@@ -2392,7 +2506,7 @@ A['sub-reset']=()=>{const cls=curClass();
 A['del-class']=()=>{const cls=curClass();
   askConfirm('Supprimer la classe '+cls.name+' ?','Les <b>'+cls.students.length+' élèves</b> et toutes leurs notes seront supprimés définitivement.','Supprimer la classe',()=>{DB.classes=DB.classes.filter(c=>c.id!==cls.id);dirty();S.view='dash';S.classId=null;render();toast('Classe supprimée.')},true)};
 /* enseignants */
-A['add-teacher']=()=>{if(!confirm('Ajouter un nouvel enseignant ?'))return;teacherForm(null)};
+A['add-teacher']=()=>{if(!confirm('Ajouter un nouveau compte de personnel ?'))return;teacherForm(null)};
 A['edit-teacher']=el=>{if(!confirm('Modifier cet enseignant ?'))return;teacherForm(DB.users.find(u=>u.id===el.dataset.id))};
 A['del-teacher']=el=>{const u=DB.users.find(x=>x.id===el.dataset.id);
   askConfirm('Supprimer ce compte ?','Le compte de <b>'+esc(u.name)+'</b> sera supprimé. Ses affectations de matières seront retirées ; les notes déjà saisies sont conservées.','Supprimer',()=>{DB.users=DB.users.filter(x=>x.id!==u.id);DB.classes.forEach(c=>{c.subjects.forEach(s=>{if(s.teacherId===u.id)s.teacherId=''});if(c.ppId===u.id){c.ppId='';c.ppName=u.name}});dirty();render()},true)};
@@ -2468,6 +2582,14 @@ document.addEventListener('input',e=>{
   if(el.id==='imp-text')importPreview(el.value);
   if(el.id==='remark'){if(isReadOnlySession())return;const cls=curClass(),sid=el.dataset.sid;(cls.remarks[sid]||(cls.remarks[sid]={}))['t'+S.trim]=el.value;dirty();const b=$('#bprev');if(b)b.innerHTML=bulletinHtml(cls,sid,S.trim)}
   if(el.classList.contains('cell'))el.classList.remove('bad');
+  if(el.classList.contains('disc-in')){
+    if(isReadOnlySession())return;
+    const cls=discClass();if(!cls)return;
+    const raw=String(el.value).replace(',','.').trim();
+    const num=raw===''?null:Number(raw);
+    discSet(cls,el.dataset.sid,S.trim,el.dataset.f,(num==null||isNaN(num))?null:num);
+    dirty();discRefreshTotals();
+  }
 });
 document.addEventListener('paste',e=>{
   const el=e.target;if(!el.classList||!el.classList.contains('cell'))return;
@@ -2492,10 +2614,12 @@ document.addEventListener('submit',async e=>{
     const salt=uid();DB.school.name=fd.school.trim()||DB.school.name;
     const u={id:uid(),name:fd.name.trim(),username:un,phone:'',role:'admin',salt,hash:await hashPw(fd.pw,salt)};
     DB.users.push(u);dirty();saveNow();ME=u;try{sessionStorage.setItem(SKEY,u.id)}catch(x){}render();
-  }else if(kind==='login'){
+  }else if(kind==='login'||kind==='login-surv'){
     const u=DB.users.find(x=>x.username===fd.username.trim().toLowerCase());
     if(!u||!verifyPw(fd.pw,u.salt,u.hash))return err(DB.demoMode?'Identifiant ou mot de passe incorrect. Vérifiez admin / admin1234 ou utilisez « Réparer l’accès démo » sans effacer vos données.':'Identifiant ou mot de passe incorrect.');
-    ME=u;try{sessionStorage.setItem(SKEY,u.id)}catch(x){}S.sessionId=null;S.closeState=null;S.simulationState=null;S.view='dash';render();
+    if(kind==='login-surv'&&u.role!=='surv')return err('Ce compte n’est pas un compte de surveillant général. Utilisez l’espace Administration · Enseignants.');
+    ME=u;try{sessionStorage.setItem(SKEY,u.id)}catch(x){}S.sessionId=null;S.closeState=null;S.simulationState=null;
+    S.view=(u.role==='surv')?'discipline':'dash';S.classId=null;render();
   }else if(kind==='pw'){if(!confirm('Changer le mot de passe ?'))return;
     if(!verifyPw(fd.old,ME.salt,ME.hash))return err('Le mot de passe actuel est incorrect.');
     ME.salt=uid();ME.hash=await hashPw(fd.new,ME.salt);dirty();render();toast('Mot de passe modifié.','ok');
@@ -2504,6 +2628,7 @@ document.addEventListener('submit',async e=>{
     const id=f.dataset.id;if(DB.users.some(u=>u.username===un&&u.id!==id))return err('Cet identifiant est déjà utilisé.');
     let u=id&&DB.users.find(x=>x.id===id);
     if(!u){u={id:uid(),role:'prof'};DB.users.push(u)}
+    u.role=(fd.role==='surv')?'surv':'prof';
     u.name=fd.name.trim();u.username=un;u.phone=fd.phone.trim();
     if(fd.pw){u.salt=uid();u.hash=await hashPw(fd.pw,u.salt)}
     dirty();closeModal();render();
@@ -2524,7 +2649,9 @@ document.addEventListener('submit',async e=>{
   }
 });
 A['noop']=()=>{};
-document.addEventListener('change',e=>{if(e.target.name==='preset'){const p=PRESETS.find(x=>x.key===e.target.value),n=$('#ncname');if(n&&p)n.value=p.key==='X'?'':p.label}});
+document.addEventListener('change',e=>{
+  if(e.target.dataset&&e.target.dataset.discsel){S.view='discipline';S.classId=e.target.value;render();return}
+  if(e.target.name==='preset'){const p=PRESETS.find(x=>x.key===e.target.value),n=$('#ncname');if(n&&p)n.value=p.key==='X'?'':p.label}});
 
 function handleFile(el){
   const file=el.files&&el.files[0];if(!file)return;const kind=el.dataset.file;
@@ -2575,7 +2702,8 @@ async function seedDemoData(){
     await mkUser("KAMGA Sophie", "skamga", "prof1234", "teacher", "699 44 55 66"),
     await mkUser("ESSOMBA Robert", "ressomba", "prof1234", "teacher", "699 55 66 77"),
   ];
-  DB.users = [admin, ...teachers];
+  const surv = await mkUser("TCHINDA Marc", "surv", "surv1234", "surv", "699 66 77 88");
+  DB.users = [admin, ...teachers, surv];
   DB.school.name = "Ming's Bilingual Institute";
   DB.school.city = "Douala";
   DB.school.year = schoolYear();
@@ -2641,6 +2769,23 @@ async function seedDemoData(){
     assignTeachers(cls);
     genNotes(cls);
     DB.classes.push(cls);
+  }
+
+  /* Discipline : quelques absences, retards et consignes par eleve et par trimestre */
+  for(const cls of DB.classes){
+    cls.disc = cls.disc || {};
+    for(const s of cls.students){
+      const e = {};
+      for(const t of [1,2,3]){
+        const d = {};
+        if(Math.random() < .45) d.absNJ = Math.round(Math.random()*6*2)/2;      // 0 a 6 h
+        if(Math.random() < .35) d.absJ  = Math.round(Math.random()*8*2)/2;      // 0 a 8 h
+        if(Math.random() < .40) d.ret   = Math.floor(Math.random()*5);          // 0 a 4 fois
+        if(Math.random() < .30) d.cons  = Math.round(Math.random()*4*2)/2;      // 0 a 4 h
+        if(Object.keys(d).length) e['t'+t] = d;
+      }
+      if(Object.keys(e).length) cls.disc[s.id] = e;
+    }
   }
 
   for(const cls of DB.classes){
