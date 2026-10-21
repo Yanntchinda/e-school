@@ -651,7 +651,7 @@ function tagBadge(s){const tag=studentTag(s),cls=tag==='NA'?'na':tag==='Ancien'?
 function newClass(key,name){
   const pi=PRESETS.findIndex(p=>p.key===key),pr=PRESETS[pi];
   return{id:uid(),name:name||pr.label,presetKey:key,ord:pi,lang:pr.lang,ppId:'',ppName:'',ppTel:'',
-    subjects:pr.subs().map(s=>({id:uid(),...s,teacherId:''})),students:[],grades:{},remarks:{},locks:{1:false,2:false,3:false}};
+    subjects:pr.subs().map(s=>({id:uid(),...s,teacherId:''})),students:[],grades:{},remarks:{},disc:{},locks:{1:false,2:false,3:false}};
 }
 
 /* ---------- UI utilitaires ---------- */
@@ -740,7 +740,7 @@ function bBottomHtml(cls,st,res,P,t,ann,remark,pp,sc){
              e: pAvg!=null&&pAvg>=16};
   let h='<div class="b-bottom"><table class="b-bottom-t">'+
   '<colgroup><col style="width:17%"><col style="width:18%"><col style="width:15%"><col style="width:23%"><col style="width:27%"></colgroup>'+
-  '<thead><tr><th colspan="2">Discipline'+(t===3?'<i>Synthèse annuelle / Annual total</i>':'')+'</th><th colspan="2">Travail de l’élève <i>/ Student’s work</i></th><th>Profil de la classe</th></tr></thead><tbody>'+
+  '<thead><tr><th colspan="2">Discipline'+(t===3?'<i>Synthèse annuelle</i>':'')+'</th><th colspan="2">Travail de l’élève <i>/ Student’s work</i></th><th>Profil de la classe</th></tr></thead><tbody>'+
   (t===3?
     /* --- 3e trimestre : 7 lignes, la colonne Decision recoit 3 cases de plus --- */
     '<tr class="row-t3">'+
@@ -1074,6 +1074,9 @@ const Cloud={
 
   apply(d){
     if(!d)return false;
+    /* Discipline (saisie locale du surveillant) : conservee pour chaque classe retrouvee. */
+    const keepDisc={};
+    (DB.classes||[]).forEach(c=>{if(c.disc&&Object.keys(c.disc).length)keepDisc[c.id]=c.disc});
     if(d.school){
       const s=d.school;
       DB.school.name=s.name||DB.school.name;
@@ -1083,7 +1086,7 @@ const Cloud={
       if(s.header)DB.school.header=s.header;
     }
     if(Array.isArray(d.users)&&d.users.length){
-      DB.users=d.users.map(u=>({id:u.id,username:String(u.username||'').toLowerCase(),name:u.name||'',phone:u.phone||'',role:u.role==='admin'?'admin':'prof',salt:u.salt||'',hash:u.hash||''}));
+      DB.users=d.users.map(u=>({id:u.id,username:String(u.username||'').toLowerCase(),name:u.name||'',phone:u.phone||'',role:u.role==='admin'?'admin':u.role==='surv'?'surv':'prof',salt:u.salt||'',hash:u.hash||''}));
       try{if(typeof ME!=='undefined'&&ME&&!DB.users.some(u=>u.id===ME.id)){ME=null;try{sessionStorage.removeItem(SKEY)}catch(e){}}}catch(e){}
     }
     const byId={};
@@ -1118,7 +1121,10 @@ const Cloud={
       c.subjects.sort((a,b)=>(a._ord||0)-(b._ord||0));
       c.subjects.forEach(s=>{delete s._ord});
     });
-    if(ordered.length)DB.classes=ordered;
+    if(ordered.length){
+      ordered.forEach(c=>{if((!c.disc||!Object.keys(c.disc).length)&&keepDisc[c.id])c.disc=keepDisc[c.id]});
+      DB.classes=ordered;
+    }
     return true;
   },
 
@@ -1165,6 +1171,8 @@ function render(){
   }
   if(!DB.users.length){app.innerHTML=setupHtml();return}
   if(!ME){app.innerHTML=loginHtml();return}
+  /* Le surveillant general n'accede qu'a la discipline et a son compte */
+  if(isSurv()&&S.view!=='discipline'&&S.view!=='account'){S.view='discipline';S.classId=null}
   const cls=curClass();
   if(S.view==='class'&&!cls){S.view='dash'}
   app.innerHTML=shellHtml();
@@ -1274,6 +1282,7 @@ function disciplineHtml(){
     (t===3?'<div class="notice info">Au 3e trimestre, le bulletin affiche la <b>synthèse annuelle</b> : la somme des trois trimestres pour chaque rubrique.</div>':'');
 }
 function mainHtml(){
+  if(isSurv()&&S.view!=='discipline'&&S.view!=='account')S.view='discipline';
   if(S.view==='sessions')return sessionsHtml();
   if(S.view==='lessons')return lessonsHtml();
   if(S.view==='close-year')return closeYearHtml();
@@ -1428,7 +1437,7 @@ function updateCloseProgress(){
   const ready=closePlanComplete();$$('[data-act="confirm-close-year"]').forEach(b=>b.disabled=!ready);
 }
 function cloneClassToNextSession(cls,id){
-  const c=JSON.parse(JSON.stringify(cls));c.id=id;c.students=[];c.grades={};c.remarks={};c.lessons={};c.locks={1:false,2:false,3:false};
+  const c=JSON.parse(JSON.stringify(cls));c.id=id;c.students=[];c.grades={};c.remarks={};c.lessons={};c.disc={};c.locks={1:false,2:false,3:false};
   c.subjects=(cls.subjects||[]).map(s=>({...s,id:uid()}));return c;
 }
 function finishCloseYear(){
@@ -1441,7 +1450,7 @@ function finishCloseYear(){
     }
     // niveau d'accueil qui n'existait pas : on le crée depuis le modèle officiel
     const c=newClass(nc.presetKey,nc.name);
-    c.id=nc.id;c.students=[];c.grades={};c.remarks={};c.lessons={};
+    c.id=nc.id;c.students=[];c.grades={};c.remarks={};c.lessons={};c.disc={};
     c.locks={1:false,2:false,3:false};
     return c;
   });
