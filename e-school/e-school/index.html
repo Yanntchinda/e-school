@@ -211,7 +211,8 @@ td.sumc{font-weight:700;min-width:64px;padding:0 8px;background:#fcfcf6}
 .bulletin{width:190mm;margin:0 auto 14px;background:#fff;color:#000;font-family:Calibri,Carlito,"Segoe UI",Arial,sans-serif;font-size:10.5pt;padding:0;line-height:1.25}
 .xl .bulletin{padding:6mm 7mm;width:100%;max-width:210mm;box-shadow:0 2px 14px rgba(0,0,0,.18)}
 .bulletin .b-head{display:block;width:100%;height:auto}
-.bulletin .b-title{font-family:inherit;text-align:center;font-size:20pt;font-weight:400;letter-spacing:.3px;margin:3.5mm 0 1.5mm}
+.bulletin .b-title{font-family:inherit;text-align:center;font-size:20pt;font-weight:400;letter-spacing:.3px;margin:2.6mm 0 1.2mm}
+.bulletin .b-title .b-sub{display:block;font-size:10.5pt;font-style:italic;font-weight:400;letter-spacing:.16em;margin-top:.5mm}
 .bulletin .b-year{font-style:italic;font-size:12pt;display:flex;justify-content:space-between;align-items:baseline;margin:0 0 1.5mm;text-align:left}
 .bulletin .b-year .tr{font-style:normal;font-weight:700;font-size:11pt}
 .bulletin .b-profile{display:flex;align-items:center;gap:4mm;margin:1mm 0 1.5mm;break-inside:avoid;page-break-inside:avoid}
@@ -392,9 +393,9 @@ const PRESETS=[
  {key:'X',label:'Classe personnalisée (vierge)',lang:'fr',subs:()=>[P('MATIÈRE 1',1),P('MATIÈRE 2',1)]}
 ];
 const LB={
- fr:{title:()=>'BULLETIN DE NOTES',year:'Année scolaire',cls:'Classe',name:'Nom',pp:'Prof. Principal',cel:'Cel',sex:'Sexe',statut:'Statut',sexM:'Masculin',sexF:'Féminin',stOld:'Ancien',stNew:'Nouveau',stOldNew:'Ancien nouveau',subject:'MATIERE',n1:'N1/20',n2:'N2/20',m:'M/20',coef:'COEF',pts:'N X COEF',rank:'RANG',obs:'OBSERVATION',total:'TOTAL',
+ fr:{title:()=>'BULLETIN DE NOTES',sub:'REPORT CARD',year:'Année scolaire',cls:'Classe',name:'Nom',pp:'Prof. Principal',cel:'Cel',sex:'Sexe',statut:'Statut',sexM:'Masculin',sexF:'Féminin',stOld:'Ancien',stNew:'Nouveau',stOldNew:'Ancien nouveau',subject:'MATIERE',n1:'N1/20',n2:'N2/20',m:'M/20',coef:'COEF',pts:'N X COEF',rank:'RANG',obs:'OBSERVATION',total:'TOTAL',
   legend:"NON ACQUIS (N A) ; EN COURS D'ACQUISITION (E C A) ; ACQUIS (A) ; PLUS QUE ACQUIS (A+)",avgT:'Moyenne trimestrielle',rankL:'Rang',avgG:'Moyenne générale',prev:n=>'Moyenne TRI '+n,annual:'Moyenne annuelle',at:'le',principal:'Le Principal',grp:'MOYENNE ',tr:t=>TRN[t-1]+' Trimestre',order:['n1','n2','m','coef','pts'],totalAvg:true},
- en:{title:t=>['1st','2nd','3rd'][t-1]+' TRIMESTRIAL MARK SHEET',year:'School academic year',cls:'Class',name:'Name and surname',pp:'Class Master',cel:'Tel',sex:'Sex',statut:'Status',sexM:'Male',sexF:'Female',stOld:'Old',stNew:'New',stOldNew:'Old-new',subject:'SUBJECT',n1:'M1/20',n2:'M2/20',m:'A/20',coef:'COEF',pts:'A X COEF',rank:'RANK',obs:'OBSERVATIONS',total:'TOTAL',
+ en:{title:t=>['1st','2nd','3rd'][t-1]+' TRIMESTRIAL MARK SHEET',sub:'BULLETIN DE NOTES',year:'School academic year',cls:'Class',name:'Name and surname',pp:'Class Master',cel:'Tel',sex:'Sex',statut:'Status',sexM:'Male',sexF:'Female',stOld:'Old',stNew:'New',stOldNew:'Old-new',subject:'SUBJECT',n1:'M1/20',n2:'M2/20',m:'A/20',coef:'COEF',pts:'A X COEF',rank:'RANK',obs:'OBSERVATIONS',total:'TOTAL',
   legend:'N A = Not acquired ; E C A = Being acquired ; A = Acquired ; A+ = More than acquired',avgT:'Average/20',rankL:'RANK',avgG:'Class average',prev:n=>'Average TRI '+n,annual:'Annual average',at:'at',principal:'The Principal',grp:'AVERAGE ',tr:t=>['1st','2nd','3rd'][t-1]+' Term',order:['n1','n2','coef','m','pts'],totalAvg:true}
 };
 
@@ -638,7 +639,7 @@ function bBottomHtml(cls,st,res,P,t,ann,remark,pp,sc){
     '<td class="lbl">Avertissement de conduite'+v('&nbsp;')+'</td>'+
     '<td class="lbl center"><b>Total général</b>'+v(num(fmt(P.pts)))+'</td>'+
     '<td class="lbl center"><b>Décision du conseil de classe</b><i>Class council decision</i></td>'+
-    '<td class="lbl">Moyenne Générale / General Average'+v(res.classAvg==null?'&nbsp;':fmt1(res.classAvg))+'</td>'+
+    '<td class="lbl">Moyenne Générale / General Average'+v(P.avg==null?'&nbsp;':fmt1(P.avg))+'</td>'+
   '</tr>'+
   '<tr class="row-h">'+
     '<td class="lbl">Abs. just. (h)'+v('&nbsp;')+'</td>'+
@@ -694,8 +695,6 @@ function bulletinHtml(cls,sid,t){
       }).join('')+'<td>'+rankStr(r.rank)+'</td><td class="ob">'+obs(r.m)+'</td></tr>';
     }
   }
-  const cells=L.order.filter(k=>k!=='n1'&&k!=='n2').map(k=>'<td style="'+(k==='m'?'font-weight:700;'+(P.avg!=null&&P.avg<10?'color:#c00000;':''):'')+'">'+(k==='coef'?(P.cs||''):k==='pts'?fmt(P.pts):(L.totalAvg?fmt(P.avg):''))+'</td>').join('');
-  b+='<tr class="tot"><td class="mt" colspan="3" style="text-align:center">'+L.total+'</td>'+cells+'<td></td><td></td></tr>';
   const prev=[];for(let k=1;k<t;k++){const a=getRes(cls,k).per[sid];prev.push(a?a.avg:null)}
   let ann=null;
   if(t===3&&prev.every(a=>a!=null)&&P.avg!=null)ann=(prev[0]+prev[1]+P.avg)/3;
@@ -704,10 +703,11 @@ function bulletinHtml(cls,sid,t){
   const photoSrc=studentPhotoSrc(cls,st);
   const photoHtml=photoSrc?'<img class="b-photo" src="'+photoSrc+'" alt="Photo de '+esc(st.name)+'">':'<div class="b-photo b-photo-empty">Photo</div>';
   return '<section class="bulletin"><img class="b-head" src="'+headerSrc()+'" alt="">'+
-   '<h2 class="b-title">'+L.title(t)+'</h2>'+
+   '<h2 class="b-title">'+L.title(t)+'<span class="b-sub">'+esc(L.sub||'')+'</span></h2>'+
    '<div class="b-profile"><div class="b-profile-info">'+
    '<div class="b-year"><span>'+L.year+'&nbsp;&nbsp;'+esc(sc.year)+'</span><span class="tr">'+L.tr(t)+'</span></div>'+
-   '<div class="b-line"><span class="lbl">'+L.sex+'</span><span class="val">'+esc(sexLabel(st,L))+'</span><span class="lbl cel">'+L.statut+' : <b>'+esc(statusLabel(st,L))+'</b></span></div>'+
+   '<div class="b-line"><span class="lbl">'+L.statut+'</span><span class="val"><b>'+esc(statusLabel(st,L))+'</b></span></div>'+
+   '<div class="b-line"><span class="lbl">'+L.sex+'</span><span class="val">'+esc(sexLabel(st,L))+'</span></div>'+
    '<div class="b-line"><span class="lbl">'+L.cls+'</span><span class="val">'+esc(cls.name)+'</span></div>'+
    '<div class="b-line"><span class="lbl">'+L.name+'</span><span class="val big">'+esc(st.name)+'</span></div>'+
    '<div class="b-line"><span class="lbl">Né(e) le</span><span class="val">'+esc(st.dob||'—')+(st.pob?' à '+esc(st.pob):'')+'</span><span class="lbl cel nw">Matricule :&nbsp;<b>'+esc(st.mat||'—')+'</b></span></div>'+
