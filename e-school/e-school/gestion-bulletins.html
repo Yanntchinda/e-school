@@ -1283,8 +1283,7 @@ function disciplineHtml(){
       :'<tr><td colspan="6" class="muted" style="text-align:center;padding:18px">Aucun élève dans cette classe.</td></tr>')+
     '</tbody><tfoot><tr><td><b>Total du trimestre</b></td>'+
       DISC_FIELDS.map(f=>{const v=total(f.k);return '<td class="disc-tot">'+(v==null?'—':discNum(v))+'</td>'}).join('')+'<td></td></tr></tfoot></table></div></div>'+
-    '<div class="notice info" style="margin-top:12px">Repères appliqués automatiquement au bulletin : <b>avertissement de conduite dès 8 h</b> d’absences non justifiées, <b>blâme dès 12 h</b> ; <b>tableau d’honneur</b> seulement si l’élève a <b>moins de 7 h</b> d’absences non justifiées.</div>'+
-    (t===3?'<div class="notice info">Au 3e trimestre, le bulletin affiche la <b>synthèse annuelle</b> : la somme des trois trimestres pour chaque rubrique, et les repères sont appliqués à ce total.</div>':'');
+    (t===3?'<div class="notice info">Au 3e trimestre, le bulletin affiche la <b>synthèse annuelle</b> : la somme des trois trimestres pour chaque rubrique.</div>':'');
 }
 function mainHtml(){
   if(isSurv()&&S.view!=='discipline'&&S.view!=='account')S.view='discipline';
