@@ -2894,17 +2894,25 @@ async function seedDemoData(){
     DB.classes.push(cls);
   }
 
-  /* Discipline : quelques absences, retards et consignes par eleve et par trimestre */
+  /* Discipline : les quatre rubriques sont renseignees pour chaque eleve.
+     Le 1er trimestre est complet (aucune case vide), les deux suivants sont partiels. */
   for(const cls of DB.classes){
     cls.disc = cls.disc || {};
     for(const s of cls.students){
       const e = {};
       for(const t of [1,2,3]){
         const d = {};
-        if(Math.random() < .45) d.absNJ = Math.round(Math.random()*6*2)/2;      // 0 a 6 h
-        if(Math.random() < .35) d.absJ  = Math.round(Math.random()*8*2)/2;      // 0 a 8 h
-        if(Math.random() < .40) d.ret   = Math.floor(Math.random()*5);          // 0 a 4 fois
-        if(Math.random() < .30) d.cons  = Math.round(Math.random()*4*2)/2;      // 0 a 4 h
+        if(t===1){
+          d.absNJ = Math.round(Math.random()*8*2)/2;   // 0 a 8 h
+          d.absJ  = Math.round(Math.random()*6*2)/2;   // 0 a 6 h
+          d.ret   = Math.floor(Math.random()*5);       // 0 a 4 fois
+          d.cons  = Math.round(Math.random()*4*2)/2;   // 0 a 4 h
+        }else{
+          if(Math.random() < .55) d.absNJ = Math.round(Math.random()*6*2)/2;
+          if(Math.random() < .50) d.absJ  = Math.round(Math.random()*8*2)/2;
+          if(Math.random() < .50) d.ret   = Math.floor(Math.random()*5);
+          if(Math.random() < .40) d.cons  = Math.round(Math.random()*4*2)/2;
+        }
         if(Object.keys(d).length) e['t'+t] = d;
       }
       if(Object.keys(e).length) cls.disc[s.id] = e;
