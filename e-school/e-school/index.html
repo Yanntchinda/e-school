@@ -250,6 +250,9 @@ td.sumc{font-weight:700;min-width:64px;padding:0 8px;background:#fcfcf6}
 .bulletin .b-bottom-t .lbl b{display:block;font-size:7.8pt;text-transform:uppercase;line-height:1.05}
 .bulletin .b-bottom-t .lbl i{font-style:normal;font-size:7.8pt;display:block;color:#333}
 .bulletin .b-bottom-t .center{text-align:center}
+/* zone d'ecriture : un seul bloc continu entre Appreciation et Chef d'Etablissement */
+.bulletin .b-bottom-t td.join-r{border-right:0}
+.bulletin .b-bottom-t td.join-l{border-left:0}
 /* mentions : libelle et case a cocher centres dans la cellule */
 .bulletin .b-bottom-t td.mtn-cell{text-align:center;vertical-align:middle}
 .bulletin .b-bottom-t .mtn{display:inline-block;text-align:center;line-height:1.15}
@@ -676,8 +679,8 @@ function bBottomHtml(cls,st,res,P,t,ann,remark,pp,sc){
   '</tr>'+
   '<tr class="appr">'+
     '<td colspan="2"><div class="sign-zone"></div></td>'+
-    '<td colspan="2"><div class="appr-lines">'+(remark?esc(remark):'')+'</div></td>'+
-    '<td><div class="nom-lbl">Nom du Chef d’établissement</div><div class="nom-val">'+esc(sc.principal||'&nbsp;')+'</div><div class="sign-zone"></div></td>'+
+    '<td colspan="2" class="join-r"><div class="appr-lines">'+(remark?esc(remark):'')+'</div></td>'+
+    '<td class="join-l"><div class="nom-lbl">Nom du Chef d’établissement</div><div class="nom-val">'+esc(sc.principal||'&nbsp;')+'</div><div class="sign-zone"></div></td>'+
   '</tr></tbody></table></div>';
   return h;
 }
