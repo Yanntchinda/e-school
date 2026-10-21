@@ -221,10 +221,15 @@ td.sumc{font-weight:700;min-width:64px;padding:0 8px;background:#fcfcf6}
 .bulletin .b-line .lbl{width:31mm;text-align:left;flex:none}
 .bulletin .b-photo{display:block;flex:none;width:28mm;height:35mm;object-fit:cover;border:1px solid #000;box-sizing:border-box}
 .bulletin .b-photo-empty{display:flex;align-items:center;justify-content:center;color:#777;font-size:8pt;background:#f7f7f7}
+/* colonne de droite : photo puis encadre sexe / statut */
+.bulletin .b-photo-col{flex:none;width:34mm;display:flex;flex-direction:column;align-items:center;gap:.9mm}
+.bulletin .b-photo-col .b-photo{width:28mm;height:35mm}
+.bulletin .b-idbox{width:100%;border:.3mm solid #000;padding:.5mm .9mm .6mm;line-height:1.18;background:#fff}
+.bulletin .b-idbox .r{display:flex;justify-content:space-between;align-items:baseline;gap:1mm;font-size:8.2pt}
+.bulletin .b-idbox .k{color:#222;white-space:nowrap}
+.bulletin .b-idbox .v{font-weight:700;white-space:nowrap;color:#1a2fb5}
 .bulletin .b-line .val{font-weight:700}
-.bulletin .b-line.st{margin-bottom:0}
-.bulletin .b-line.st2{margin-top:0;margin-bottom:.35mm}
-.bulletin .b-line.st .lbl,.bulletin .b-line.st2 .lbl{width:31mm}
+
 .bulletin .b-line .val.big{font-size:12.5pt}
 .bulletin .b-line .cel{width:auto;margin-left:auto}
 .bulletin .b-line .cel.nw{white-space:nowrap;flex:none}
@@ -709,13 +714,17 @@ function bulletinHtml(cls,sid,t){
    '<h2 class="b-title">'+L.title(t)+'<span class="b-sub">'+esc(L.sub||'')+'</span></h2>'+
    '<div class="b-profile"><div class="b-profile-info">'+
    '<div class="b-year"><span>'+L.year+'&nbsp;&nbsp;'+esc(sc.year)+'</span><span class="tr">'+L.tr(t)+'</span></div>'+
-   '<div class="b-line st"><span class="lbl">'+L.sex+'</span><span class="val">'+esc(sexLabel(st,L))+'</span></div>'+
-   '<div class="b-line st2"><span class="lbl">'+L.statut+'</span><span class="val"><b>'+esc(statusLabel(st,L))+'</b></span></div>'+
    '<div class="b-line"><span class="lbl">'+L.cls+'</span><span class="val">'+esc(cls.name)+'</span></div>'+
    '<div class="b-line"><span class="lbl">'+L.name+'</span><span class="val big">'+esc(st.name)+'</span></div>'+
    '<div class="b-line"><span class="lbl">Né(e) le</span><span class="val">'+esc(st.dob||'—')+(st.pob?' à '+esc(st.pob):'')+'</span><span class="lbl cel nw">Matricule :&nbsp;<b>'+esc(st.mat||'—')+'</b></span></div>'+
    '<div class="b-line"><span class="lbl">'+L.pp+'</span><span class="val">'+esc(pp)+'</span><span class="lbl cel nw">'+L.cel+'&nbsp;&nbsp;<b>'+esc(tel)+'</b></span></div>'+
-   '</div>'+photoHtml+'</div>'+
+   '</div>'+
+   '<div class="b-photo-col">'+photoHtml+
+     '<div class="b-idbox">'+
+       '<div class="r"><span class="k">'+L.sex+'</span><span class="v">'+esc(sexLabel(st,L))+'</span></div>'+
+       '<div class="r"><span class="k">'+L.statut+'</span><span class="v">'+esc(statusLabel(st,L))+'</span></div>'+
+     '</div>'+
+   '</div></div>'+
    '<table class="b-table"><colgroup><col style="width:34%">'+L.order.map(k=>'<col style="width:'+({n1:8,n2:8,m:8,coef:7,pts:10}[k])+'%">').join('')+'<col style="width:8%"><col style="width:'+(L.order.length===5?'17':'17')+'%"></colgroup>'+
    '<thead><tr><th>'+L.subject+'</th>'+L.order.map(k=>'<th>'+hd[k]+'</th>').join('')+'<th>'+L.rank+'</th><th>'+L.obs+'</th></tr></thead><tbody>'+b+'</tbody></table>'+
    '<div class="b-legend">'+esc(L.legend)+'</div>'+
