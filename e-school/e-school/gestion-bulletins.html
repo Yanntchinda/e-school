@@ -648,21 +648,21 @@ function bBottomHtml(cls,st,res,P,t,ann,remark,pp,sc){
     '<td class="lbl">Abs. just. (h)'+v('&nbsp;')+'</td>'+
     '<td class="lbl">Blâme de cond.'+v('&nbsp;')+'</td>'+
     '<td class="lbl center"><b>Coef.</b>'+v(num(P.cs||''))+'</td>'+
-    '<td class="lbl">Promu (e) / Promoted'+chk+'</td>'+
+    '<td class="lbl">Tableau d\u2019honneur'+chk+'</td>'+
     '<td class="lbl center">[ Min - Max ]'+v(mn==null?'&nbsp;':fmt1(mn)+' – '+fmt1(mx))+'</td>'+
   '</tr>'+
   '<tr class="row-h">'+
     '<td class="lbl">Retards (nombre de fois)'+v('&nbsp;')+'</td>'+
     '<td class="lbl">Exclusions (jrs)<i>Expelling (jrs)</i>'+v('&nbsp;')+'</td>'+
     '<td class="lbl center"><b>Moyenne annuelle</b>Annual average'+v(ann==null?'&nbsp;':fmt1(ann))+'</td>'+
-    '<td class="lbl">Redouble / Repeat'+chk+'</td>'+
+    '<td class="lbl">F\u00e9licitations'+chk+'</td>'+
     '<td class="lbl">Nombre de moyennes<i>Average number</i>'+v(passCount+' / '+cls.students.length)+'</td>'+
   '</tr>'+
   '<tr class="row-h">'+
     '<td class="lbl">Consignes (h)<i>Punishment</i>'+v('&nbsp;')+'</td>'+
     '<td class="lbl">Exclusion définitive'+v('&nbsp;')+'</td>'+
     '<td class="lbl center"><b>Cote</b>'+v('&nbsp;')+'</td>'+
-    '<td class="lbl">Exclu (e) pour / Expelled for'+chk+'</td>'+
+    '<td class="lbl">Encouragement'+chk+'</td>'+
     '<td class="lbl">Taux de réussite / Success rate'+v(pass==null?'&nbsp;':Math.round(pass*100)+' %')+'</td>'+
   '</tr>'+
   '<tr>'+
