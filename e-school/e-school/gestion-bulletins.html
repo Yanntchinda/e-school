@@ -723,7 +723,7 @@ function bBottomHtml(cls,st,res,P,t,ann,remark,pp,sc){
   const mn=avgs.length?Math.min.apply(null,avgs):null,mx=avgs.length?Math.max.apply(null,avgs):null;
   const passCount=avgs.filter(a=>a>=10).length;
   const pass=avgs.length?passCount/avgs.length:null;
-  const v=x=>'<span class="val">'+x+'</span>',chk='<span class="chk" aria-hidden="true"></span>';
+  const v=x=>'<span class="val">'+x+'</span>';
   const chkOn=on=>'<span class="chk'+(on?' on':'')+'" aria-hidden="true"></span>';
   /* Discipline : valeurs du trimestre, ou synthese annuelle au 3e trimestre */
   const dv=k=>{const val=t===3?discSum(cls,st.id,k):discVal(cls,st.id,t,k);return discNum(val)==null?'&nbsp;':discNum(val)};
@@ -735,7 +735,11 @@ function bBottomHtml(cls,st,res,P,t,ann,remark,pp,sc){
   /* Mentions cochees automatiquement d'apres la moyenne generale du bulletin :
      >= 12 -> Tableau d'honneur | 15,00 a 15,99 -> Felicitations | >= 16 -> Encouragement.
      Les criteres sont cumulables : un eleve peut avoir plusieurs cases cochees. */
-  const mOn={h: pAvg!=null&&pAvg>=12,
+  /* Discipline : avertissement de conduite des 8 h d'absences non justifiees,
+     blame de conduite des 12 h. Le tableau d'honneur exige moins de 7 h. */
+  const aNJ=t===3?discSum(cls,st.id,'absNJ'):discVal(cls,st.id,t,'absNJ');
+  const dOn={a: aNJ!=null&&aNJ>=8, b: aNJ!=null&&aNJ>=12};
+  const mOn={h: pAvg!=null&&pAvg>=12&&(aNJ==null||aNJ<7),
              f: pAvg!=null&&pAvg>=15&&pAvg<16,
              e: pAvg!=null&&pAvg>=16};
   let h='<div class="b-bottom"><table class="b-bottom-t">'+
@@ -745,7 +749,7 @@ function bBottomHtml(cls,st,res,P,t,ann,remark,pp,sc){
     /* --- 3e trimestre : 7 lignes, la colonne Decision recoit 3 cases de plus --- */
     '<tr class="row-t3">'+
       '<td class="lbl" rowspan="2">Abs. non. J. (h)'+v(dv('absNJ'))+'</td>'+
-      '<td class="lbl" rowspan="2">Avertissement de conduite'+chk+v('&nbsp;')+'</td>'+
+      '<td class="lbl" rowspan="2">Avertissement de conduite'+chkOn(dOn.a)+v('&nbsp;')+'</td>'+
       '<td class="lbl center" rowspan="2"><b>Total général</b>'+v(num(fmt(P.pts)))+'</td>'+
       '<td class="lbl center dcc"><b>Décision du conseil de classe</b><i>Class council decision</i></td>'+
       '<td class="lbl" rowspan="2">Moyenne Générale / General Average'+v(pAvg==null?'&nbsp;':fmt1(pAvg))+'</td>'+
@@ -755,7 +759,7 @@ function bBottomHtml(cls,st,res,P,t,ann,remark,pp,sc){
     '</tr>'+
     '<tr class="row-t3">'+
       '<td class="lbl" rowspan="2">Abs. just. (h)'+v(dv('absJ'))+'</td>'+
-      '<td class="lbl" rowspan="2">Blâme de cond.'+chk+v('&nbsp;')+'</td>'+
+      '<td class="lbl" rowspan="2">Blâme de cond.'+chkOn(dOn.b)+v('&nbsp;')+'</td>'+
       '<td class="lbl center" rowspan="2"><b>Coef.</b>'+v(num(P.cs||''))+'</td>'+
       '<td class="lbl center mtn-cell"><span class="mtn">Félicitations'+chkOn(mOn.f)+'</span></td>'+
       '<td class="lbl center" rowspan="2">[ Min - Max ]'+v(pMn==null?'&nbsp;':fmt1(pMn)+' – '+fmt1(pMx))+'</td>'+
@@ -786,14 +790,14 @@ function bBottomHtml(cls,st,res,P,t,ann,remark,pp,sc){
     /* --- 1er et 2e trimestres : bloc inchange --- */
     '<tr class="row-h">'+
       '<td class="lbl">Abs. non. J. (h)'+v(dv('absNJ'))+'</td>'+
-      '<td class="lbl">Avertissement de conduite'+chk+v('&nbsp;')+'</td>'+
+      '<td class="lbl">Avertissement de conduite'+chkOn(dOn.a)+v('&nbsp;')+'</td>'+
       '<td class="lbl center"><b>Total général</b>'+v(num(fmt(P.pts)))+'</td>'+
       '<td class="lbl center dcc"><b>Décision du conseil de classe</b><i>Class council decision</i></td>'+
       '<td class="lbl">Moyenne Générale / General Average'+v(pAvg==null?'&nbsp;':fmt1(pAvg))+'</td>'+
     '</tr>'+
     '<tr class="row-h">'+
       '<td class="lbl">Abs. just. (h)'+v(dv('absJ'))+'</td>'+
-      '<td class="lbl">Blâme de cond.'+chk+v('&nbsp;')+'</td>'+
+      '<td class="lbl">Blâme de cond.'+chkOn(dOn.b)+v('&nbsp;')+'</td>'+
       '<td class="lbl center"><b>Coef.</b>'+v(num(P.cs||''))+'</td>'+
       '<td class="lbl center mtn-cell"><span class="mtn">Tableau d’honneur'+chkOn(mOn.h)+'</span></td>'+
       '<td class="lbl center">[ Min - Max ]'+v(pMn==null?'&nbsp;':fmt1(pMn)+' – '+fmt1(pMx))+'</td>'+
@@ -1279,7 +1283,8 @@ function disciplineHtml(){
       :'<tr><td colspan="6" class="muted" style="text-align:center;padding:18px">Aucun élève dans cette classe.</td></tr>')+
     '</tbody><tfoot><tr><td><b>Total du trimestre</b></td>'+
       DISC_FIELDS.map(f=>{const v=total(f.k);return '<td class="disc-tot">'+(v==null?'—':discNum(v))+'</td>'}).join('')+'<td></td></tr></tfoot></table></div></div>'+
-    (t===3?'<div class="notice info">Au 3e trimestre, le bulletin affiche la <b>synthèse annuelle</b> : la somme des trois trimestres pour chaque rubrique.</div>':'');
+    '<div class="notice info" style="margin-top:12px">Repères appliqués automatiquement au bulletin : <b>avertissement de conduite dès 8 h</b> d’absences non justifiées, <b>blâme dès 12 h</b> ; <b>tableau d’honneur</b> seulement si l’élève a <b>moins de 7 h</b> d’absences non justifiées.</div>'+
+    (t===3?'<div class="notice info">Au 3e trimestre, le bulletin affiche la <b>synthèse annuelle</b> : la somme des trois trimestres pour chaque rubrique, et les repères sont appliqués à ce total.</div>':'');
 }
 function mainHtml(){
   if(isSurv()&&S.view!=='discipline'&&S.view!=='account')S.view='discipline';
