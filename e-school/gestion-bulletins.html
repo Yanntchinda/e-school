@@ -277,6 +277,11 @@ td.sumc{font-weight:700;min-width:64px;padding:0 8px;background:#fcfcf6}
 .bulletin .b-bottom-t tr.row-ann .lbl i{font-size:7pt}
 .bulletin .b-bottom-t tr.row-ann .ann-cell{background:#f4f7ff}
 .bulletin .b-bottom-t tr.row-ann .ann-cell .val{font-size:13pt;color:#1a2fb5}
+/* decisions du conseil : une case par element, espace libre dessous pour ecrire */
+.bulletin .b-bottom-t tr.row-t3{height:7mm}
+.bulletin .b-bottom-t td.dec{vertical-align:top;padding:.8mm .85mm 3mm}
+.bulletin .b-bottom-t td.dec b{font-size:8.8pt;line-height:1.1;display:block}
+.bulletin .b-bottom-t td.dec i{font-size:7.2pt;font-style:normal;color:#333;display:block;line-height:1.05}
 /* rang de chaque trimestre, sous la moyenne */
 .bulletin .b-bottom-t .rk-in{margin-top:.3mm;font-size:7.6pt;line-height:1.08;color:#1a2fb5;white-space:nowrap}
 .bulletin .b-bottom-t .rk-in b{font-size:9.6pt;font-weight:700}
@@ -686,49 +691,86 @@ function bBottomHtml(cls,st,res,P,t,ann,remark,pp,sc){
   let h='<div class="b-bottom"><table class="b-bottom-t">'+
   '<colgroup><col style="width:17%"><col style="width:18%"><col style="width:15%"><col style="width:23%"><col style="width:27%"></colgroup>'+
   '<thead><tr><th colspan="2">Discipline</th><th colspan="2">Travail de l’élève <i>/ Student’s work</i></th><th>Profil de la classe</th></tr></thead><tbody>'+
-  '<tr class="row-h">'+
-    '<td class="lbl">Abs. non. J. (h)'+v('&nbsp;')+'</td>'+
-    '<td class="lbl">Avertissement de conduite'+chk+v('&nbsp;')+'</td>'+
-    '<td class="lbl center"><b>Total général</b>'+v(num(fmt(P.pts)))+'</td>'+
-    '<td class="lbl center dcc"><b>Décision du conseil de classe</b><i>Class council decision</i></td>'+
-    '<td class="lbl">Moyenne Générale / General Average'+v(pAvg==null?'&nbsp;':fmt1(pAvg))+'</td>'+
-  '</tr>'+
-  '<tr class="row-h">'+
-    '<td class="lbl">Abs. just. (h)'+v('&nbsp;')+'</td>'+
-    '<td class="lbl">Blâme de cond.'+chk+v('&nbsp;')+'</td>'+
-    '<td class="lbl center"><b>Coef.</b>'+v(num(P.cs||''))+'</td>'+
-    '<td class="lbl center mtn-cell"><span class="mtn">Tableau d’honneur'+chk+'</span></td>'+
-    '<td class="lbl center">[ Min - Max ]'+v(pMn==null?'&nbsp;':fmt1(pMn)+' – '+fmt1(pMx))+'</td>'+
-  '</tr>'+
-  '<tr class="row-h">'+
-    '<td class="lbl">Retards (nombre de fois)'+v('&nbsp;')+'</td>'+
-    '<td class="lbl">Exclusions (jrs)<i>Expelling (jrs)</i>'+v('&nbsp;')+'</td>'+
-    '<td class="lbl center mavg" rowspan="2"><b>Moyenne trimestrielle</b>Term average'+v(P.avg==null?'&nbsp;':fmt1(P.avg))+'</td>'+
-    '<td class="lbl center mtn-cell"><span class="mtn">Félicitations'+chk+'</span></td>'+
-    '<td class="lbl">Nombre de moyennes<i>Average number</i>'+v(pPassCount+' / '+cls.students.length)+'</td>'+
-  '</tr>'+
-  '<tr class="row-h">'+
-    '<td class="lbl">Consignes (h)<i>Punishment</i>'+v('&nbsp;')+'</td>'+
-    '<td class="lbl">Exclusion définitive'+v('&nbsp;')+'</td>'+
-    '<td class="lbl center mtn-cell"><span class="mtn">Encouragement'+chk+'</span></td>'+
-    '<td class="lbl">Taux de réussite / Success rate'+v(pPass==null?'&nbsp;':Math.round(pPass*100)+' %')+'</td>'+
-  '</tr>'+
+  (t===3?
+    /* --- 3e trimestre : 7 lignes, la colonne Decision recoit 3 cases de plus --- */
+    '<tr class="row-t3">'+
+      '<td class="lbl" rowspan="2">Abs. non. J. (h)'+v('&nbsp;')+'</td>'+
+      '<td class="lbl" rowspan="2">Avertissement de conduite'+chk+v('&nbsp;')+'</td>'+
+      '<td class="lbl center" rowspan="2"><b>Total général</b>'+v(num(fmt(P.pts)))+'</td>'+
+      '<td class="lbl center dcc"><b>Décision du conseil de classe</b><i>Class council decision</i></td>'+
+      '<td class="lbl" rowspan="2">Moyenne Générale / General Average'+v(pAvg==null?'&nbsp;':fmt1(pAvg))+'</td>'+
+    '</tr>'+
+    '<tr class="row-t3">'+
+      '<td class="lbl center mtn-cell"><span class="mtn">Tableau d’honneur'+chk+'</span></td>'+
+    '</tr>'+
+    '<tr class="row-t3">'+
+      '<td class="lbl" rowspan="2">Abs. just. (h)'+v('&nbsp;')+'</td>'+
+      '<td class="lbl" rowspan="2">Blâme de cond.'+chk+v('&nbsp;')+'</td>'+
+      '<td class="lbl center" rowspan="2"><b>Coef.</b>'+v(num(P.cs||''))+'</td>'+
+      '<td class="lbl center mtn-cell"><span class="mtn">Félicitations'+chk+'</span></td>'+
+      '<td class="lbl center" rowspan="2">[ Min - Max ]'+v(pMn==null?'&nbsp;':fmt1(pMn)+' – '+fmt1(pMx))+'</td>'+
+    '</tr>'+
+    '<tr class="row-t3">'+
+      '<td class="lbl center mtn-cell"><span class="mtn">Encouragement'+chk+'</span></td>'+
+    '</tr>'+
+    '<tr class="row-t3">'+
+      '<td class="lbl" rowspan="2">Retards (nombre de fois)'+v('&nbsp;')+'</td>'+
+      '<td class="lbl" rowspan="2">Exclusions (jrs)<i>Expelling (jrs)</i>'+v('&nbsp;')+'</td>'+
+      '<td class="lbl center mavg" rowspan="3"><b>Moyenne trimestrielle</b>Term average'+v(P.avg==null?'&nbsp;':fmt1(P.avg))+'</td>'+
+      '<td class="dec"><b>Promu (e)</b><i>Promoted</i></td>'+
+      '<td class="lbl" rowspan="2">Nombre de moyennes<i>Average number</i>'+v(pPassCount+' / '+cls.students.length)+'</td>'+
+    '</tr>'+
+    '<tr class="row-t3">'+
+      '<td class="dec"><b>Redouble</b><i>Repeat</i></td>'+
+    '</tr>'+
+    '<tr class="row-t3">'+
+      '<td class="lbl">Consignes (h)<i>Punishment</i>'+v('&nbsp;')+'</td>'+
+      '<td class="lbl">Exclusion définitive'+v('&nbsp;')+'</td>'+
+      '<td class="dec"><b>Exclu (e)</b><i>Expelled</i></td>'+
+      '<td class="lbl">Taux de réussite / Success rate'+v(pPass==null?'&nbsp;':Math.round(pPass*100)+' %')+'</td>'+
+    '</tr>'
+  :
+    /* --- 1er et 2e trimestres : bloc inchange --- */
+    '<tr class="row-h">'+
+      '<td class="lbl">Abs. non. J. (h)'+v('&nbsp;')+'</td>'+
+      '<td class="lbl">Avertissement de conduite'+chk+v('&nbsp;')+'</td>'+
+      '<td class="lbl center"><b>Total général</b>'+v(num(fmt(P.pts)))+'</td>'+
+      '<td class="lbl center dcc"><b>Décision du conseil de classe</b><i>Class council decision</i></td>'+
+      '<td class="lbl">Moyenne Générale / General Average'+v(pAvg==null?'&nbsp;':fmt1(pAvg))+'</td>'+
+    '</tr>'+
+    '<tr class="row-h">'+
+      '<td class="lbl">Abs. just. (h)'+v('&nbsp;')+'</td>'+
+      '<td class="lbl">Blâme de cond.'+chk+v('&nbsp;')+'</td>'+
+      '<td class="lbl center"><b>Coef.</b>'+v(num(P.cs||''))+'</td>'+
+      '<td class="lbl center mtn-cell"><span class="mtn">Tableau d’honneur'+chk+'</span></td>'+
+      '<td class="lbl center">[ Min - Max ]'+v(pMn==null?'&nbsp;':fmt1(pMn)+' – '+fmt1(pMx))+'</td>'+
+    '</tr>'+
+    '<tr class="row-h">'+
+      '<td class="lbl">Retards (nombre de fois)'+v('&nbsp;')+'</td>'+
+      '<td class="lbl">Exclusions (jrs)<i>Expelling (jrs)</i>'+v('&nbsp;')+'</td>'+
+      '<td class="lbl center mavg" rowspan="2"><b>Moyenne trimestrielle</b>Term average'+v(P.avg==null?'&nbsp;':fmt1(P.avg))+'</td>'+
+      '<td class="lbl center mtn-cell"><span class="mtn">Félicitations'+chk+'</span></td>'+
+      '<td class="lbl">Nombre de moyennes<i>Average number</i>'+v(pPassCount+' / '+cls.students.length)+'</td>'+
+    '</tr>'+
+    '<tr class="row-h">'+
+      '<td class="lbl">Consignes (h)<i>Punishment</i>'+v('&nbsp;')+'</td>'+
+      '<td class="lbl">Exclusion définitive'+v('&nbsp;')+'</td>'+
+      '<td class="lbl center mtn-cell"><span class="mtn">Encouragement'+chk+'</span></td>'+
+      '<td class="lbl">Taux de réussite / Success rate'+v(pPass==null?'&nbsp;':Math.round(pPass*100)+' %')+'</td>'+
+    '</tr>'
+  )+
   (t===3?(()=>{
     const R1=getRes(cls,1).per[st.id],R2=getRes(cls,2).per[st.id];
     const a1=R1?R1.avg:null,a2=R2?R2.avg:null,a3=P.avg;
-    const aa=A&&A.per[st.id]?A.per[st.id].avg:null;
     const rk=r=>(r&&r.rank)?rankStr(r.rank):'&mdash;';
     const val=x=>v(x==null?'&nbsp;':fmt1(x));
     return '<tr class="row-ann">'+
-      '<td class="lbl center"><b>Moyenne 1er trim.</b><i>Term 1 average</i>'+val(a1)+
+      '<td colspan="2" class="lbl center"><b>Moyenne 1er trim.</b><i>Term 1 average</i>'+val(a1)+
         '<div class="rk-in">Rang <b>'+rk(R1)+'</b></div></td>'+
-      '<td class="lbl center"><b>Moyenne 2e trim.</b><i>Term 2 average</i>'+val(a2)+
+      '<td colspan="2" class="lbl center"><b>Moyenne 2e trim.</b><i>Term 2 average</i>'+val(a2)+
         '<div class="rk-in">Rang <b>'+rk(R2)+'</b></div></td>'+
       '<td class="lbl center"><b>Moyenne 3e trim.</b><i>Term 3 average</i>'+val(a3)+
         '<div class="rk-in">Rang <b>'+rk(P)+'</b></div></td>'+
-      '<td colspan="2" class="lbl center ann-cell"><b>Moyenne annuelle</b><i>Annual average</i>'+val(aa)+
-        '<div class="rk-in rk-ann"><span>Rang annuel<i>Annual rank</i></span><b>'+rk(A?A.per[st.id]:null)+'</b></div>'+
-      '</td>'+
     '</tr>';
   })():'')+
   '<tr>'+
