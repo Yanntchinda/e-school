@@ -2801,6 +2801,23 @@ async function seedDemoData(){
     }
   }
 
+  /* Scenario de demonstration : les meilleurs eleves du 1er trimestre recoivent
+     des heures d'absences non justifiees qui testent les seuils de conduite.
+     9 h -> avertissement et perte du tableau d'honneur, 13 h -> blâme,
+     5 h -> tableau d'honneur conserve. */
+  for(const cls of DB.classes){
+    let r1=null;try{r1=getRes(cls,1)}catch(e){}
+    if(!r1||!Array.isArray(r1.ranked))continue;
+    const bons=r1.ranked.filter(st=>r1.per[st.id]&&r1.per[st.id].avg>=12)
+      .sort((a,b)=>r1.per[b.id].avg-r1.per[a.id].avg).slice(0,3);
+    cls.disc=cls.disc||{};
+    bons.forEach((st,i)=>{
+      const e=cls.disc[st.id]||(cls.disc[st.id]={});
+      const d=e.t1||(e.t1={});
+      d.absNJ=[9,13,5][i];
+    });
+  }
+
   for(const cls of DB.classes){
     for(const s of cls.students){
       if(Math.random() < .25){
