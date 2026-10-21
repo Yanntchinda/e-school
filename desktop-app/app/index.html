@@ -711,7 +711,7 @@ function bulletinHtml(cls,sid,t){
   const L=LB[cls.lang||'fr'],sc=viewSchool(),st=cls.students.find(s=>s.id===sid);
   const res=getRes(cls,t),P=res.per[sid],rows=bulletinRows(cls,sid,res,t);
   const order=t===3?L.order.filter(k=>k!=='n2'):L.order;
-  const hd={n1:L.n1(t),n2:L.n2(t),m:L.m,coef:L.coef,pts:L.pts};
+  const hd={n1:L.n1(t),n2:L.n2(t),m:t===3?'M.A.20':L.m,coef:L.coef,pts:L.pts};
   let b='';
   for(const r of rows){
     if(r.type==='group'){
