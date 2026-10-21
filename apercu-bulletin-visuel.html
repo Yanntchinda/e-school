@@ -635,7 +635,7 @@ function bBottomHtml(cls,st,res,P,t,ann,remark,pp,sc){
   const v=x=>'<span class="val">'+x+'</span>',chk='<span class="chk" aria-hidden="true"></span>';
   const num=x=>x==null||x===''?'&nbsp;':x;
   let h='<div class="b-bottom"><table class="b-bottom-t">'+
-  '<colgroup><col style="width:17%"><col style="width:18%"><col style="width:16%"><col style="width:26%"><col style="width:23%"></colgroup>'+
+  '<colgroup><col style="width:17%"><col style="width:18%"><col style="width:15%"><col style="width:23%"><col style="width:27%"></colgroup>'+
   '<thead><tr><th colspan="2">Discipline</th><th colspan="2">Travail de l’élève <i>/ Student’s work</i></th><th>Profil de la classe</th></tr></thead><tbody>'+
   '<tr class="row-h">'+
     '<td class="lbl">Abs. non. J. (h)'+v('&nbsp;')+'</td>'+
@@ -667,14 +667,12 @@ function bBottomHtml(cls,st,res,P,t,ann,remark,pp,sc){
   '</tr>'+
   '<tr>'+
     '<th colspan="2" class="appr-title">Appréciation du travail de l’élève <i>Appreciation of student’s work</i></th>'+
-    '<th class="appr-title">Visa du parent / Tuteur <i>Parent / Tutor &amp; Visa</i></th>'+
-    '<th class="appr-title">Nom et visa du Prof. Principal <i>Class Master name and Visa</i></th>'+
+    '<th colspan="2" class="appr-title">Visa du parent / Tuteur <i>Parent / Tutor &amp; Visa</i></th>'+
     '<th class="appr-title">Le Chef d’Établissement <i>The Principal</i></th>'+
   '</tr>'+
   '<tr class="appr">'+
     '<td colspan="2"><div class="appr-lines">'+(remark?esc(remark):'')+'</div></td>'+
-    '<td><div class="sign-zone"></div></td>'+
-    '<td><div class="nom-lbl">Nom du Prof. Principal</div><div class="nom-val">'+esc(pp||'&nbsp;')+'</div><div class="sign-zone"></div></td>'+
+    '<td colspan="2"><div class="sign-zone"></div></td>'+
     '<td><div class="nom-lbl">Nom du Chef d’établissement</div><div class="nom-val">'+esc(sc.principal||'&nbsp;')+'</div><div class="sign-zone"></div></td>'+
   '</tr></tbody></table></div>';
   return h;
