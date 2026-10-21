@@ -406,9 +406,9 @@ const PRESETS=[
  {key:'X',label:'Classe personnalisée (vierge)',lang:'fr',subs:()=>[P('MATIÈRE 1',1),P('MATIÈRE 2',1)]}
 ];
 const LB={
- fr:{title:()=>'BULLETIN DE NOTES',sub:'REPORT CARD',year:'Année scolaire',cls:'Classe',name:'Nom',pp:'Prof. Principal',cel:'Cel',sex:'Sexe',statut:'Statut',sexM:'Masculin',sexF:'Féminin',stOld:'Ancien',stNew:'Nouveau',stOldNew:'Ancien nouveau',subject:'MATIERE',n1:'N1/20',n2:'N2/20',m:'M/20',coef:'COEF',pts:'N X COEF',rank:'RANG',obs:'OBSERVATION',total:'TOTAL',
+ fr:{title:()=>'BULLETIN DE NOTES',sub:'REPORT CARD',year:'Année scolaire',cls:'Classe',name:'Nom',pp:'Prof. Principal',cel:'Cel',sex:'Sexe',statut:'Statut',sexM:'Masculin',sexF:'Féminin',stOld:'Ancien',stNew:'Nouveau',stOldNew:'Ancien nouveau',subject:'MATIERE',n1:t=>'N'+((t-1)*2+1)+'/20',n2:t=>'N'+((t-1)*2+2)+'/20',m:'M/20',coef:'COEF',pts:'N X COEF',rank:'RANG',obs:'OBSERVATION',total:'TOTAL',
   legend:"NON ACQUIS (N A) ; EN COURS D'ACQUISITION (E C A) ; ACQUIS (A) ; PLUS QUE ACQUIS (A+)",avgT:'Moyenne trimestrielle',rankL:'Rang',avgG:'Moyenne générale',prev:n=>'Moyenne TRI '+n,annual:'Moyenne annuelle',at:'le',principal:'Le Principal',grp:'MOYENNE ',tr:t=>TRN[t-1]+' Trimestre',order:['n1','n2','m','coef','pts'],totalAvg:true},
- en:{title:t=>['1st','2nd','3rd'][t-1]+' TRIMESTRIAL MARK SHEET',sub:'BULLETIN DE NOTES',year:'School academic year',cls:'Class',name:'Name and surname',pp:'Class Master',cel:'Tel',sex:'Sex',statut:'Status',sexM:'Male',sexF:'Female',stOld:'Old',stNew:'New',stOldNew:'Old-new',subject:'SUBJECT',n1:'M1/20',n2:'M2/20',m:'A/20',coef:'COEF',pts:'A X COEF',rank:'RANK',obs:'OBSERVATIONS',total:'TOTAL',
+ en:{title:t=>['1st','2nd','3rd'][t-1]+' TRIMESTRIAL MARK SHEET',sub:'BULLETIN DE NOTES',year:'School academic year',cls:'Class',name:'Name and surname',pp:'Class Master',cel:'Tel',sex:'Sex',statut:'Status',sexM:'Male',sexF:'Female',stOld:'Old',stNew:'New',stOldNew:'Old-new',subject:'SUBJECT',n1:t=>'M'+((t-1)*2+1)+'/20',n2:t=>'M'+((t-1)*2+2)+'/20',m:'A/20',coef:'COEF',pts:'A X COEF',rank:'RANK',obs:'OBSERVATIONS',total:'TOTAL',
   legend:'N A = Not acquired ; E C A = Being acquired ; A = Acquired ; A+ = More than acquired',avgT:'Average/20',rankL:'RANK',avgG:'Class average',prev:n=>'Average TRI '+n,annual:'Annual average',at:'at',principal:'The Principal',grp:'AVERAGE ',tr:t=>['1st','2nd','3rd'][t-1]+' Term',order:['n1','n2','coef','m','pts'],totalAvg:true}
 };
 
@@ -689,14 +689,15 @@ function bBottomHtml(cls,st,res,P,t,ann,remark,pp,sc){
 function bulletinHtml(cls,sid,t){
   const L=LB[cls.lang||'fr'],sc=viewSchool(),st=cls.students.find(s=>s.id===sid);
   const res=getRes(cls,t),P=res.per[sid],rows=bulletinRows(cls,sid,res,t);
-  const hd={n1:L.n1,n2:L.n2,m:L.m,coef:L.coef,pts:L.pts};
+  const order=t===3?L.order.filter(k=>k!=='n2'):L.order;
+  const hd={n1:L.n1(t),n2:L.n2(t),m:L.m,coef:L.coef,pts:L.pts};
   let b='';
   for(const r of rows){
     if(r.type==='group'){
-      b+='<tr class="grp"><td class="mt" colspan="3">'+esc(L.grp+r.label)+'</td>'+L.order.filter(k=>k!=='n1'&&k!=='n2').map(k=>'<td style="color:'+(k==='m'&&r.avg!=null&&r.avg<10?'#c00000':'inherit')+'">'+(k==='m'?fmt(r.avg):k==='coef'?(r.coef||''):fmt(r.pts))+'</td>').join('')+'<td></td><td></td></tr>';
+      b+='<tr class="grp"><td class="mt" colspan="'+(order.length-2)+'">'+esc(L.grp+r.label)+'</td>'+order.filter(k=>k!=='n1'&&k!=='n2').map(k=>'<td style="color:'+(k==='m'&&r.avg!=null&&r.avg<10?'#c00000':'inherit')+'">'+(k==='m'?fmt(r.avg):k==='coef'?(r.coef||''):fmt(r.pts))+'</td>').join('')+'<td></td><td></td></tr>';
     }else{
       const cell={n1:fmt(r.n1),n2:fmt(r.n2),m:fmt(r.m),coef:r.coef,pts:fmt(r.pts)};
-      const teacher=viewUsers().find(u=>u.id===r.sub.teacherId);b+='<tr><td class="mt"><span>'+esc(r.sub.name)+'</span>'+(teacher?' <span class="sub-teacher">/&nbsp;&nbsp;'+esc(teacher.name)+'</span>':'')+'</td>'+L.order.map(k=>{
+      const teacher=viewUsers().find(u=>u.id===r.sub.teacherId);b+='<tr><td class="mt"><span>'+esc(r.sub.name)+'</span>'+(teacher?' <span class="sub-teacher">/&nbsp;&nbsp;'+esc(teacher.name)+'</span>':'')+'</td>'+order.map(k=>{
         const val=k==='n1'?r.n1:k==='n2'?r.n2:k==='m'?r.m:null;
         let style='';
         if(k==='m')style='font-weight:700;';
@@ -721,8 +722,8 @@ function bulletinHtml(cls,sid,t){
    '<div class="b-line"><span class="lbl">Né(e) le</span><span class="val">'+esc(st.dob||'—')+(st.pob?' à '+esc(st.pob):'')+'</span><span class="lbl cel nw">Matricule :&nbsp;<b>'+esc(st.mat||'—')+'</b></span></div>'+
    '<div class="b-line"><span class="lbl">'+L.pp+'</span><span class="val">'+esc(pp)+'</span><span class="lbl cel nw">'+L.cel+'&nbsp;&nbsp;<b>'+esc(tel)+'</b></span></div>'+
    '</div>'+photoHtml+'</div>'+
-   '<table class="b-table"><colgroup><col style="width:34%">'+L.order.map(k=>'<col style="width:'+({n1:8,n2:8,m:8,coef:7,pts:10}[k])+'%">').join('')+'<col style="width:8%"><col style="width:'+(L.order.length===5?'17':'17')+'%"></colgroup>'+
-   '<thead><tr><th>'+L.subject+'</th>'+L.order.map(k=>'<th>'+hd[k]+'</th>').join('')+'<th>'+L.rank+'</th><th>'+L.obs+'</th></tr></thead><tbody>'+b+'</tbody></table>'+
+   '<table class="b-table"><colgroup><col style="width:34%">'+order.map(k=>'<col style="width:'+({n1:t===3?16:8,n2:8,m:8,coef:7,pts:10}[k])+'%">').join('')+'<col style="width:8%"><col style="width:17%"></colgroup>'+
+   '<thead><tr><th>'+L.subject+'</th>'+order.map(k=>'<th>'+hd[k]+'</th>').join('')+'<th>'+L.rank+'</th><th>'+L.obs+'</th></tr></thead><tbody>'+b+'</tbody></table>'+
    '<div class="b-legend">'+esc(L.legend)+'</div>'+
    bBottomHtml(cls,st,res,P,t,ann,remark,pp,sc)+
    '</section>';
