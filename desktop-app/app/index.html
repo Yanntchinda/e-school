@@ -228,6 +228,9 @@ td.sumc{font-weight:700;min-width:64px;padding:0 8px;background:#fcfcf6}
 .bulletin .b-line .val.big{font-size:12.5pt}
 .bulletin .b-line .cel{width:auto;margin-left:auto}
 .bulletin .b-line .cel.nw{white-space:nowrap;flex:none}
+/* matricule long : chasse fixe et taille adaptee pour rester sur la ligne d'etat civil */
+.bulletin .b-line .mat-line{font-size:9.6pt;letter-spacing:0}
+.bulletin .b-line .mat-line b{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Courier New",monospace;font-size:9.2pt;letter-spacing:0}
 .bulletin .b-line{flex-wrap:nowrap;min-width:0}
 .bulletin .b-line .val{min-width:0}
 .bulletin table.b-table{width:100%;border-collapse:collapse;margin-top:1.6mm;table-layout:fixed}
@@ -298,6 +301,26 @@ table.t.sub-table .c-group .inp,
 table.t.sub-table .c-teach .inp{width:100%;text-overflow:ellipsis}
 table.t.sub-table td.c-opt.center{text-align:center}
 table.t.sub-table td.c-opt input{width:18px;height:18px;cursor:pointer}
+/* barre de filtre de la barre superieure */
+.qbar{position:relative;flex:0 1 310px;min-width:150px}
+.qbar input{width:100%;padding:7px 11px;border-radius:8px;border:1px solid rgba(255,255,255,.22);
+  background:rgba(255,255,255,.12);color:#fff;font-size:13.5px;font-family:inherit}
+.qbar input::placeholder{color:rgba(255,255,255,.62)}
+.qbar input:focus{outline:none;border-color:rgba(255,255,255,.6);background:rgba(255,255,255,.2)}
+.qbar-res{position:absolute;left:0;right:0;top:calc(100% + 7px);background:#fff;border:1px solid var(--line);
+  border-radius:10px;box-shadow:0 18px 40px rgba(10,25,45,.24);overflow:hidden;z-index:70;display:none;max-height:60vh;overflow-y:auto}
+.qbar-res.on{display:block}
+.qbar-item{display:grid;grid-template-columns:1fr auto;gap:1px 10px;width:100%;text-align:left;
+  padding:9px 12px;border:0;border-bottom:1px solid var(--line-2);background:#fff;cursor:pointer;font-family:inherit}
+.qbar-item:last-child{border-bottom:0}
+.qbar-item:hover,.qbar-item:focus{background:#f2f7ff;outline:none}
+.qbar-item .qn{grid-column:1;grid-row:1;font-weight:600;font-size:13.5px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.qbar-item .qc{grid-column:2;grid-row:1;font-size:11.5px;font-weight:600;color:var(--green-d);white-space:nowrap}
+.qbar-item .qm{grid-column:1 / -1;grid-row:2;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:11px;color:var(--muted);letter-spacing:.02em}
+.qbar-empty{padding:11px 12px;font-size:12.5px;color:var(--muted);background:#fff}
+/* filtre interne a une classe */
+.stu-filter{max-width:300px;margin:0}
+.stu-count{font-size:12.5px;color:var(--muted);align-self:center}
 /* recherche d'un eleve : matricule en chasse fixe, ligne mise en evidence */
 .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12.5px;letter-spacing:.01em}
 tr.row-focus td{background:#fff7d6!important;box-shadow:inset 0 0 0 999px rgba(255,235,150,.25)}
@@ -409,10 +432,26 @@ const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;'
 const clsSup=s=>esc(s).replace(/(\d)(ère|nde|er|re|e)(?=$|[\s)\-·,;])/g,'$1<sup>$2</sup>');
 const uid=()=>Math.random().toString(36).slice(2,9)+Date.now().toString(36).slice(-4);
 let matCounter=0;
-/* ---------- Matricules : uniques et definitifs ----------
+/* ---------- Matricules : uniques, longs et definitifs ----------
    Un eleve garde son matricule d'une annee a l'autre et d'une classe a l'autre.
-   Le matricule est unique dans tout l'etablissement (annee en cours + archives). */
+   Format : MBI-<annee>-<6 caracteres aleatoires>, sans 0/1/I/O pour eviter les
+   confusions a la lecture. Le tirage est verifie contre TOUT l'etablissement
+   (annee en cours + archives) : deux eleves ne peuvent jamais avoir le meme. */
+const MAT_ALPHA='23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
 const matKey=v=>String(v||'').trim().toUpperCase().replace(/[^A-Z0-9]/g,'');
+function matRandom(n){
+  let out='';
+  try{
+    const c=window.crypto||window.msCrypto;
+    if(c&&c.getRandomValues){
+      const buf=new Uint8Array(n);c.getRandomValues(buf);
+      for(let i=0;i<n;i++)out+=MAT_ALPHA[buf[i]%MAT_ALPHA.length];
+      return out;
+    }
+  }catch(e){}
+  for(let i=0;i<n;i++)out+=MAT_ALPHA[Math.floor(Math.random()*MAT_ALPHA.length)];
+  return out;
+}
 const allStudentRecords=()=>{
   const out=[];
   (DB.classes||[]).forEach(c=>(c.students||[]).forEach(st=>out.push({st,cls:c,sessionId:null,year:DB.school.year,current:true})));
@@ -427,10 +466,14 @@ function matTaken(mat,exceptId){
 const genMat=()=>{
   const used=new Set();
   allStudentRecords().forEach(r=>{const k=matKey(r.st.mat);if(k)used.add(k)});
-  let max=0;used.forEach(k=>{const m=/^MBI(\d+)$/.exec(k);if(m)max=Math.max(max,+m[1])});
-  let n=max+1;while(used.has('MBI'+String(n).padStart(4,'0')))n++;
-  matCounter=n;
-  return 'MBI-'+String(n).padStart(4,'0');
+  const y=(String(DB.school&&DB.school.year||'').match(/\d{4}/)||[])[0]||String(new Date().getFullYear());
+  const pre='MBI-'+y+'-';
+  let m='',guard=0;
+  do{m=pre+matRandom(6);guard++}while(used.has(matKey(m))&&guard<500);
+  /* Securite supplementaire : si le tirage reste pris, on allonge le code. */
+  while(used.has(matKey(m)))m=pre+matRandom(9);
+  matCounter++;
+  return m;
 };
 /* Repare les doublons et les matricules vides de l'annee en cours (jamais les archives) */
 function repairMatricules(){
@@ -954,7 +997,7 @@ function bulletinHtml(cls,sid,t){
    '<div class="b-year"><span>'+L.year+'&nbsp;&nbsp;'+esc(sc.year)+'</span><span class="tr nw"><b>'+L.tr(t)+'</b></span></div>'+
    '<div class="b-line"><span class="lbl">'+L.cls+'</span><span class="val big">'+clsSup(cls.name)+'</span><span class="lbl cel nw">'+L.sex+' :&nbsp;<b>'+esc(sexLabel(st,L))+'</b></span></div>'+
    '<div class="b-line"><span class="lbl">'+L.name+'</span><span class="val big">'+esc(st.name)+'</span><span class="lbl cel nw">'+L.statut+' :&nbsp;<b>'+esc(statusLabel(st,L))+'</b></span></div>'+
-   '<div class="b-line"><span class="lbl">Né(e) le</span><span class="val">'+esc(st.dob||'—')+(st.pob?' à '+esc(st.pob):'')+'</span><span class="lbl cel nw">Matricule :&nbsp;<b>'+esc(st.mat||'—')+'</b></span></div>'+
+   '<div class="b-line"><span class="lbl">Né(e) le</span><span class="val">'+esc(st.dob||'—')+(st.pob?' à '+esc(st.pob):'')+'</span><span class="lbl cel nw mat-line">Matricule :&nbsp;<b>'+esc(st.mat||'—')+'</b></span></div>'+
    '<div class="b-line"><span class="lbl">'+L.pp+'</span><span class="val">'+esc(pp)+'</span><span class="lbl cel nw">'+L.cel+'&nbsp;&nbsp;<b>'+esc(tel)+'</b></span></div>'+
    '</div>'+photoHtml+'</div>'+
    '<table class="b-table"><colgroup><col style="width:34%">'+order.map(k=>'<col style="width:'+({n1:t===3?16:8,n2:8,m:8,coef:7,pts:10}[k])+'%">').join('')+'<col style="width:8%"><col style="width:17%"></colgroup>'+
@@ -1308,7 +1351,9 @@ function shellHtml(){
   if(isSurv())return survShell();
   const cl=visibleClasses();
   const nav=cl.map(c=>'<a class="nav '+(S.view==='class'&&S.classId===c.id?'on':'')+'" data-act="open-class" data-id="'+c.id+'"><span>'+esc(c.name)+'</span><small>'+c.students.length+'</small></a>').join('');
-  return '<header class="topbar"><div class="brand"><span class="dot">M</span><span class="t">'+esc(viewSchool().name)+'</span></div>'+(isReadOnlySession()?'<span class="role">Consultation · '+esc(viewYear())+'</span>':'<span class="role">Session en cours · '+esc(viewYear())+'</span>')+
+  return '<header class="topbar"><div class="brand"><span class="dot">M</span><span class="t">'+esc(viewSchool().name)+'</span></div>'+
+   qbarHtml()+
+   (isReadOnlySession()?'<span class="role">Consultation · '+esc(viewYear())+'</span>':'<span class="role">Session en cours · '+esc(viewYear())+'</span>')+
    '<div class="tri" role="group" aria-label="Trimestre">'+[1,2,3].map(t=>'<button data-act="trim" data-t="'+t+'" class="'+(S.trim===t?'on':'')+'">'+TRN[t-1]+' trimestre</button>').join('')+'</div>'+
    '<div class="me"><span id="cloudBadge" class="badge ok" style="display:none;margin-right:8px">Sync</span><span>'+esc(ME.name)+' <span class="role">'+(isAdmin()?'Administrateur':'Professeur')+'</span></span><button class="btn sm" data-act="logout">Quitter</button></div></header>'+
    '<div class="shell"><nav class="side" aria-label="Navigation">'+
@@ -1366,6 +1411,31 @@ function disciplineHtml(){
       DISC_FIELDS.map(f=>{const v=total(f.k);return '<td class="disc-tot">'+(v==null?'—':discNum(v))+'</td>'}).join('')+'<td></td></tr></tfoot></table></div></div>'+
     (t===3?'<div class="notice info">Au 3e trimestre, le bulletin affiche la <b>synthèse annuelle</b> : la somme des trois trimestres pour chaque rubrique.</div>':'');
 }
+/* ---------- Barre de filtre : recherche immediate parmi toutes les classes ---------- */
+const qbarHtml=()=>'<div class="qbar"><input id="qbar" type="text" autocomplete="off" spellcheck="false" '+
+  'placeholder="Rechercher un élève : nom ou matricule" aria-label="Rechercher un élève dans toutes les classes">'+
+  '<div id="qbar-results" class="qbar-res" role="listbox"></div></div>';
+function qbarSearch(q){
+  const nq=normTxt(q),qm=matKey(q);
+  if(!nq&&!qm)return [];
+  const vis=new Set(visibleClasses().map(c=>c.id));
+  return allStudentRecords()
+    .filter(r=>r.current&&vis.has(r.cls.id))
+    .filter(r=>(nq&&normTxt(r.st.name).includes(nq))||(qm&&matKey(r.st.mat).includes(qm)))
+    .sort((a,b)=>cmpName(a.st,b.st));
+}
+function qbarUpdate(q){
+  const box=document.querySelector('#qbar-results');if(!box)return;
+  if(!String(q||'').trim()){box.className='qbar-res';box.innerHTML='';return}
+  const rows=qbarSearch(q);
+  box.className='qbar-res on';
+  box.innerHTML=rows.length
+    ? rows.slice(0,8).map(r=>'<button type="button" class="qbar-item" data-act="search-open" data-cls="'+r.cls.id+'" data-session="" data-id="'+r.st.id+'">'+
+        '<span class="qn">'+esc(r.st.name)+'</span><span class="qc">'+esc(r.cls.name)+'</span>'+
+        '<span class="qm">'+esc(r.st.mat||'')+'</span></button>').join('')+
+      (rows.length>8?'<div class="qbar-empty">'+rows.length+' résultats · affinez la saisie</div>':'')
+    : '<div class="qbar-empty">Aucun élève trouvé pour « '+esc(q)+' »</div>';
+}
 /* ---------- Recherche d'un eleve dans tout le systeme ---------- */
 const SEARCH={q:'',cls:'',scope:'all'};
 const normTxt=v=>String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
@@ -1407,7 +1477,7 @@ function searchHtml(){
   const classes=[...viewClasses()].sort((a,b)=>(a.ord||0)-(b.ord||0));
   return '<div class="page-h"><div><h1>Rechercher un élève</h1><p>Nom ou matricule · toutes les classes, année en cours et années archivées.</p></div></div>'+
    '<div class="panel"><div class="toolbar" style="margin-bottom:10px">'+
-     '<label class="f" style="flex:1 1 280px;margin:0">Nom ou matricule<input id="q-search" value="'+esc(SEARCH.q)+'" placeholder="Ex. MBALLA ou MBI-0007" autocapitalize="characters" autofocus></label>'+
+     '<label class="f" style="flex:1 1 280px;margin:0">Nom ou matricule<input id="q-search" value="'+esc(SEARCH.q)+'" placeholder="Ex. MBALLA ou MBI-2026-7K4Q9X" autocapitalize="characters" autofocus></label>'+
      '<label class="f" style="max-width:230px;margin:0">Classe<select id="q-class"><option value="">Toutes les classes</option>'+
        classes.map(c=>'<option value="'+c.id+'" '+(SEARCH.cls===c.id?'selected':'')+'>'+esc(c.name)+'</option>').join('')+'</select></label>'+
      '<label class="f" style="max-width:230px;margin:0">Périmètre<select id="q-scope">'+
@@ -2154,8 +2224,13 @@ function studentsTab(cls){
   let h='<div class="toolbar">'+(can?'<button class="btn primary" data-act="add-student">Ajouter un élève</button><button class="btn" data-act="import-students">Importer une liste</button>':'<span class="small muted">Seuls l’administrateur et le professeur principal peuvent modifier la liste des élèves.</span>')+'<span class="grow"></span><span class="small muted">'+list.length+' élève'+(list.length>1?'s':'')+'</span></div>';
   if(!list.length)return h+'<div class="panel empty"><h3>La liste est vide</h3><p>'+(can?'Importez les noms depuis Excel (copier-coller) ou ajoutez les élèves un par un.':'Le professeur principal ou l’administrateur doit d’abord ajouter les élèves.')+'</p></div>';
   const hasSex=list.some(s=>s.sex);
+  /* Filtre rapide a l'interieur de la classe (nom ou matricule) */
+  h+='<div class="toolbar" style="margin:2px 0 10px">'+
+     '<input id="stu-filter" class="inp sm stu-filter" type="text" autocomplete="off" spellcheck="false" placeholder="Filtrer cette classe : nom ou matricule" aria-label="Filtrer les élèves de cette classe">'+
+     '<span id="stu-count" class="stu-count">'+list.length+(list.length>1?' élèves':' élève')+'</span>'+
+     '<span class="grow"></span><span class="small muted">Pour chercher dans toutes les classes, utilisez la barre en haut de l’écran.</span></div>';
   h+='<div class="tw"><table class="t"><thead><tr><th style="width:56px">N°</th><th style="width:58px">Photo</th><th>Noms et prénoms</th><th>Matricule</th><th>Date de naissance</th><th>Lieu de naissance</th><th>Sexe</th>'+(can?'<th></th>':'')+'</tr></thead><tbody>'+
-   list.map((s,i)=>{const photo=studentPhotoSrc(cls,s);return '<tr data-st="'+s.id+'" class="'+(S.focusStudent===s.id?'row-focus':'')+'"><td>'+(i+1)+'</td><td>'+(photo?'<img src="'+photo+'" alt="" style="width:32px;height:40px;object-fit:cover;border-radius:3px;vertical-align:middle">':'<span class="muted">—</span>')+'</td><td>'+tagBadge(s)+' <b>'+esc(s.name)+'</b></td><td>'+esc(s.mat||'')+'</td><td>'+(s.dob?esc(s.dob):'<span class="muted">—</span>')+'</td><td>'+(s.pob?esc(s.pob):'<span class="muted">—</span>')+'</td><td>'+(s.sex==='M'?'Masculin':s.sex==='F'?'Féminin':'<span class="muted">—</span>')+'</td>'+
+   list.map((s,i)=>{const photo=studentPhotoSrc(cls,s);return '<tr data-st="'+s.id+'" data-q="'+esc(normTxt(s.name+' '+(s.mat||'')))+'" class="'+(S.focusStudent===s.id?'row-focus':'')+'"><td>'+(i+1)+'</td><td>'+(photo?'<img src="'+photo+'" alt="" style="width:32px;height:40px;object-fit:cover;border-radius:3px;vertical-align:middle">':'<span class="muted">—</span>')+'</td><td>'+tagBadge(s)+' <b>'+esc(s.name)+'</b></td><td class="mono">'+esc(s.mat||'')+'</td><td>'+(s.dob?esc(s.dob):'<span class="muted">—</span>')+'</td><td>'+(s.pob?esc(s.pob):'<span class="muted">—</span>')+'</td><td>'+(s.sex==='M'?'Masculin':s.sex==='F'?'Féminin':'<span class="muted">—</span>')+'</td>'+
    (can?'<td class="right nowrap"><button class="btn sm" data-act="edit-student" data-id="'+s.id+'">Modifier</button> <button class="btn sm danger" data-act="del-student" data-id="'+s.id+'">Retirer</button></td>':'')+'</tr>'}).join('')+'</tbody></table></div>';
   return h;
 }
@@ -2535,7 +2610,7 @@ function studentForm(s){
   const pobVal=s?s.pob||'':'';
   const photoPreview=s?studentPhotoSrc(curClass(),s):'';
   openModal('<form data-form="student" data-id="'+(s?s.id:'')+'"><h2>'+(s?'Modifier l\'élève':'Ajouter un élève')+'</h2><label class="f">Noms et prénoms<input name="name" value="'+esc(s?s.name:'')+'" required autofocus></label>'+
-   '<div class="row"><label class="f">Sexe<select name="sex"><option value="">Non précisé</option><option value="M" '+(s&&s.sex==='M'?'selected':'')+'>Masculin</option><option value="F" '+(s&&s.sex==='F'?'selected':'')+'>Féminin</option></select></label><label class="f">Matricule (unique et définitif)<input name="mat" value="'+esc(matVal)+'"><span class="small muted">Attribué une seule fois, conservé si l’élève change de classe.</span></label></div>'+
+   '<div class="row"><label class="f">Sexe<select name="sex"><option value="">Non précisé</option><option value="M" '+(s&&s.sex==='M'?'selected':'')+'>Masculin</option><option value="F" '+(s&&s.sex==='F'?'selected':'')+'>Féminin</option></select></label><label class="f">Matricule (attribué automatiquement)<input name="mat" value="'+esc(matVal)+'" readonly style="background:#f2f5f9;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;letter-spacing:.03em"><span class="small muted">Unique dans tout l’établissement, définitif : il suit l’élève s’il change de classe ou d’année.</span></label></div>'+
    '<div class="row"><label class="f">Date de naissance<input name="dob" type="date" value="'+esc(dobVal)+'"></label><label class="f">Lieu de naissance<input name="pob" value="'+esc(pobVal)+'" placeholder="Ex. Douala"></label></div>'+
    '<div class="row" style="align-items:center"><label class="f" style="flex:1 1 240px">Photo de profil (format 3 × 4 cm)<input type="file" accept="image/*" data-file="photo" class="inp"><span class="small muted">Choisissez une image ; elle sera ajoutée automatiquement aux bulletins de cet élève.</span></label>'+
    (photoPreview?'<img data-photo-preview src="'+photoPreview+'" alt="Aperçu de la photo" style="width:28mm;height:35mm;object-fit:cover;border:1px solid var(--line);border-radius:4px;flex:0 0 auto">':'<div data-photo-empty style="width:28mm;height:35mm;display:flex;align-items:center;justify-content:center;border:1px dashed var(--line);border-radius:4px;color:var(--muted);font-size:11px;flex:0 0 auto">Photo</div><img data-photo-preview alt="Aperçu de la photo" style="display:none;width:28mm;height:35mm;object-fit:cover;border:1px solid var(--line);border-radius:4px;flex:0 0 auto">')+'</div>'+
@@ -2736,6 +2811,21 @@ document.addEventListener('input',e=>{
   if(el.id==='remark'){if(isReadOnlySession())return;const cls=curClass(),sid=el.dataset.sid;(cls.remarks[sid]||(cls.remarks[sid]={}))['t'+S.trim]=el.value;dirty();const b=$('#bprev');if(b)b.innerHTML=bulletinHtml(cls,sid,S.trim)}
   if(el.classList.contains('cell'))el.classList.remove('bad');
   if(el.id==='q-search'){SEARCH.q=el.value;renderSearchResults();return}
+  if(el.id==='qbar'){qbarUpdate(el.value);return}
+  if(el.id==='stu-filter'){
+    const raw=String(el.value||'').trim();
+    const q=normTxt(raw).replace(/\s+/g,' ');
+    const k=matKey(raw);
+    let shown=0;
+    document.querySelectorAll('#main table.t tbody tr[data-q]').forEach(tr=>{
+      const hay=tr.dataset.q||'';
+      const ok=!raw||hay.includes(q)||hay.replace(/[^a-z0-9]/g,'').includes(k.toLowerCase());
+      tr.style.display=ok?'':'none';
+      if(ok)shown++;
+    });
+    const c=document.querySelector('#stu-count');if(c)c.textContent=shown+(shown>1?' élèves':' élève');
+    return;
+  }
   if(el.classList.contains('disc-in')){
     if(isReadOnlySession())return;
     const cls=discClass();if(!cls)return;
@@ -2807,6 +2897,20 @@ document.addEventListener('submit',async e=>{
   }
 });
 A['noop']=()=>{};
+document.addEventListener('keydown',e=>{
+  const el=e.target;
+  if(!el||el.id!=='qbar')return;
+  if(e.key==='Escape'){el.value='';qbarUpdate('');el.blur();return}
+  if(e.key==='Enter'){
+    const first=document.querySelector('#qbar-results .qbar-item');
+    if(first){e.preventDefault();first.dispatchEvent(new MouseEvent('click',{bubbles:true}))}
+  }
+});
+document.addEventListener('click',e=>{
+  if(e.target.closest&&e.target.closest('.qbar'))return;
+  const box=document.querySelector('#qbar-results');
+  if(box&&box.classList.contains('on')){box.className='qbar-res';box.innerHTML=''}
+});
 document.addEventListener('change',e=>{
   if(e.target.id==='q-class'){SEARCH.cls=e.target.value;renderSearchResults();return}
   if(e.target.id==='q-scope'){SEARCH.scope=e.target.value;renderSearchResults();return}
