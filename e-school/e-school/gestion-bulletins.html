@@ -509,7 +509,21 @@ function sessionUser(){try{const id=sessionStorage.getItem(SKEY);return DB.users
 const seqIdx=t=>t===3?[4]:[(t-1)*2,(t-1)*2+1];
 function getG(cls,sid,sub){return(cls.grades[sid]&&cls.grades[sid][sub])||null}
 function setG(cls,sid,sub,i,v){const g=cls.grades[sid]||(cls.grades[sid]={});const a=g[sub]||(g[sub]=[null,null,null,null,null]);a[i]=v}
-function subAvg(cls,sid,sub,t){const g=getG(cls,sid,sub);if(!g)return null;const v=seqIdx(t).map(i=>g[i]).filter(x=>x!=null);return v.length?v.reduce((a,b)=>a+b,0)/v.length:null}
+function subAvg(cls,sid,sub,t){
+  const g=getG(cls,sid,sub);if(!g)return null;
+  if(t===3){
+    /* T3 : M/20 = moyenne generale de la matiere = (T1 x2 + T2 x2 + N5) / 5 */
+    const seqMean=i=>{const v=[g[i*2],g[i*2+1]].filter(x=>x!=null);return v.length?v.reduce((a,b)=>a+b,0)/v.length:null};
+    const t1=seqMean(0),t2=seqMean(1),n5=g[4]!=null?g[4]:null;
+    let sw=0,sp=0;
+    if(t1!=null){sp+=t1*2;sw+=2}
+    if(t2!=null){sp+=t2*2;sw+=2}
+    if(n5!=null){sp+=n5;sw+=1}
+    return sw?sp/sw:null;
+  }
+  const v=seqIdx(t).map(i=>g[i]).filter(x=>x!=null);
+  return v.length?v.reduce((a,b)=>a+b,0)/v.length:null
+}
 function compute(cls,t){
   const per={};
   for(const s of cls.students){
