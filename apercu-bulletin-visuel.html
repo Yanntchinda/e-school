@@ -666,13 +666,13 @@ function bBottomHtml(cls,st,res,P,t,ann,remark,pp,sc){
     '<td class="lbl">Taux de réussite / Success rate'+v(pass==null?'&nbsp;':Math.round(pass*100)+' %')+'</td>'+
   '</tr>'+
   '<tr>'+
-    '<th colspan="2" class="appr-title">Appréciation du travail de l’élève <i>Appreciation of student’s work</i></th>'+
     '<th colspan="2" class="appr-title">Visa du parent / Tuteur <i>Parent / Tutor &amp; Visa</i></th>'+
+    '<th colspan="2" class="appr-title">Appréciation du travail de l’élève <i>Appreciation of student’s work</i></th>'+
     '<th class="appr-title">Le Chef d’Établissement <i>The Principal</i></th>'+
   '</tr>'+
   '<tr class="appr">'+
-    '<td colspan="2"><div class="appr-lines">'+(remark?esc(remark):'')+'</div></td>'+
     '<td colspan="2"><div class="sign-zone"></div></td>'+
+    '<td colspan="2"><div class="appr-lines">'+(remark?esc(remark):'')+'</div></td>'+
     '<td><div class="nom-lbl">Nom du Chef d’établissement</div><div class="nom-val">'+esc(sc.principal||'&nbsp;')+'</div><div class="sign-zone"></div></td>'+
   '</tr></tbody></table></div>';
   return h;
