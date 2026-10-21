@@ -739,9 +739,14 @@ function bBottomHtml(cls,st,res,P,t,ann,remark,pp,sc){
      Les criteres sont cumulables : un eleve peut avoir plusieurs cases cochees. */
   /* Discipline : avertissement de conduite des 8 h d'absences non justifiees,
      blame de conduite des 12 h. Le tableau d'honneur exige moins de 7 h. */
-  const aNJ=t===3?discSum(cls,st.id,'absNJ'):discVal(cls,st.id,t,'absNJ');
-  const dOn={a: aNJ!=null&&aNJ>=8, b: aNJ!=null&&aNJ>=12};
-  const mOn={h: pAvg!=null&&pAvg>=12&&(aNJ==null||aNJ<7),
+  /* Discipline : les absences justifiees sont deduites des absences non justifiees.
+     Seul le solde negatif est retenu (jamais en dessous de 0 h) et il sert aux trois
+     regles : tableau d'honneur si moins de 5 h, avertissement des 8 h, blame des 12 h. */
+  const gNJ=t===3?discSum(cls,st.id,'absNJ'):discVal(cls,st.id,t,'absNJ');
+  const gJ =t===3?discSum(cls,st.id,'absJ') :discVal(cls,st.id,t,'absJ');
+  const solde=Math.max(0,(gNJ||0)-(gJ||0));
+  const dOn={a: solde>=8, b: solde>=12};
+  const mOn={h: pAvg!=null&&pAvg>=12&&solde<5,
              f: pAvg!=null&&pAvg>=15&&pAvg<16,
              e: pAvg!=null&&pAvg>=16};
   let h='<div class="b-bottom"><table class="b-bottom-t">'+
@@ -2803,20 +2808,28 @@ async function seedDemoData(){
     }
   }
 
-  /* Scenario de demonstration : les meilleurs eleves du 1er trimestre recoivent
-     des heures d'absences non justifiees qui testent les seuils de conduite.
-     9 h -> avertissement et perte du tableau d'honneur, 13 h -> blâme,
-     5 h -> tableau d'honneur conserve. */
+  /* Scenario de demonstration sur les quatre rubriques de discipline.
+     Le solde = absences non justifiees - absences justifiees commande les cases :
+      9 h / 6 h -> solde 3 h  : tableau d'honneur conserve
+     13 h / 5 h -> solde 8 h  : tableau d'honneur retire, avertissement
+      5 h / 0 h -> solde 5 h  : tableau d'honneur retire (seuil exact)
+     16 h / 3 h -> solde 13 h : avertissement et blame */
+  const scenario=[[9,6,2,1],[13,5,4,2],[5,0,1,.5],[16,3,5,3]];
   for(const cls of DB.classes){
     let r1=null;try{r1=getRes(cls,1)}catch(e){}
     if(!r1||!Array.isArray(r1.ranked))continue;
     const bons=r1.ranked.filter(st=>r1.per[st.id]&&r1.per[st.id].avg>=12)
-      .sort((a,b)=>r1.per[b.id].avg-r1.per[a.id].avg).slice(0,3);
+      .sort((a,b)=>r1.per[b.id].avg-r1.per[a.id].avg).slice(0,scenario.length);
     cls.disc=cls.disc||{};
     bons.forEach((st,i)=>{
       const e=cls.disc[st.id]||(cls.disc[st.id]={});
       const d=e.t1||(e.t1={});
-      d.absNJ=[9,13,5][i];
+      const [nj,j,ret,cons]=scenario[i];
+      d.absNJ=nj;d.absJ=j;
+      if(ret)d.ret=ret;
+      if(cons)d.cons=cons;
+      /* Le 2e trimestre prolonge le solde pour que la synthese annuelle reste lisible */
+      if(i<2){const e2=cls.disc[st.id];e2.t2=e2.t2||{};e2.t2.absNJ=Math.max(0,nj-3);e2.t2.absJ=Math.max(0,j-2)}
     });
   }
 
