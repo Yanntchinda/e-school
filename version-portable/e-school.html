@@ -266,6 +266,7 @@ td.sumc{font-weight:700;min-width:64px;padding:0 8px;background:#fcfcf6}
 .bulletin .b-bottom-t .chk{display:inline-block;width:2.9mm;height:2.9mm;border:.35mm solid #000;vertical-align:-.5mm;margin-left:1.2mm;box-sizing:border-box}
 .bulletin .b-bottom-t .appr-lines{font-size:10.6pt;line-height:5.6mm;white-space:pre-wrap;word-break:break-word;min-height:5.6mm;background-image:repeating-linear-gradient(to bottom,transparent 0,transparent 5.25mm,#bbb 5.25mm,#bbb 5.4mm);background-size:100% 5.6mm;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 .bulletin .b-bottom-t .appr-title{font-size:8.6pt;font-weight:400;line-height:1.1}
+.bulletin .b-bottom-t td.mavg{vertical-align:middle}
 .bulletin .b-bottom-t .appr-title.chef{font-weight:700}
 .bulletin .b-bottom-t .appr-title.chef i{font-weight:700}
 .bulletin .b-bottom-t .appr-title i{font-style:italic;font-size:7.6pt;color:#333}
@@ -663,14 +664,13 @@ function bBottomHtml(cls,st,res,P,t,ann,remark,pp,sc){
   '<tr class="row-h">'+
     '<td class="lbl">Retards (nombre de fois)'+v('&nbsp;')+'</td>'+
     '<td class="lbl">Exclusions (jrs)<i>Expelling (jrs)</i>'+v('&nbsp;')+'</td>'+
-    '<td class="lbl center"><b>Moyenne trimestrielle</b>Term average'+v(P.avg==null?'&nbsp;':fmt1(P.avg))+'</td>'+
+    '<td class="lbl center mavg" rowspan="2"><b>Moyenne trimestrielle</b>Term average'+v(P.avg==null?'&nbsp;':fmt1(P.avg))+'</td>'+
     '<td class="lbl center mtn-cell"><span class="mtn">Félicitations'+chk+'</span></td>'+
     '<td class="lbl">Nombre de moyennes<i>Average number</i>'+v(passCount+' / '+cls.students.length)+'</td>'+
   '</tr>'+
   '<tr class="row-h">'+
     '<td class="lbl">Consignes (h)<i>Punishment</i>'+v('&nbsp;')+'</td>'+
     '<td class="lbl">Exclusion définitive'+v('&nbsp;')+'</td>'+
-    '<td></td>'+
     '<td class="lbl center mtn-cell"><span class="mtn">Encouragement'+chk+'</span></td>'+
     '<td class="lbl">Taux de réussite / Success rate'+v(pass==null?'&nbsp;':Math.round(pass*100)+' %')+'</td>'+
   '</tr>'+
