@@ -276,6 +276,9 @@ td.sumc{font-weight:700;min-width:64px;padding:0 8px;background:#fcfcf6}
 .bulletin .b-bottom-t td.mavg .val{font-size:13.2pt;min-height:5.4mm}
 .bulletin .b-bottom-t td.mavg .rk-mavg{margin-top:.6mm;font-size:8.2pt}
 .bulletin .b-bottom-t td.mavg .rk-mavg b{font-size:10.6pt}
+/* recherche d'un eleve : matricule en chasse fixe, ligne mise en evidence */
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12.5px;letter-spacing:.01em}
+tr.row-focus td{background:#fff7d6!important;box-shadow:inset 0 0 0 999px rgba(255,235,150,.25)}
 /* bascule de role sur la page de connexion */
 .role-switch{display:flex;gap:6px;padding:5px;margin:0 0 12px;border-radius:12px;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.24)}
 .role-switch button{flex:1;border:0;background:transparent;color:#e7eefb;font-size:12.5px;font-weight:600;padding:8px 6px;border-radius:9px;cursor:pointer;line-height:1.15}
@@ -383,7 +386,40 @@ const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;'
 /* Nom de classe : le rang (e, ere, nde, re) est mis en exposant -> 6e A devient 6 avec e en exposant */
 const clsSup=s=>esc(s).replace(/(\d)(ère|nde|er|re|e)(?=$|[\s)\-·,;])/g,'$1<sup>$2</sup>');
 const uid=()=>Math.random().toString(36).slice(2,9)+Date.now().toString(36).slice(-4);
-let matCounter=0;const genMat=()=>{matCounter++;const used=new Set(),add=classes=>(classes||[]).forEach(c=>(c.students||[]).forEach(s=>{if(s.mat)used.add(s.mat)}));add(DB.classes);(DB.sessions||[]).forEach(a=>add(a.classes));let n=matCounter;while(used.has('MBI-'+String(n).padStart(4,'0')))n++;return 'MBI-'+String(n).padStart(4,'0')};
+let matCounter=0;
+/* ---------- Matricules : uniques et definitifs ----------
+   Un eleve garde son matricule d'une annee a l'autre et d'une classe a l'autre.
+   Le matricule est unique dans tout l'etablissement (annee en cours + archives). */
+const matKey=v=>String(v||'').trim().toUpperCase().replace(/[^A-Z0-9]/g,'');
+const allStudentRecords=()=>{
+  const out=[];
+  (DB.classes||[]).forEach(c=>(c.students||[]).forEach(st=>out.push({st,cls:c,sessionId:null,year:DB.school.year,current:true})));
+  (DB.sessions||[]).forEach(a=>(a.classes||[]).forEach(c=>(c.students||[]).forEach(st=>out.push({st,cls:c,sessionId:a.id,year:a.year,current:false}))));
+  return out;
+};
+/* retourne l'eleve qui detient deja ce matricule (sauf lui-meme) */
+function matTaken(mat,exceptId){
+  const k=matKey(mat);if(!k)return null;
+  return allStudentRecords().find(r=>r.st.id!==exceptId&&matKey(r.st.mat)===k)||null;
+}
+const genMat=()=>{
+  const used=new Set();
+  allStudentRecords().forEach(r=>{const k=matKey(r.st.mat);if(k)used.add(k)});
+  let max=0;used.forEach(k=>{const m=/^MBI(\d+)$/.exec(k);if(m)max=Math.max(max,+m[1])});
+  let n=max+1;while(used.has('MBI'+String(n).padStart(4,'0')))n++;
+  matCounter=n;
+  return 'MBI-'+String(n).padStart(4,'0');
+};
+/* Repare les doublons et les matricules vides de l'annee en cours (jamais les archives) */
+function repairMatricules(){
+  const seen=new Set();let fixed=0;
+  (DB.classes||[]).forEach(c=>(c.students||[]).forEach(st=>{
+    let k=matKey(st.mat);
+    if(!k||seen.has(k)){st.mat=genMat();k=matKey(st.mat);fixed++}
+    seen.add(k);
+  }));
+  return fixed;
+}
 const fmt=(v,d=2)=>v==null||isNaN(v)?'':Number(v).toFixed(d).replace('.',',');
 const fmt1=v=>v==null?'—':fmt(v,2);
 const rankStr=(r)=>r?((r.r===1?'1er':r.r+'e')+(r.tie?' ex':'')):'';
@@ -1135,6 +1171,7 @@ const Cloud={
     if(ordered.length){
       ordered.forEach(c=>{if((!c.disc||!Object.keys(c.disc).length)&&keepDisc[c.id])c.disc=keepDisc[c.id]});
       DB.classes=ordered;
+      try{repairMatricules()}catch(e){}
     }
     return true;
   },
@@ -1246,6 +1283,7 @@ function shellHtml(){
    '<h4>Sessions</h4><a class="nav '+(S.view==='sessions'?'on':'')+'" data-act="go" data-v="sessions">Sessions</a>'+
    '<h4>Administration</h4>'+
    (isAdmin()&&!isReadOnlySession()?'<a class="nav '+(S.view==='teachers'?'on':'')+'" data-act="go" data-v="teachers">Enseignants</a><a class="nav '+(S.view==='school'?'on':'')+'" data-act="go" data-v="school">Paramètres</a>':'')+
+   (isAdmin()?'<a class="nav '+(S.view==='search'?'on':'')+'" data-act="go" data-v="search">Rechercher un élève</a>':'')+
    '<a class="nav '+(S.view==='account'?'on':'')+'" data-act="go" data-v="account">Mon compte</a></nav>'+
    '<main id="main">'+mainHtml()+'</main></div>';
 }
@@ -1292,6 +1330,57 @@ function disciplineHtml(){
       DISC_FIELDS.map(f=>{const v=total(f.k);return '<td class="disc-tot">'+(v==null?'—':discNum(v))+'</td>'}).join('')+'<td></td></tr></tfoot></table></div></div>'+
     (t===3?'<div class="notice info">Au 3e trimestre, le bulletin affiche la <b>synthèse annuelle</b> : la somme des trois trimestres pour chaque rubrique.</div>':'');
 }
+/* ---------- Recherche d'un eleve dans tout le systeme ---------- */
+const SEARCH={q:'',cls:'',scope:'all'};
+const normTxt=v=>String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
+function searchRecords(){
+  const q=normTxt(SEARCH.q),qm=matKey(SEARCH.q);
+  const rows=allStudentRecords().filter(r=>{
+    if(SEARCH.scope==='cur'&&!r.current)return false;
+    if(SEARCH.scope==='arch'&&r.current)return false;
+    if(SEARCH.cls&&r.cls.id!==SEARCH.cls)return false;
+    if(!q&&!qm)return true;
+    return (q&&normTxt(r.st.name).includes(q))||(qm&&matKey(r.st.mat).includes(qm));
+  });
+  rows.sort((a,b)=>{
+    if(a.current!==b.current)return a.current?-1:1;
+    if(a.current===false&&a.year!==b.year)return String(b.year).localeCompare(String(a.year));
+    return cmpName(a.st,b.st);
+  });
+  return rows;
+}
+function searchResultsHtml(){
+  const rows=searchRecords();
+  if(!rows.length)return '<div class="panel empty"><h3>Aucun élève trouvé</h3><p>Vérifiez l’orthographe du nom ou le matricule (par exemple MBI-0007).</p></div>';
+  const shown=rows.slice(0,400);
+  return '<p class="small muted" style="margin:2px 0 10px">'+rows.length+' élève'+(rows.length>1?'s':'')+' trouvé'+(rows.length>1?'s':'')+(rows.length>400?' · les 400 premiers sont affichés':'')+'</p>'+
+    '<div class="tw"><table class="t"><thead><tr><th>Élève</th><th style="width:120px">Matricule</th><th style="width:110px">Classe</th><th style="width:130px">Année</th><th style="width:70px">Sexe</th><th style="width:90px">Statut</th><th style="width:90px"></th></tr></thead><tbody>'+
+    shown.map(r=>'<tr><td><b>'+esc(r.st.name)+'</b></td><td class="mono">'+esc(r.st.mat||'—')+'</td><td>'+esc(r.cls.name)+'</td>'+
+      '<td>'+(r.current?'<span class="badge ok">En cours</span>':'<span class="badge">'+esc(r.year||'archive')+'</span>')+'</td>'+
+      '<td>'+esc(r.st.sex==='F'?'F':r.st.sex==='M'?'M':'—')+'</td>'+
+      '<td>'+esc(r.st.sessionTag||'N')+'</td>'+
+      '<td class="right"><button class="btn sm" data-act="search-open" data-cls="'+r.cls.id+'" data-session="'+(r.sessionId||'')+'" data-id="'+r.st.id+'">Ouvrir</button></td></tr>').join('')+
+    '</tbody></table></div>';
+}
+function renderSearchResults(){
+  const box=document.querySelector('#searchResults');
+  if(box)box.innerHTML=searchResultsHtml();
+}
+function searchHtml(){
+  if(!isAdmin())return '<div class="page-h"><div><h1>Recherche</h1><p>Recherche réservée à l’administration.</p></div></div>';
+  const classes=[...viewClasses()].sort((a,b)=>(a.ord||0)-(b.ord||0));
+  return '<div class="page-h"><div><h1>Rechercher un élève</h1><p>Nom ou matricule · toutes les classes, année en cours et années archivées.</p></div></div>'+
+   '<div class="panel"><div class="toolbar" style="margin-bottom:10px">'+
+     '<label class="f" style="flex:1 1 280px;margin:0">Nom ou matricule<input id="q-search" value="'+esc(SEARCH.q)+'" placeholder="Ex. MBALLA ou MBI-0007" autocapitalize="characters" autofocus></label>'+
+     '<label class="f" style="max-width:230px;margin:0">Classe<select id="q-class"><option value="">Toutes les classes</option>'+
+       classes.map(c=>'<option value="'+c.id+'" '+(SEARCH.cls===c.id?'selected':'')+'>'+esc(c.name)+'</option>').join('')+'</select></label>'+
+     '<label class="f" style="max-width:230px;margin:0">Périmètre<select id="q-scope">'+
+       '<option value="all" '+(SEARCH.scope==='all'?'selected':'')+'>Tout le système</option>'+
+       '<option value="cur" '+(SEARCH.scope==='cur'?'selected':'')+'>Année en cours</option>'+
+       '<option value="arch" '+(SEARCH.scope==='arch'?'selected':'')+'>Archives</option></select></label>'+
+   '</div><div id="searchResults">'+searchResultsHtml()+'</div></div>';
+}
+
 function mainHtml(){
   if(isSurv()&&S.view!=='discipline'&&S.view!=='account')S.view='discipline';
   if(S.view==='sessions')return sessionsHtml();
@@ -1302,6 +1391,7 @@ function mainHtml(){
   if(S.view==='class')return classHtml();
   if(S.view==='teachers'&&isAdmin())return teachersHtml();
   if(S.view==='school'&&isAdmin())return schoolHtml();
+  if(S.view==='search')return searchHtml();
   if(S.view==='discipline')return disciplineHtml();
   if(S.view==='account')return accountHtml();
   return dashHtml();
@@ -1620,7 +1710,7 @@ function applySimulationYear(){
     if(!targetCls)continue;
     const student=JSON.parse(JSON.stringify(st));
     student.sessionTag=decision==='redouble'?'Ancien':'NA';
-    student.mat=genMat();
+    student.mat=st.mat||genMat(); /* le matricule suit l'eleve, il n'est jamais regenere */
     student.photo=student.photo||'';
     targetCls.students.push(student);
   }
@@ -2029,7 +2119,7 @@ function studentsTab(cls){
   if(!list.length)return h+'<div class="panel empty"><h3>La liste est vide</h3><p>'+(can?'Importez les noms depuis Excel (copier-coller) ou ajoutez les élèves un par un.':'Le professeur principal ou l’administrateur doit d’abord ajouter les élèves.')+'</p></div>';
   const hasSex=list.some(s=>s.sex);
   h+='<div class="tw"><table class="t"><thead><tr><th style="width:56px">N°</th><th style="width:58px">Photo</th><th>Noms et prénoms</th><th>Matricule</th><th>Date de naissance</th><th>Lieu de naissance</th><th>Sexe</th>'+(can?'<th></th>':'')+'</tr></thead><tbody>'+
-   list.map((s,i)=>{const photo=studentPhotoSrc(cls,s);return '<tr><td>'+(i+1)+'</td><td>'+(photo?'<img src="'+photo+'" alt="" style="width:32px;height:40px;object-fit:cover;border-radius:3px;vertical-align:middle">':'<span class="muted">—</span>')+'</td><td>'+tagBadge(s)+' <b>'+esc(s.name)+'</b></td><td>'+esc(s.mat||'')+'</td><td>'+(s.dob?esc(s.dob):'<span class="muted">—</span>')+'</td><td>'+(s.pob?esc(s.pob):'<span class="muted">—</span>')+'</td><td>'+(s.sex==='M'?'Masculin':s.sex==='F'?'Féminin':'<span class="muted">—</span>')+'</td>'+
+   list.map((s,i)=>{const photo=studentPhotoSrc(cls,s);return '<tr data-st="'+s.id+'" class="'+(S.focusStudent===s.id?'row-focus':'')+'"><td>'+(i+1)+'</td><td>'+(photo?'<img src="'+photo+'" alt="" style="width:32px;height:40px;object-fit:cover;border-radius:3px;vertical-align:middle">':'<span class="muted">—</span>')+'</td><td>'+tagBadge(s)+' <b>'+esc(s.name)+'</b></td><td>'+esc(s.mat||'')+'</td><td>'+(s.dob?esc(s.dob):'<span class="muted">—</span>')+'</td><td>'+(s.pob?esc(s.pob):'<span class="muted">—</span>')+'</td><td>'+(s.sex==='M'?'Masculin':s.sex==='F'?'Féminin':'<span class="muted">—</span>')+'</td>'+
    (can?'<td class="right nowrap"><button class="btn sm" data-act="edit-student" data-id="'+s.id+'">Modifier</button> <button class="btn sm danger" data-act="del-student" data-id="'+s.id+'">Retirer</button></td>':'')+'</tr>'}).join('')+'</tbody></table></div>';
   return h;
 }
@@ -2312,8 +2402,8 @@ function loadDemo(){
 
 /* ---------- Actions (clics) ---------- */
 const A={};
-A.go=el=>{S.closeState=null;S.simulationState=null;S.view=el.dataset.v;S.classId=null;render()};
-A['open-class']=el=>{S.closeState=null;S.simulationState=null;S.view='class';S.classId=el.dataset.id;S.tab='eleves';render()};
+A.go=el=>{S.closeState=null;S.simulationState=null;S.focusStudent=null;S.view=el.dataset.v;S.classId=null;render()};
+A['open-class']=el=>{S.closeState=null;S.simulationState=null;S.focusStudent=null;S.view='class';S.classId=el.dataset.id;S.tab='eleves';render()};
 A['session-view']=el=>{if(!archivedSessions().some(x=>x.id===el.dataset.id))return;S.sessionId=el.dataset.id;S.closeState=null;S.simulationState=null;S.view='dash';S.classId=null;S.tab='eleves';render()};
 A['session-current']=()=>{S.sessionId=null;S.closeState=null;S.simulationState=null;S.view='dash';S.classId=null;S.tab='eleves';render()};
 A['simulate-year']=()=>{if(!isAdmin()||isReadOnlySession())return;startSessionSimulation()};
@@ -2378,6 +2468,12 @@ A.tab=el=>{S.tab=el.dataset.k;render()};
 A.trim=el=>{S.trim=+el.dataset.t;render()};
 A['login-role']=el=>{S.loginRole=el.dataset.r;render()};
 A['disc-class']=el=>{S.view='discipline';S.classId=el.dataset.id;render()};
+A['search-open']=el=>{
+  S.sessionId=el.dataset.session||null;
+  S.view='class';S.classId=el.dataset.cls;S.tab='eleves';S.focusStudent=el.dataset.id;
+  render();
+  setTimeout(()=>{const row=document.querySelector('tr.row-focus');if(row&&typeof row.scrollIntoView==='function')row.scrollIntoView({block:'center',behavior:'smooth'})},60);
+};
 A['disc-save']=()=>{if(isReadOnlySession())return;saveNow();toast('Discipline enregistrée.','ok')};
 A['disc-clear']=el=>{
   const cls=discClass();if(!cls||isReadOnlySession())return;
@@ -2402,7 +2498,7 @@ function studentForm(s){
   const pobVal=s?s.pob||'':'';
   const photoPreview=s?studentPhotoSrc(curClass(),s):'';
   openModal('<form data-form="student" data-id="'+(s?s.id:'')+'"><h2>'+(s?'Modifier l\'élève':'Ajouter un élève')+'</h2><label class="f">Noms et prénoms<input name="name" value="'+esc(s?s.name:'')+'" required autofocus></label>'+
-   '<div class="row"><label class="f">Sexe<select name="sex"><option value="">Non précisé</option><option value="M" '+(s&&s.sex==='M'?'selected':'')+'>Masculin</option><option value="F" '+(s&&s.sex==='F'?'selected':'')+'>Féminin</option></select></label><label class="f">Matricule (modifiable)<input name="mat" value="'+esc(matVal)+'"></label></div>'+
+   '<div class="row"><label class="f">Sexe<select name="sex"><option value="">Non précisé</option><option value="M" '+(s&&s.sex==='M'?'selected':'')+'>Masculin</option><option value="F" '+(s&&s.sex==='F'?'selected':'')+'>Féminin</option></select></label><label class="f">Matricule (unique et définitif)<input name="mat" value="'+esc(matVal)+'"><span class="small muted">Attribué une seule fois, conservé si l’élève change de classe.</span></label></div>'+
    '<div class="row"><label class="f">Date de naissance<input name="dob" type="date" value="'+esc(dobVal)+'"></label><label class="f">Lieu de naissance<input name="pob" value="'+esc(pobVal)+'" placeholder="Ex. Douala"></label></div>'+
    '<div class="row" style="align-items:center"><label class="f" style="flex:1 1 240px">Photo de profil (format 3 × 4 cm)<input type="file" accept="image/*" data-file="photo" class="inp"><span class="small muted">Choisissez une image ; elle sera ajoutée automatiquement aux bulletins de cet élève.</span></label>'+
    (photoPreview?'<img data-photo-preview src="'+photoPreview+'" alt="Aperçu de la photo" style="width:28mm;height:35mm;object-fit:cover;border:1px solid var(--line);border-radius:4px;flex:0 0 auto">':'<div data-photo-empty style="width:28mm;height:35mm;display:flex;align-items:center;justify-content:center;border:1px dashed var(--line);border-radius:4px;color:var(--muted);font-size:11px;flex:0 0 auto">Photo</div><img data-photo-preview alt="Aperçu de la photo" style="display:none;width:28mm;height:35mm;object-fit:cover;border:1px solid var(--line);border-radius:4px;flex:0 0 auto">')+'</div>'+
@@ -2602,6 +2698,7 @@ document.addEventListener('input',e=>{
   if(el.id==='imp-text')importPreview(el.value);
   if(el.id==='remark'){if(isReadOnlySession())return;const cls=curClass(),sid=el.dataset.sid;(cls.remarks[sid]||(cls.remarks[sid]={}))['t'+S.trim]=el.value;dirty();const b=$('#bprev');if(b)b.innerHTML=bulletinHtml(cls,sid,S.trim)}
   if(el.classList.contains('cell'))el.classList.remove('bad');
+  if(el.id==='q-search'){SEARCH.q=el.value;renderSearchResults();return}
   if(el.classList.contains('disc-in')){
     if(isReadOnlySession())return;
     const cls=discClass();if(!cls)return;
@@ -2658,7 +2755,11 @@ document.addEventListener('submit',async e=>{
   }else if(kind==='student'){if(!confirm('Enregistrer cet élève ?'))return;
     const cls=curClass(),name=fd.name.trim().replace(/\s+/g,' ').toLocaleUpperCase('fr'),id=f.dataset.id;
     if(cls.students.some(s=>s.name===name&&s.id!==id))return err('Un élève porte déjà ce nom dans cette classe.');
-    const mat=fd.mat.trim()||genMat();
+    const existant=id?cls.students.find(x=>x.id===id):null;
+    const mat=(fd.mat.trim()||(existant&&existant.mat)||genMat()).toUpperCase();
+    const detenteur=matTaken(mat,id);
+    if(detenteur)return err('Matricule déjà attribué à '+detenteur.st.name+' ('+(detenteur.current?detenteur.cls.name:'archive '+detenteur.year)+'). Chaque élève doit avoir un matricule unique.');
+    if(existant&&existant.mat&&matKey(mat)!==matKey(existant.mat)&&!confirm('Changer le matricule de '+existant.name+' ?\n'+existant.mat+' → '+mat+'\n\nLe matricule est normalement définitif.'))return;
     const photoInput=f.querySelector('input[data-file="photo"]');let photo='';
     if(photoInput&&photoInput.files&&photoInput.files[0]){try{photo=await compactStudentPhoto(photoInput.files[0])}catch(ex){return err(ex.message||'Photo illisible.')}}
     if(id){const s=cls.students.find(x=>x.id===id),legacySample=!Object.prototype.hasOwnProperty.call(s,'photo')?demoPhotoIndex(cls,s):-1;s.name=name;s.sex=fd.sex;s.mat=mat;s.dob=fd.dob||'';s.pob=(fd.pob||'').trim();if(photo)s.photo=photo;else if(legacySample>=0&&legacySample<DEMO_PHOTOS.length)s.photo='sample:'+legacySample}else cls.students.push({id:uid(),name,sex:fd.sex,mat:mat,dob:fd.dob||'',pob:(fd.pob||'').trim(),photo:photo||'',sessionTag:'N'});
@@ -2670,6 +2771,8 @@ document.addEventListener('submit',async e=>{
 });
 A['noop']=()=>{};
 document.addEventListener('change',e=>{
+  if(e.target.id==='q-class'){SEARCH.cls=e.target.value;renderSearchResults();return}
+  if(e.target.id==='q-scope'){SEARCH.scope=e.target.value;renderSearchResults();return}
   if(e.target.dataset&&e.target.dataset.discsel){S.view='discipline';S.classId=e.target.value;render();return}
   if(e.target.name==='preset'){const p=PRESETS.find(x=>x.key===e.target.value),n=$('#ncname');if(n&&p)n.value=p.key==='X'?'':p.label}});
 
@@ -2689,7 +2792,7 @@ function handleFile(el){
     let d;try{d=JSON.parse(txt)}catch(e){return bad('Ce fichier n’est pas un fichier JSON valide.')}
     if(kind==='restore'){if(!confirm('Restaurer cette sauvegarde (les données actuelles seront remplacées) ?'))return;
       if(!d||!d.school||!Array.isArray(d.users)||!Array.isArray(d.classes)||!d.users.some(u=>u.role==='admin'))return bad('Ce fichier n’est pas une sauvegarde complète de cette application.');
-      DB=d;calcCache={};S.sessionId=null;S.closeState=null;S.simulationState=null;saveNow();closeModal();ME=null;try{sessionStorage.removeItem(SKEY)}catch(e){}render();toast('Sauvegarde restaurée : connectez-vous.','ok');
+      DB=d;calcCache={};S.sessionId=null;S.closeState=null;S.simulationState=null;try{repairMatricules()}catch(e){}saveNow();closeModal();ME=null;try{sessionStorage.removeItem(SKEY)}catch(e){}render();toast('Sauvegarde restaurée : connectez-vous.','ok');
     }else if(kind==='merge'){if(!confirm('Fusionner les notes de ce fichier dans les classes correspondantes ?'))return;
       if(!d||d.type!=='mbi-notes'||!Array.isArray(d.classes))return bad('Ce fichier n’est pas un fichier de notes exporté par un enseignant.');
       let n=0,skipped=0;
@@ -2851,6 +2954,13 @@ async function seedThenRender(){
   try{
     if(!DB.users.length && !DB.classes.length && !(typeof Cloud!=='undefined' && Cloud.enabled())){
       await seedDemoData();
+    }
+  }catch(e){ console.error(e); }
+  /* Aucun doublon de matricule ne doit subsister dans l'annee en cours */
+  try{
+    if(repairMatricules()>0){
+      try{localStorage.setItem(KEY,JSON.stringify(DB))}catch(e){}
+      toast('Matricule(s) manquant(s) ou en double corrigé(s) automatiquement.','ok');
     }
   }catch(e){ console.error(e); }
   render();
