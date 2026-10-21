@@ -256,16 +256,18 @@ td.sumc{font-weight:700;min-width:64px;padding:0 8px;background:#fcfcf6}
 /* mentions : libelle et case a cocher centres dans la cellule */
 .bulletin .b-bottom-t td.mtn-cell{text-align:center;vertical-align:middle}
 .bulletin .b-bottom-t .mtn{display:inline-block;text-align:center;line-height:1.15}
-.bulletin .b-bottom-t .mtn .chk{vertical-align:-.3mm}
+.bulletin .b-bottom-t .mtn .chk{vertical-align:-.6mm}
 .bulletin .b-bottom-t .val{display:block;width:100%;font-weight:700;font-size:10.6pt;text-align:center;min-height:4.4mm;padding:.15mm 0;color:#1a2fb5;line-height:1.12}
 .bulletin .b-bottom-t .row-h{height:9.6mm}
 .bulletin .b-bottom-t .appr>td{height:25mm;vertical-align:top}
 .bulletin .b-bottom-t .sign-zone{height:15mm}
 .bulletin .b-bottom-t .nom-lbl{font-size:8.2pt;text-align:center;line-height:1.1;color:#444}
 .bulletin .b-bottom-t .nom-val{font-size:10pt;font-weight:700;text-align:center;min-height:4.2mm;padding-top:.3mm}
-.bulletin .b-bottom-t .chk{display:inline-block;width:2.9mm;height:2.9mm;border:.35mm solid #000;vertical-align:-.5mm;margin-left:1.2mm;box-sizing:border-box;position:relative}
-.bulletin .b-bottom-t .chk.on::after{content:"";position:absolute;left:.35mm;top:-.35mm;width:1.55mm;height:.85mm;
-  border-left:.45mm solid #000;border-bottom:.45mm solid #000;transform:rotate(-45deg);
+.bulletin .b-bottom-t .chk{display:inline-block;width:3.4mm;height:3.4mm;border:.45mm solid #000;vertical-align:-.6mm;margin-left:1.1mm;box-sizing:border-box;position:relative}
+/* coche dessinee au centre de la case : le trait est epaissi et centre par translation */
+.bulletin .b-bottom-t .chk.on::after{content:"";position:absolute;left:50%;top:50%;width:1.85mm;height:1mm;
+  border-left:.55mm solid #000;border-bottom:.55mm solid #000;
+  transform:translate(-50%,-50%) rotate(-45deg);transform-origin:center;
   -webkit-print-color-adjust:exact;print-color-adjust:exact}
 .bulletin .b-bottom-t .appr-lines{font-size:10.6pt;line-height:5.6mm;white-space:pre-wrap;word-break:break-word;min-height:5.6mm;background-image:repeating-linear-gradient(to bottom,transparent 0,transparent 5.25mm,#bbb 5.25mm,#bbb 5.4mm);background-size:100% 5.6mm;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 .bulletin .b-bottom-t .appr-title{font-size:8.6pt;font-weight:400;line-height:1.1}
