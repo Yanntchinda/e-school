@@ -318,6 +318,13 @@ table.t.sub-table td.c-opt input{width:18px;height:18px;cursor:pointer}
 .qbar-item .qc{grid-column:2;grid-row:1;font-size:11.5px;font-weight:600;color:var(--green-d);white-space:nowrap}
 .qbar-item .qm{grid-column:1 / -1;grid-row:2;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:11px;color:var(--muted);letter-spacing:.02em}
 .qbar-empty{padding:11px 12px;font-size:12.5px;color:var(--muted);background:#fff}
+/* panneau de recherche du tableau de bord */
+.qpanel{margin-bottom:16px}
+.qpanel h3{margin:0 0 10px}
+.qpanel-row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.qpanel-row .inp{margin:0;flex:1 1 320px}
+.qpanel-res{margin:0}
+.qpanel-res.on{margin-top:12px}
 /* filtre interne a une classe */
 .stu-filter{max-width:300px;margin:0}
 .stu-count{font-size:12.5px;color:var(--muted);align-self:center}
@@ -484,6 +491,16 @@ function repairMatricules(){
     seen.add(k);
   }));
   return fixed;
+}
+/* Les anciens matricules courts (MBI-0001) sont convertis une seule fois vers le
+   format long et aleatoire. Les archives ne sont jamais modifiees. */
+function upgradeLegacyMatricules(){
+  let n=0;
+  (DB.classes||[]).forEach(c=>(c.students||[]).forEach(st=>{
+    const m=String(st.mat||'').trim().toUpperCase();
+    if(/^MBI-?\d{1,4}$/.test(m)){st.mat=genMat();n++}
+  }));
+  return n;
 }
 const fmt=(v,d=2)=>v==null||isNaN(v)?'':Number(v).toFixed(d).replace('.',',');
 const fmt1=v=>v==null?'—':fmt(v,2);
@@ -1250,7 +1267,7 @@ const Cloud={
     if(ordered.length){
       ordered.forEach(c=>{if((!c.disc||!Object.keys(c.disc).length)&&keepDisc[c.id])c.disc=keepDisc[c.id]});
       DB.classes=ordered;
-      try{repairMatricules()}catch(e){}
+      try{repairMatricules();upgradeLegacyMatricules()}catch(e){}
     }
     return true;
   },
@@ -1415,6 +1432,34 @@ function disciplineHtml(){
 const qbarHtml=()=>'<div class="qbar"><input id="qbar" type="text" autocomplete="off" spellcheck="false" '+
   'placeholder="Rechercher un élève : nom ou matricule" aria-label="Rechercher un élève dans toutes les classes">'+
   '<div id="qbar-results" class="qbar-res" role="listbox"></div></div>';
+function qpanelSearch(q){
+  const nq=normTxt(q),qm=matKey(q);
+  if(!nq&&!qm)return null;
+  const vis=new Set(visibleClasses().map(c=>c.id));
+  return allStudentRecords()
+    .filter(r=>r.current&&vis.has(r.cls.id))
+    .filter(r=>(nq&&normTxt(r.st.name).includes(nq))||(qm&&matKey(r.st.mat).includes(qm)))
+    .sort((a,b)=>cmpName(a.st,b.st));
+}
+function qpanelUpdate(q){
+  const box=document.querySelector('#qpanel-results');if(!box)return;
+  const rows=qpanelSearch(q);
+  if(rows===null){box.innerHTML='';box.className='qpanel-res';return}
+  box.className='qpanel-res on';
+  box.innerHTML=rows.length
+    ? '<div class="tw"><table class="t"><thead><tr><th>Élève</th><th style="width:190px">Matricule</th><th style="width:120px">Classe</th>'+
+      (isAdmin()?'<th class="num" style="width:90px">Moyenne</th>':'')+'<th style="width:90px"></th></tr></thead><tbody>'+
+      rows.slice(0,60).map(r=>{
+        let moy='';
+        if(isAdmin()){try{const P=getRes(r.cls,S.trim).per[r.st.id];moy=P&&P.avg!=null?fmt(P.avg):'—'}catch(e){moy='—'}}
+        return '<tr><td><b>'+esc(r.st.name)+'</b></td><td class="mono">'+esc(r.st.mat||'—')+'</td><td>'+esc(r.cls.name)+'</td>'+
+          (isAdmin()?'<td class="num">'+moy+'</td>':'')+
+          '<td class="right"><button class="btn sm" data-act="search-open" data-cls="'+r.cls.id+'" data-session="" data-id="'+r.st.id+'">Ouvrir</button></td></tr>';
+      }).join('')+
+      '</tbody></table></div>'+
+      (rows.length>60?'<p class="small muted" style="margin:8px 0 0">'+rows.length+' résultats · les 60 premiers sont affichés, précisez la recherche.</p>':'')
+    : '<div class="empty" style="padding:14px"><b>Aucun élève trouvé</b><p class="small muted">Vérifiez l’orthographe du nom ou le matricule saisi.</p></div>';
+}
 function qbarSearch(q){
   const nq=normTxt(q),qm=matKey(q);
   if(!nq&&!qm)return [];
@@ -2177,6 +2222,7 @@ function classSummary(cls,t){
   const r=getRes(cls,t),a=r.ranked.map(s=>r.per[s.id].avg);
   return{n:cls.students.length,avg:r.classAvg,pass:a.length?a.filter(x=>x>=10).length/a.length:null,comp:completion(cls,t),ranked:a.length};
 }
+const tot0=cl=>cl.reduce((a,c)=>a+(c.students?c.students.length:0),0);
 function dashHtml(){
   const cl=visibleClasses(),t=S.trim;
   let h='<div class="page-h"><div><h1>Tableau de bord</h1><p>'+TRN[t-1]+' trimestre · année scolaire '+esc(viewYear())+'</p></div></div>';
@@ -2185,6 +2231,13 @@ function dashHtml(){
   if(!cl.length){
     return h+'<div class="panel empty"><h3>'+(isAdmin()?'Commencez par créer une classe':'Aucune classe ne vous est encore attribuée')+'</h3><p>'+(isAdmin()?'Choisissez un modèle (6e, 5e, 4e, 3e, 2nde, 1ère, Tle…), puis importez la liste des élèves.':'L’administrateur doit vous affecter à une matière ou comme professeur principal.')+'</p>'+(isAdmin()?'<button class="btn primary" data-act="new-class">Nouvelle classe</button> <button class="btn" data-act="demo">Charger un exemple</button>':'')+'</div>';
   }
+  /* Barre de filtre bien visible sur le tableau de bord : toutes les classes */
+  h+='<div class="panel qpanel"><h3>Rechercher un élève dans toutes les classes</h3>'+
+     '<div class="qpanel-row"><input id="qpanel" type="text" class="inp" autocomplete="off" spellcheck="false" '+
+       'placeholder="Nom de l’élève ou matricule (ex. MBI-'+esc((String(viewYear()).match(/\d{4}/)||[''])[0])+'-7K4Q9X)" '+
+       'aria-label="Rechercher un élève par nom ou matricule dans toutes les classes">'+
+     '<span class="small muted">'+cl.length+' classe'+(cl.length>1?'s':'')+' · '+tot0(cl)+' élèves</span></div>'+
+     '<div id="qpanel-results" class="qpanel-res"></div></div>';
   const sums=cl.map(c=>({c,s:classSummary(c,t)}));
   const tot=sums.reduce((a,x)=>a+x.s.n,0);
   const all=sums.filter(x=>x.s.avg!=null);
@@ -2812,6 +2865,7 @@ document.addEventListener('input',e=>{
   if(el.classList.contains('cell'))el.classList.remove('bad');
   if(el.id==='q-search'){SEARCH.q=el.value;renderSearchResults();return}
   if(el.id==='qbar'){qbarUpdate(el.value);return}
+  if(el.id==='qpanel'){qpanelUpdate(el.value);return}
   if(el.id==='stu-filter'){
     const raw=String(el.value||'').trim();
     const q=normTxt(raw).replace(/\s+/g,' ');
@@ -2933,7 +2987,7 @@ function handleFile(el){
     let d;try{d=JSON.parse(txt)}catch(e){return bad('Ce fichier n’est pas un fichier JSON valide.')}
     if(kind==='restore'){if(!confirm('Restaurer cette sauvegarde (les données actuelles seront remplacées) ?'))return;
       if(!d||!d.school||!Array.isArray(d.users)||!Array.isArray(d.classes)||!d.users.some(u=>u.role==='admin'))return bad('Ce fichier n’est pas une sauvegarde complète de cette application.');
-      DB=d;calcCache={};S.sessionId=null;S.closeState=null;S.simulationState=null;try{repairMatricules()}catch(e){}saveNow();closeModal();ME=null;try{sessionStorage.removeItem(SKEY)}catch(e){}render();toast('Sauvegarde restaurée : connectez-vous.','ok');
+      DB=d;calcCache={};S.sessionId=null;S.closeState=null;S.simulationState=null;try{repairMatricules();upgradeLegacyMatricules()}catch(e){}saveNow();closeModal();ME=null;try{sessionStorage.removeItem(SKEY)}catch(e){}render();toast('Sauvegarde restaurée : connectez-vous.','ok');
     }else if(kind==='merge'){if(!confirm('Fusionner les notes de ce fichier dans les classes correspondantes ?'))return;
       if(!d||d.type!=='mbi-notes'||!Array.isArray(d.classes))return bad('Ce fichier n’est pas un fichier de notes exporté par un enseignant.');
       let n=0,skipped=0;
@@ -3107,9 +3161,11 @@ async function seedThenRender(){
   }catch(e){ console.error(e); }
   /* Aucun doublon de matricule ne doit subsister dans l'annee en cours */
   try{
-    if(repairMatricules()>0){
+    let touched=repairMatricules();
+    touched+=upgradeLegacyMatricules();
+    if(touched>0){
       try{localStorage.setItem(KEY,JSON.stringify(DB))}catch(e){}
-      toast('Matricule(s) manquant(s) ou en double corrigé(s) automatiquement.','ok');
+      toast(touched+' matricule(s) mis à niveau : format long et unique.','ok');
     }
   }catch(e){ console.error(e); }
   render();
