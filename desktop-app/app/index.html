@@ -383,6 +383,90 @@ tr.row-focus td{background:#fff7d6!important;box-shadow:inset 0 0 0 999px rgba(2
 .sheet th{background:#eee;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 .sheet .k{display:flex;flex-wrap:wrap;gap:3mm 8mm;margin-bottom:5mm}
 
+/* ---------- Tableau d'honneur : diplome A4 paysage ---------- */
+.hon{
+  --hn-navy:#0a192f;--hn-blue:#1e3a8a;--hn-gold:#c9a227;--hn-gold-d:#b45309;
+  --hn-title:'Cinzel','Trajan Pro','Palatino Linotype','Book Antiqua',Palatino,'Times New Roman',serif;
+  --hn-body:'Cormorant Garamond',Garamond,'Palatino Linotype',Palatino,'Times New Roman',serif;
+  --hn-script:'Great Vibes','Segoe Script','Brush Script MT','Lucida Calligraphy',cursive;
+  position:relative;width:297mm;height:210mm;background:#fff;color:#0f172a;overflow:hidden;
+  margin:0 auto 12px;box-shadow:0 10px 26px rgba(10,25,47,.28);font-family:var(--hn-body);
+  -webkit-print-color-adjust:exact;print-color-adjust:exact;box-sizing:border-box
+}
+.hon *{box-sizing:border-box}
+.hon .hn-outer{position:absolute;inset:0;border:4mm solid var(--hn-navy);pointer-events:none;z-index:1}
+.hon .hn-gold{position:absolute;inset:4.7mm;border:1mm solid transparent;pointer-events:none;z-index:2;
+  border-image:linear-gradient(135deg,#bf953f 0%,#fcf6ba 25%,#b38728 50%,#fbf5b7 75%,#aa771c 100%) 1}
+.hon .hn-thin{position:absolute;inset:6.8mm;border:.2mm solid #d97706;opacity:.5;pointer-events:none;z-index:2}
+.hon .hn-c{position:absolute;width:19mm;height:19mm;z-index:3;pointer-events:none}
+.hon .hn-tl{top:7.8mm;left:7.8mm}
+.hon .hn-tr{top:7.8mm;right:7.8mm;transform:scaleX(-1)}
+.hon .hn-bl{bottom:7.8mm;left:7.8mm;transform:scaleY(-1)}
+.hon .hn-br{bottom:7.8mm;right:7.8mm;transform:scale(-1)}
+.hon .hn-wave{position:absolute;left:0;right:0;bottom:0;width:100%;height:17mm;z-index:4;pointer-events:none}
+.hon .hn-seal{position:absolute;left:50%;bottom:4mm;transform:translateX(-50%);z-index:8;width:24mm;height:24mm}
+.hon .hn-rib{position:absolute;top:15mm;width:7mm;height:13mm;background:linear-gradient(135deg,#1e3a8a,#0a192f);
+  box-shadow:0 .8mm 1.6mm rgba(0,0,0,.3);z-index:-1;clip-path:polygon(0 0,100% 0,100% 100%,50% 84%,0 100%)}
+.hon .hn-rib.l{left:2mm;transform:rotate(18deg)}
+.hon .hn-rib.r{right:2mm;transform:rotate(-18deg)}
+.hon .hn-disc{position:absolute;inset:0;border-radius:50%;background:radial-gradient(circle,#ffe066 0%,#d4af37 60%,#aa771c 100%);
+  box-shadow:0 2mm 4mm rgba(0,0,0,.32),inset 0 0 2mm rgba(255,255,255,.65);border:1mm solid #fff;
+  display:flex;align-items:center;justify-content:center}
+.hon .hn-disc-in{width:20mm;height:20mm;border-radius:50%;border:.4mm dashed #7c4a06;
+  background:linear-gradient(135deg,#1e3a8a,#0a192f);display:flex;flex-direction:column;align-items:center;
+  justify-content:center;gap:.3mm;color:#fcf6ba;text-align:center}
+.hon .hn-star{width:3.4mm;height:3.4mm;display:block}
+.hon .hn-seal-t{font-family:var(--hn-title);font-size:5.4pt;font-weight:700;letter-spacing:.13em;color:#fde68a;line-height:1}
+.hon .hn-seal-b{font-size:4.4pt;letter-spacing:.08em;color:#e5d4a0;line-height:1}
+.hon .hn-body{position:absolute;inset:0;z-index:6;display:flex;flex-direction:column;justify-content:space-between;
+  padding:15mm 26mm 0;text-align:center}
+.hon .hn-school{font-family:var(--hn-title);font-size:9.5pt;font-weight:700;letter-spacing:.26em;
+  text-transform:uppercase;color:#1e3a8a}
+.hon .hn-title{font-family:var(--hn-title);font-size:23pt;font-weight:900;letter-spacing:.055em;text-transform:uppercase;
+  color:#0a192f;margin:2.4mm 0 1.6mm;line-height:1.08}
+.hon .hn-title span{font-weight:700;font-size:16.5pt;letter-spacing:.05em;color:#1e3a8a}
+.hon .hn-year{font-size:13pt;color:#1f2937}
+.hon .hn-year b{font-size:14pt;color:#0a192f;letter-spacing:.02em}
+.hon .hn-year i{font-style:italic;font-size:11pt;color:#475569;margin-left:2mm}
+.hon .hn-rule{width:118mm;height:.35mm;margin:3.2mm auto 0;
+  background:linear-gradient(to right,rgba(217,119,6,0),#b45309,rgba(217,119,6,0))}
+.hon .hn-intro p{font-size:13.5pt;color:#1f2937;line-height:1.35;margin:0}
+.hon .hn-intro p b{font-family:var(--hn-title);font-weight:800;color:#0a192f;letter-spacing:.03em}
+.hon .hn-intro p.en{font-style:italic;font-size:11.5pt;color:#475569;margin-top:1.2mm}
+.hon .hn-fields{margin:0 2mm}
+.hon .hn-f{display:grid;grid-template-columns:auto 1fr auto;align-items:baseline;gap:6mm;margin:0 0 4.6mm}
+.hon .hn-f .k{font-size:12.5pt;font-weight:700;color:#0a192f;white-space:nowrap}
+.hon .hn-f .v{font-size:15pt;font-weight:700;color:#12263f;border-bottom:.45mm solid #1e3a8a;
+  padding:0 5mm 1.1mm;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hon .hn-f .v.big{font-size:21pt;letter-spacing:.01em}
+.hon .hn-f .v.gold{color:#b45309}
+.hon .hn-f .en{font-size:10.5pt;font-style:italic;color:#64748b;white-space:nowrap}
+.hon .hn-f.avg .v{font-size:19pt}
+.hon .hn-ment{display:flex;justify-content:center;gap:34mm;margin-top:1mm}
+.hon .hn-m{display:flex;align-items:center;gap:4mm;text-align:left}
+.hon .hn-box{width:5.2mm;height:5.2mm;border:.45mm solid #1e3a8a;border-radius:.7mm;background:#fff;
+  display:inline-block;position:relative;flex:none}
+.hon .hn-box.on::after{content:'';position:absolute;left:1mm;top:.4mm;width:2.1mm;height:3.4mm;
+  border-right:.7mm solid #1e3a8a;border-bottom:.7mm solid #1e3a8a;transform:rotate(38deg)}
+.hon .hn-m b{display:block;font-size:12.5pt;font-weight:700;color:#0a192f;line-height:1.1}
+.hon .hn-m i{display:block;font-size:9.5pt;font-style:italic;color:#64748b;line-height:1.15}
+.hon .hn-sign{display:grid;grid-template-columns:1fr 1fr;gap:26mm;padding:0 10mm 22mm;margin-top:4mm}
+.hon .hn-sg{text-align:center}
+.hon .hn-sg .r{display:block;font-size:12pt;font-weight:700;color:#0a192f;line-height:1.15}
+.hon .hn-sg .r i{display:block;font-size:9pt;font-style:italic;font-weight:400;color:#64748b}
+.hon .hn-sg .nm{display:block;font-family:var(--hn-script);font-size:15pt;color:#1e3a8a;
+  min-height:9mm;padding-top:2.4mm;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hon .hn-sg .ln{display:block;border-bottom:.35mm dashed #94a3b8;margin:0 8mm}
+#modalRoot .hon{zoom:.66}
+@media (max-width:1080px){#modalRoot .hon{zoom:.5}}
+.badge.gold{background:#fdf3d4;color:#8a5200}
+button.badge{border:0;cursor:pointer;font-family:inherit}
+button.badge:hover{filter:brightness(.96)}
+.hon-cap{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:14px 0 0;padding:10px 14px;border-radius:10px;
+  background:#fdf3d4;border:1px solid #ead9a6;color:#7a4a00;font-size:13.5px}
+.hon-cap b{color:#5b3700}
+.hon-cap .grow{flex:1}
+
 @media print{
   /* Marges de page à 0 : le navigateur n'a plus de place pour imprimer
      son en-tête (titre de la page) et son pied de page (adresse https).
@@ -398,6 +482,11 @@ tr.row-focus td{background:#fff7d6!important;box-shadow:inset 0 0 0 999px rgba(2
   #printRoot .sheet{box-sizing:content-box;width:190mm;max-width:190mm;padding:9mm;
     margin:0 auto;break-after:page;page-break-after:always}
   #printRoot .sheet:last-child{break-after:auto;page-break-after:auto}
+  /* Tableau d'honneur : page paysage independante, meme au milieu d'un lot de bulletins portrait */
+  @page hon{size:A4 landscape;margin:0}
+  #printRoot .hon{width:296mm;height:208mm;page:hon;break-before:page;page-break-before:always;
+    break-after:page;page-break-after:always;margin:0 auto;box-shadow:none;zoom:1}
+  #printRoot .hon:last-child{break-after:auto;page-break-after:auto}
   body.no-print>*{display:none!important}
   body.no-print::after{content:'';display:block!important;height:60mm}
   body.no-print::before{content:'Impression réservée à l’administrateur.';display:block!important;font-size:16pt;text-align:center;padding:40mm 20mm 0;font-family:Arial,sans-serif}
@@ -855,6 +944,133 @@ function discSum(cls,sid,k){let a=0,any=false;for(const t of[1,2,3]){const v=dis
 const discNum=v=>{if(v==null)return null;const r=Math.round(v*100)/100;return Number.isInteger(r)?String(r):String(r).replace('.',',')};
 
 /* ---------- Bas du bulletin : discipline / travail / profil de classe / visas ---------- */
+
+/* ---------- Tableau d'honneur ----------
+   Conditions uniques, partagees par la case cochee sur le bulletin et par le
+   diplome : moyenne de reference >= 12/20 et solde d'absences non justifiees
+   inferieur a 5 h. Au 3e trimestre la reference est la moyenne annuelle, comme
+   sur le bulletin. Les mentions sont cumulables : felicitations de 15,00 a
+   15,99 ; encouragements a partir de 16,00. */
+function honourInfo(cls,sid,t){
+  const res=getRes(cls,t),P=res.per&&res.per[sid];
+  if(!P)return null;
+  const A=t===3?annualStats(cls):null;
+  const ref=A?(A.per[sid]?A.per[sid].avg:null):P.avg;
+  if(ref==null)return null;
+  const gNJ=t===3?discSum(cls,sid,'absNJ'):discVal(cls,sid,t,'absNJ');
+  const gJ =t===3?discSum(cls,sid,'absJ') :discVal(cls,sid,t,'absJ');
+  const solde=Math.max(0,(gNJ||0)-(gJ||0));
+  const on=ref>=12&&solde<5;
+  return{on:on,avg:ref,solde:solde,t3:t===3,rank:(A?(A.per[sid]&&A.per[sid].rank):P.rank)||null,
+    fel:on&&ref>=15&&ref<16,enc:on&&ref>=16};
+}
+/* Diplome A4 paysage. Retourne '' si l'eleve ne remplit pas les conditions. */
+function honourHtml(cls,sid,t){
+  const st=cls.students.find(function(x){return x.id===sid});
+  if(!st)return '';
+  const hi=honourInfo(cls,sid,t);
+  if(!hi||!hi.on)return '';
+  const sc=viewSchool();
+  const gid='hng'+String(sid).replace(/[^A-Za-z0-9_-]/g,'');
+  const corner='<path d="M18 18H82V24H24V82H18Z" fill="#c9a227"/><path d="M30 30H60V34H34V60H30Z" fill="#1e3a8a"/>'+
+    '<circle cx="21" cy="21" r="3.6" fill="#d97706"/>';
+  const per=t===3?'l’année scolaire':TRN[t-1]+' trimestre';
+  const perEn=t===3?'for the school year':['for the 1st term','for the 2nd term','for the 3rd term'][t-1];
+  const box=function(on){return '<span class="hn-box'+(on?' on':'')+'"></span>'};
+  const year=esc(sc.year||viewYear());
+  const pp=ppName(cls);
+  return '<section class="hon">'+
+    '<div class="hn-outer"></div><div class="hn-gold"></div><div class="hn-thin"></div>'+
+    '<svg class="hn-c hn-tl" viewBox="0 0 100 100" aria-hidden="true">'+corner+'</svg>'+
+    '<svg class="hn-c hn-tr" viewBox="0 0 100 100" aria-hidden="true">'+corner+'</svg>'+
+    '<svg class="hn-c hn-bl" viewBox="0 0 100 100" aria-hidden="true">'+corner+'</svg>'+
+    '<svg class="hn-c hn-br" viewBox="0 0 100 100" aria-hidden="true">'+corner+'</svg>'+
+    '<svg class="hn-wave" viewBox="0 0 1200 120" preserveAspectRatio="none" aria-hidden="true">'+
+      '<defs><linearGradient id="'+gid+'" x1="0" y1="0" x2="1" y2="0">'+
+        '<stop offset="0" stop-color="#bf953f"/><stop offset=".5" stop-color="#fcf6ba"/><stop offset="1" stop-color="#aa771c"/>'+
+      '</linearGradient></defs>'+
+      '<path d="M0,0 C150,90 350,-40 500,40 C650,120 900,10 1200,40 L1200,120 L0,120 Z" fill="#0a192f" opacity=".92"/>'+
+      '<path d="M0,30 C200,100 450,10 600,60 C750,110 1000,30 1200,70 L1200,120 L0,120 Z" fill="url(#'+gid+')"/>'+
+    '</svg>'+
+    '<div class="hn-seal"><span class="hn-rib l"></span><span class="hn-rib r"></span>'+
+      '<span class="hn-disc"><span class="hn-disc-in">'+
+        '<svg class="hn-star" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.4l2.8 6.1 6.6.7-4.9 4.5 1.3 6.5L12 16.9l-5.8 3.3 1.3-6.5-4.9-4.5 6.6-.7z" fill="#fde68a"/></svg>'+
+        '<span class="hn-seal-t">EXCELLENCE</span><span class="hn-seal-b">'+year+'</span>'+
+      '</span></span>'+
+    '</div>'+
+    '<div class="hn-body">'+
+      '<header class="hn-head">'+
+        '<div class="hn-school">'+esc(sc.name||'')+'</div>'+
+        '<h1 class="hn-title">Tableau d’honneur <span>/ Honour’s Roll</span></h1>'+
+        '<div class="hn-year">Année scolaire <b>'+year+'</b> <i>Academic year</i></div>'+
+        '<div class="hn-rule"></div>'+
+      '</header>'+
+      '<div class="hn-intro">'+
+        '<p>Le conseil de classe, en vertu des pouvoirs qui lui sont conférés, décerne le <b>Tableau d’honneur</b></p>'+
+        '<p class="en">By virtue of the power conferred on it, the class council awards an <b>Honour’s Roll</b></p>'+
+      '</div>'+
+      '<div class="hn-fields">'+
+        '<div class="hn-f"><span class="k">À l’élève</span><span class="v big">'+esc(st.name)+'</span><span class="en">To the student</span></div>'+
+        '<div class="hn-f"><span class="k">De la classe de</span><span class="v">'+clsSup(cls.name)+'</span><span class="en">Or class</span></div>'+
+        '<div class="hn-f"><span class="k">Pour son travail durant</span><span class="v">'+esc(per)+'</span><span class="en">'+esc(perEn)+'</span></div>'+
+        '<div class="hn-f avg"><span class="k">Moyenne obtenue</span><span class="v big gold">'+fmt(hi.avg)+' / 20</span><span class="en">'+esc(t===3?'annual average obtained':'average obtained')+'</span></div>'+
+      '</div>'+
+      '<div class="hn-ment">'+
+        '<div class="hn-m">'+box(hi.enc)+'<span><b>Avec encouragements</b><i>With credits</i></span></div>'+
+        '<div class="hn-m">'+box(hi.fel)+'<span><b>Avec félicitations</b><i>With distinctions</i></span></div>'+
+      '</div>'+
+      '<footer class="hn-sign">'+
+        '<div class="hn-sg"><span class="r">Le Titulaire de la classe<i>Class Master</i></span><span class="nm">'+(pp?esc(pp):'&nbsp;')+'</span><span class="ln"></span></div>'+
+        '<div class="hn-sg"><span class="r">Le Chef d’Établissement<i>Headmaster</i></span><span class="nm">'+(sc.principal?esc(sc.principal):'&nbsp;')+'</span><span class="ln"></span></div>'+
+      '</footer>'+
+    '</div>'+
+  '</section>';
+}
+/* Styles de l'application, recopies dans le fichier telecharge pour que le
+   bulletin et le tableau d'honneur restent identiques hors de l'application. */
+function docStyles(){return [].map.call(document.querySelectorAll('style'),function(x){return x.textContent||''}).join('\n')}
+function packCss(){
+  return '\n@page{size:A4;margin:0}\n@page hon{size:A4 landscape;margin:0}\n'+
+    'body.pack{margin:0;padding:16mm 0;background:#eef1f6}\n'+
+    'body.pack .bulletin{box-sizing:content-box;width:190mm;padding:9mm;margin:0 auto 14px;background:#fff;box-shadow:0 8px 24px rgba(10,25,47,.14)}\n'+
+    'body.pack .hon{margin:0 auto 14px}\n'+
+    '@media print{body.pack{margin:0;padding:0;background:#fff}'+
+      'body.pack .bulletin{width:190mm;padding:9mm;margin:0 auto;box-shadow:none;break-after:page;page-break-after:always}'+
+      'body.pack .bulletin:last-child{break-after:auto;page-break-after:auto}'+
+      'body.pack .hon{page:hon;break-before:page;page-break-before:always;break-after:page;page-break-after:always;margin:0 auto;box-shadow:none;zoom:1}'+
+      'body.pack .hon:last-child{break-after:auto;page-break-after:auto}'+
+      'body.pack-solo .hon{break-before:auto;page-break-before:auto;break-after:auto;page-break-after:auto}}';
+}
+/* Styles du seul diplome : on ne recopie que le bloc .hon du feuil de style. */
+function honStyles(){
+  const all=docStyles(),a=all.indexOf('/* ---------- Tableau d’honneur');
+  const a2=a<0?all.indexOf("/* ---------- Tableau d'honneur"):a;
+  const end='.hon-cap .grow{flex:1}';
+  const b=all.indexOf(end);
+  return (a2>=0&&b>a2)?all.slice(a2,b+end.length):all;
+}
+function honourDocHtml(cls,sid,t){
+  const st=cls.students.find(function(x){return x.id===sid});
+  const h=honourHtml(cls,sid,t);
+  if(!st||!h)return '';
+  return '<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8">'+
+    '<meta name="viewport" content="width=device-width,initial-scale=1">'+
+    '<title>'+esc(st.name)+' — tableau d’honneur</title><style>'+honStyles()+
+    '\nhtml,body{margin:0;background:#eef1f6}\nbody{padding:14mm 0}\n.hon{margin:0 auto}\n'+
+    '@page{size:A4 landscape;margin:0}\n'+
+    '@media print{html,body{margin:0;padding:0;background:#fff}.hon{margin:0 auto;box-shadow:none}}'+
+    '</style></head><body class="pack pack-solo">'+h+'</body></html>';
+}
+/* Bulletin + tableau d'honneur dans un seul fichier HTML autonome. */
+function packHtml(cls,sid,t){
+  const st=cls.students.find(function(x){return x.id===sid});
+  if(!st)return '';
+  return '<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8">'+
+    '<meta name="viewport" content="width=device-width,initial-scale=1">'+
+    '<title>'+esc(st.name)+' — '+esc(TRN[t-1])+' trimestre</title>'+
+    '<style>'+docStyles()+packCss()+'</style></head><body class="pack">'+
+    bulletinHtml(cls,sid,t)+honourHtml(cls,sid,t)+'</body></html>';
+}
 function bBottomHtml(cls,st,res,P,t,ann,remark,pp,sc){
   const avgs=res.ranked.map(s=>res.per[s.id].avg);
   const mn=avgs.length?Math.min.apply(null,avgs):null,mx=avgs.length?Math.max.apply(null,avgs):null;
@@ -881,9 +1097,8 @@ function bBottomHtml(cls,st,res,P,t,ann,remark,pp,sc){
   const gJ =t===3?discSum(cls,st.id,'absJ') :discVal(cls,st.id,t,'absJ');
   const solde=Math.max(0,(gNJ||0)-(gJ||0));
   const dOn={a: solde>=8, b: solde>=12};
-  const mOn={h: pAvg!=null&&pAvg>=12&&solde<5,
-             f: pAvg!=null&&pAvg>=15&&pAvg<16,
-             e: pAvg!=null&&pAvg>=16};
+  const hi=honourInfo(cls,st.id,t);
+  const mOn={h:!!(hi&&hi.on),f:!!(hi&&hi.fel),e:!!(hi&&hi.enc)};
   let h='<div class="b-bottom"><table class="b-bottom-t">'+
   '<colgroup><col style="width:17%"><col style="width:18%"><col style="width:15%"><col style="width:23%"><col style="width:27%"></colgroup>'+
   '<thead><tr><th colspan="2">Discipline'+(t===3?'<i>Synthèse annuelle</i>':'')+'</th><th colspan="2">Travail de l’élève <i>/ Student’s work</i></th><th>Profil de la classe</th></tr></thead><tbody>'+
@@ -2345,18 +2560,25 @@ function bulletinsTab(cls){
   const t=S.trim,res=getRes(cls,t),list=[...cls.students].sort(cmpName);
   if(!list.length)return '<div class="panel empty"><h3>Aucun élève dans cette classe</h3><p>Ajoutez d’abord les élèves dans l’onglet « Élèves ».</p></div>';
   const miss=list.reduce((a,s)=>a+(missingCount(cls,s.id,t)>0?1:0),0);
-  let h='<div class="toolbar">'+(isAdmin()?'<button class="btn primary" data-act="print-all">Imprimer les '+list.length+' bulletins</button>':'')+'<button class="btn" data-act="preview" data-id="'+list[0].id+'">Aperçu du premier bulletin</button><span class="grow"></span>'+(miss?'<span class="badge warn">'+miss+' élève'+(miss>1?'s':'')+' avec des notes manquantes</span>':'<span class="badge ok">Toutes les notes sont saisies</span>')+'</div>'+
+  /* tableaux d'honneur attribues automatiquement pour ce trimestre */
+  const hon=list.filter(s=>{const x=honourInfo(cls,s.id,t);return !!(x&&x.on)}).length;
+  let h='<div class="toolbar">'+(isAdmin()?'<button class="btn primary" data-act="print-all">Imprimer les '+list.length+' bulletins</button>':'')+'<button class="btn" data-act="preview" data-id="'+list[0].id+'">Aperçu du premier bulletin</button>'+
+   (hon?'<span class="badge gold">'+hon+' tableau'+(hon>1?'x':'')+' d’honneur joint'+(hon>1?'s':'')+'</span>':'')+
+   '<span class="grow"></span>'+(miss?'<span class="badge warn">'+miss+' élève'+(miss>1?'s':'')+' avec des notes manquantes</span>':'<span class="badge ok">Toutes les notes sont saisies</span>')+'</div>'+
+   '<p class="small muted" style="margin:-6px 0 12px">Le tableau d’honneur (moyenne d’au moins 12/20 et moins de 5 h d’absence non justifiée) est généré automatiquement avec le bulletin : l’impression et le téléchargement le joignent toujours.</p>'+
    '<div class="tw"><table class="t"><thead><tr><th style="width:56px">N°</th><th>Noms et prénoms</th><th class="num">Moyenne</th><th>Rang</th><th>Notes manquantes</th><th></th></tr></thead><tbody>'+
-  list.map((s,i)=>{const P=res.per[s.id],mc=missingCount(cls,s.id,t);
-    return '<tr><td>'+(i+1)+'</td><td><b>'+esc(s.name)+'</b></td><td class="num">'+(P.avg==null?'—':'<span style="color:'+(P.avg<10?'var(--red)':'inherit')+';font-weight:700">'+fmt(P.avg)+'</span>')+'</td><td>'+(P.rank?rankStr(P.rank)+' / '+list.length:'—')+'</td><td>'+(mc?'<span class="badge warn">'+mc+' matière'+(mc>1?'s':'')+'</span>':'<span class="badge ok">Complet</span>')+'</td>'+
-    '<td class="right nowrap"><button class="btn sm" data-act="preview" data-id="'+s.id+'">Aperçu</button>'+(isAdmin()?' <button class="btn sm" data-act="print-one" data-id="'+s.id+'">Imprimer</button>':'')+'</td></tr>'}).join('')+'</tbody></table></div>';
+  list.map((s,i)=>{const P=res.per[s.id],mc=missingCount(cls,s.id,t);const hi=honourInfo(cls,s.id,t),honOn=!!(hi&&hi.on);
+    return '<tr><td>'+(i+1)+'</td><td><b>'+esc(s.name)+'</b>'+(honOn?' <button type="button" class="badge gold" data-act="honour-prev" data-id="'+s.id+'" title="Voir le tableau d’honneur">Tableau d’honneur</button>':'')+'</td><td class="num">'+(P.avg==null?'—':'<span style="color:'+(P.avg<10?'var(--red)':'inherit')+';font-weight:700">'+fmt(P.avg)+'</span>')+'</td><td>'+(P.rank?rankStr(P.rank)+' / '+list.length:'—')+'</td><td>'+(mc?'<span class="badge warn">'+mc+' matière'+(mc>1?'s':'')+'</span>':'<span class="badge ok">Complet</span>')+'</td>'+
+    '<td class="right nowrap"><button class="btn sm" data-act="preview" data-id="'+s.id+'">Aperçu</button>'+(isAdmin()?' <button class="btn sm" data-act="print-one" data-id="'+s.id+'">Imprimer</button> <button class="btn sm" data-act="pack-dl" data-id="'+s.id+'" title="Télécharger le bulletin et son tableau d’honneur dans un seul fichier">Télécharger</button>':'')+'</td></tr>'}).join('')+'</tbody></table></div>';
   return h;
 }
 function openPreview(sid){
   const cls=curClass(),list=[...cls.students].sort(cmpName),i=list.findIndex(s=>s.id===sid);
   const t=S.trim,remark=(cls.remarks[sid]&&cls.remarks[sid]['t'+t])||'';
+  const hi=honourInfo(cls,sid,t);
+  const cap=(hi&&hi.on)?'<div class="hon-cap"><b>Tableau d’honneur acquis</b><span>moyenne '+fmt(hi.avg)+'/20 · '+(hi.fel?'avec félicitations':hi.enc?'avec encouragements':'sans mention')+' · il accompagne automatiquement ce bulletin.</span><span class="grow"></span><button class="btn sm" data-act="honour-prev" data-id="'+sid+'">Voir le tableau d’honneur</button>'+(isAdmin()?'<button class="btn sm" data-act="pack-dl" data-id="'+sid+'">Télécharger les deux</button>':'')+'</div>':'';
   openModal('<div class="toolbar" style="margin-bottom:10px;position:sticky;top:0;z-index:5;background:#e6eaf0;padding:6px 0"><button class="btn sm" data-act="prev-b" data-id="'+(list[i-1]?list[i-1].id:'')+'" '+(i<1?'disabled':'')+'>‹ Précédent</button><button class="btn sm" data-act="prev-b" data-id="'+(list[i+1]?list[i+1].id:'')+'" '+(i>=list.length-1?'disabled':'')+'>Suivant ›</button><span class="grow"></span>'+(isAdmin()?'<button class="btn primary sm" data-act="print-one" data-id="'+sid+'">Imprimer ce bulletin</button>':'')+'<button class="btn sm" data-act="mclose">Fermer</button></div>'+
-   '<div id="bprev">'+bulletinHtml(cls,sid,t)+'</div>'+
+   cap+'<div id="bprev">'+bulletinHtml(cls,sid,t)+'</div>'+
    '<label class="f" style="background:#fff;padding:12px 14px;border-radius:8px;margin:12px 0 0">Appréciation imprimée sur les lignes du bulletin<textarea id="remark" data-sid="'+sid+'" rows="3" '+(isReadOnlySession()?'readonly':'')+' placeholder="Facultatif — par exemple : Élève sérieux, doit poursuivre ses efforts.">'+esc(remark)+'</textarea></label>','xl');
 
 }
@@ -2681,8 +2903,48 @@ A['import-students']=()=>{
    '<div id="imp-prev"><p class="small muted">Rien à importer pour le moment.</p></div><div class="acts"><button class="btn" data-act="mclose">Annuler</button><button class="btn primary" id="imp-go" data-act="imp-go" disabled>Importer</button></div>','wide');
 };
 A['imp-go']=()=>{const cls=curClass();if(!confirm('Importer ces élèves dans la classe ?'))return;let n=0;for(const x of IMP){if(x.dup)continue;cls.students.push({id:uid(),name:x.name,sex:x.sex,mat:genMat(),dob:'',pob:'',photo:'',sessionTag:'N'});n++}cls.students.sort(cmpName);dirty();closeModal();render();toast(n+' élève'+(n>1?'s ajoutés':' ajouté')+'.','ok')};
-A['print-all']=()=>{if(!isAdmin())return toast('Impression réservée à l’administrateur.','err');const cls=curClass(),t=S.trim;printHtml([...cls.students].sort(cmpName).map(s=>bulletinHtml(cls,s.id,t)).join(''))};
-A['print-one']=el=>{if(!isAdmin())return toast('Impression réservée à l’administrateur.','err');printHtml(bulletinHtml(curClass(),el.dataset.id,S.trim))};
+A['print-all']=()=>{if(!isAdmin())return toast('Impression réservée à l’administrateur.','err');const cls=curClass(),t=S.trim;
+  /* chaque bulletin est suivi du tableau d'honneur de l'eleve quand il en a un */
+  printHtml([...cls.students].sort(cmpName).map(s=>bulletinHtml(cls,s.id,t)+honourHtml(cls,s.id,t)).join(''))};
+A['print-one']=el=>{if(!isAdmin())return toast('Impression réservée à l’administrateur.','err');const cls=curClass(),t=S.trim;printHtml(bulletinHtml(cls,el.dataset.id,t)+honourHtml(cls,el.dataset.id,t))};
+/* Tableau d'honneur : apercu, impression, telechargement */
+A['honour-prev']=el=>{
+  const cls=curClass();if(!cls)return;
+  const sid=el.dataset.id,t=S.trim,hi=honourInfo(cls,sid,t);
+  if(!hi||!hi.on)return toast('Cet élève ne remplit pas les conditions du tableau d’honneur.','err');
+  const st=cls.students.find(s=>s.id===sid);
+  openModal('<div class="toolbar" style="margin-bottom:10px;position:sticky;top:0;z-index:5;background:#e6eaf0;padding:6px 0">'+
+    '<b style="font-size:14px">Tableau d’honneur — '+esc(st?st.name:'')+'</b><span class="grow"></span>'+
+    (isAdmin()?'<button class="btn primary sm" data-act="honour-print" data-id="'+sid+'">Imprimer / PDF</button><button class="btn sm" data-act="honour-dl" data-id="'+sid+'">Télécharger</button><button class="btn sm" data-act="pack-dl" data-id="'+sid+'">Avec le bulletin</button>':'')+
+    '<button class="btn sm" data-act="mclose">Fermer</button></div>'+
+    honourHtml(cls,sid,t),'xl');
+};
+A['honour-print']=el=>{
+  if(!isAdmin())return toast('Impression réservée à l’administrateur.','err');
+  const cls=curClass(),h=honourHtml(cls,el.dataset.id,S.trim);
+  if(!h)return toast('Aucun tableau d’honneur pour cet élève.','err');
+  printHtml(h);
+};
+A['honour-dl']=el=>{
+  if(!isAdmin())return toast('Téléchargement réservé à l’administrateur.','err');
+  const cls=curClass();if(!cls)return;
+  const sid=el.dataset.id,t=S.trim,st=cls.students.find(s=>s.id===sid),h=honourHtml(cls,sid,t);
+  if(!h)return toast('Aucun tableau d’honneur pour cet élève.','err');
+  const name=('tableau_honneur_'+st.name+'_'+TRN[t-1]+'_trimestre.html').replace(/[^\w.\-]+/g,'_');
+  download(name,honourDocHtml(cls,sid,t),'text/html;charset=utf-8');
+  toast('Tableau d’honneur téléchargé.','ok');
+};
+/* Bulletin + tableau d'honneur : un seul fichier, telechargeable et imprimable */
+A['pack-dl']=el=>{
+  if(!isAdmin())return toast('Téléchargement réservé à l’administrateur.','err');
+  const cls=curClass();if(!cls)return;
+  const sid=el.dataset.id,t=S.trim,st=cls.students.find(s=>s.id===sid);
+  if(!st)return;
+  const hon=!!honourHtml(cls,sid,t);
+  const name=('dossier_'+st.name+'_'+TRN[t-1]+'_trimestre.html').replace(/[^\w.\-]+/g,'_');
+  download(name,packHtml(cls,sid,t),'text/html;charset=utf-8');
+  toast(hon?'Bulletin et tableau d’honneur téléchargés ensemble.':'Bulletin téléchargé.','ok');
+};
 A.preview=el=>openPreview(el.dataset.id);
 A['prev-b']=el=>{if(el.dataset.id)openPreview(el.dataset.id)};
 A['print-results']=()=>{if(!isAdmin())return toast('Impression réservée à l’administrateur.','err');printHtml(resultsSheet(curClass(),S.trim))};
@@ -2803,7 +3065,7 @@ A['reset-demo']=()=>{if(!confirm('Réinitialiser les données de démo ? Les don
 A['repair-demo-login']=async()=>{if(!DB.demoMode)return;if(!confirm('Réinitialiser les mots de passe des comptes de test ? Les classes, élèves et notes seront conservés. Admin : admin1234 ; professeurs : prof1234.'))return;let n=0;for(const u of DB.users){let pw='';if(u.username==='admin'&&u.role==='admin')pw='admin1234';else if(['pmballa','mfotso','injoya','skamga','ressomba'].includes(u.username))pw='prof1234';if(!pw)continue;u.salt=uid();u.hash=await hashPw(pw,u.salt);n++}if(!n){toast('Aucun compte de démonstration trouvé.','err');return}dirty();saveNow();render();toast('Accès de test réparé, données conservées.','ok')};
 A.wipe=()=>askConfirm('Tout effacer ?','Classes, élèves, notes et comptes seront supprimés de cet ordinateur. Cette action est définitive : exportez d’abord une sauvegarde si nécessaire.','Tout effacer',()=>{try{localStorage.removeItem(KEY);sessionStorage.removeItem(SKEY)}catch(e){}DB=blankDB();ME=null;S.sessionId=null;S.closeState=null;S.simulationState=null;calcCache={};S.view='dash';render()},true);
 
-const READ_ONLY_ACTIONS=new Set(['go','open-class','tab','trim','logout','session-view','session-current','sessions-cancel-close','simulation-cancel','preview','prev-b','print-all','print-one','print-results','export-csv','export-my-notes','mclose','noop']);
+const READ_ONLY_ACTIONS=new Set(['go','open-class','tab','trim','logout','session-view','session-current','sessions-cancel-close','simulation-cancel','preview','prev-b','print-all','print-one','print-results','export-csv','export-my-notes','pack-dl','honour-prev','honour-print','honour-dl','mclose','noop']);
 document.addEventListener('click',e=>{
   const bd=e.target.closest('[data-bd]');if(bd&&e.target===bd){closeModal();return}
   const el=e.target.closest('[data-act]');if(!el)return;
