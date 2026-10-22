@@ -462,10 +462,6 @@ tr.row-focus td{background:#fff7d6!important;box-shadow:inset 0 0 0 999px rgba(2
 .badge.gold{background:#fdf3d4;color:#8a5200}
 button.badge{border:0;cursor:pointer;font-family:inherit}
 button.badge:hover{filter:brightness(.96)}
-.hon-cap{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:14px 0 0;padding:10px 14px;border-radius:10px;
-  background:#fdf3d4;border:1px solid #ead9a6;color:#7a4a00;font-size:13.5px}
-.hon-cap b{color:#5b3700}
-.hon-cap .grow{flex:1}
 
 @media print{
   /* Marges de page à 0 : le navigateur n'a plus de place pour imprimer
@@ -1045,7 +1041,7 @@ function packCss(){
 function honStyles(){
   const all=docStyles(),a=all.indexOf('/* ---------- Tableau d’honneur');
   const a2=a<0?all.indexOf("/* ---------- Tableau d'honneur"):a;
-  const end='.hon-cap .grow{flex:1}';
+  const end='button.badge:hover{filter:brightness(.96)}';
   const b=all.indexOf(end);
   return (a2>=0&&b>a2)?all.slice(a2,b+end.length):all;
 }
@@ -2576,9 +2572,9 @@ function openPreview(sid){
   const cls=curClass(),list=[...cls.students].sort(cmpName),i=list.findIndex(s=>s.id===sid);
   const t=S.trim,remark=(cls.remarks[sid]&&cls.remarks[sid]['t'+t])||'';
   const hi=honourInfo(cls,sid,t);
-  const cap=(hi&&hi.on)?'<div class="hon-cap"><b>Tableau d’honneur acquis</b><span>moyenne '+fmt(hi.avg)+'/20 · '+(hi.fel?'avec félicitations':hi.enc?'avec encouragements':'sans mention')+' · il accompagne automatiquement ce bulletin.</span><span class="grow"></span><button class="btn sm" data-act="honour-prev" data-id="'+sid+'">Voir le tableau d’honneur</button>'+(isAdmin()?'<button class="btn sm" data-act="pack-dl" data-id="'+sid+'">Télécharger les deux</button>':'')+'</div>':'';
-  openModal('<div class="toolbar" style="margin-bottom:10px;position:sticky;top:0;z-index:5;background:#e6eaf0;padding:6px 0"><button class="btn sm" data-act="prev-b" data-id="'+(list[i-1]?list[i-1].id:'')+'" '+(i<1?'disabled':'')+'>‹ Précédent</button><button class="btn sm" data-act="prev-b" data-id="'+(list[i+1]?list[i+1].id:'')+'" '+(i>=list.length-1?'disabled':'')+'>Suivant ›</button><span class="grow"></span>'+(isAdmin()?'<button class="btn primary sm" data-act="print-one" data-id="'+sid+'">Imprimer ce bulletin</button>':'')+'<button class="btn sm" data-act="mclose">Fermer</button></div>'+
-   cap+'<div id="bprev">'+bulletinHtml(cls,sid,t)+'</div>'+
+  const honBtn=(hi&&hi.on)?'<button class="btn sm" data-act="honour-prev" data-id="'+sid+'">Voir le tableau d’honneur</button>':'';
+  openModal('<div class="toolbar" style="margin-bottom:10px;position:sticky;top:0;z-index:5;background:#e6eaf0;padding:6px 0"><button class="btn sm" data-act="prev-b" data-id="'+(list[i-1]?list[i-1].id:'')+'" '+(i<1?'disabled':'')+'>‹ Précédent</button><button class="btn sm" data-act="prev-b" data-id="'+(list[i+1]?list[i+1].id:'')+'" '+(i>=list.length-1?'disabled':'')+'>Suivant ›</button><span class="grow"></span>'+(isAdmin()?'<button class="btn primary sm" data-act="print-one" data-id="'+sid+'">Imprimer ce bulletin</button>':'')+honBtn+'<button class="btn sm" data-act="mclose">Fermer</button></div>'+
+   '<div id="bprev">'+bulletinHtml(cls,sid,t)+'</div>'+
    '<label class="f" style="background:#fff;padding:12px 14px;border-radius:8px;margin:12px 0 0">Appréciation imprimée sur les lignes du bulletin<textarea id="remark" data-sid="'+sid+'" rows="3" '+(isReadOnlySession()?'readonly':'')+' placeholder="Facultatif — par exemple : Élève sérieux, doit poursuivre ses efforts.">'+esc(remark)+'</textarea></label>','xl');
 
 }
