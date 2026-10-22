@@ -466,6 +466,9 @@ button.badge:hover{filter:brightness(.96)}
 .stu-name{display:flex;flex-direction:column;align-items:flex-start;text-align:left;line-height:1.25;gap:3px}
 .badge.hon-tag{font-size:10px;font-weight:700;padding:0 7px;line-height:1.55;letter-spacing:.012em;
   text-transform:none;white-space:nowrap}
+/* les noms d'eleves ne passent jamais a la ligne : la colonne s'elargit, le tableau defile au besoin */
+table.t td.stu-cell{white-space:nowrap}
+.nm-1l,.stu-name b{white-space:nowrap}
 
 @media print{
   /* Marges de page à 0 : le navigateur n'a plus de place pour imprimer
@@ -2487,7 +2490,7 @@ function studentsTab(cls){
      '<span id="stu-count" class="stu-count">'+list.length+(list.length>1?' élèves':' élève')+'</span>'+
      '<span class="grow"></span><span class="small muted">Pour chercher dans toutes les classes, utilisez la barre en haut de l’écran.</span></div>';
   h+='<div class="tw"><table class="t"><thead><tr><th style="width:56px">N°</th><th style="width:58px">Photo</th><th>Noms et prénoms</th><th>Matricule</th><th>Date de naissance</th><th>Lieu de naissance</th><th>Sexe</th>'+(can?'<th></th>':'')+'</tr></thead><tbody>'+
-   list.map((s,i)=>{const photo=studentPhotoSrc(cls,s);return '<tr data-st="'+s.id+'" data-q="'+esc(normTxt(s.name+' '+(s.mat||'')))+'" class="'+(S.focusStudent===s.id?'row-focus':'')+'"><td>'+(i+1)+'</td><td>'+(photo?'<img src="'+photo+'" alt="" style="width:32px;height:40px;object-fit:cover;border-radius:3px;vertical-align:middle">':'<span class="muted">—</span>')+'</td><td>'+tagBadge(s)+' <b>'+esc(s.name)+'</b></td><td class="mono">'+esc(s.mat||'')+'</td><td>'+(s.dob?esc(s.dob):'<span class="muted">—</span>')+'</td><td>'+(s.pob?esc(s.pob):'<span class="muted">—</span>')+'</td><td>'+(s.sex==='M'?'Masculin':s.sex==='F'?'Féminin':'<span class="muted">—</span>')+'</td>'+
+   list.map((s,i)=>{const photo=studentPhotoSrc(cls,s);return '<tr data-st="'+s.id+'" data-q="'+esc(normTxt(s.name+' '+(s.mat||'')))+'" class="'+(S.focusStudent===s.id?'row-focus':'')+'"><td>'+(i+1)+'</td><td>'+(photo?'<img src="'+photo+'" alt="" style="width:32px;height:40px;object-fit:cover;border-radius:3px;vertical-align:middle">':'<span class="muted">—</span>')+'</td><td class="stu-cell">'+tagBadge(s)+' <b>'+esc(s.name)+'</b></td><td class="mono">'+esc(s.mat||'')+'</td><td>'+(s.dob?esc(s.dob):'<span class="muted">—</span>')+'</td><td>'+(s.pob?esc(s.pob):'<span class="muted">—</span>')+'</td><td>'+(s.sex==='M'?'Masculin':s.sex==='F'?'Féminin':'<span class="muted">—</span>')+'</td>'+
    (can?'<td class="right nowrap"><button class="btn sm" data-act="edit-student" data-id="'+s.id+'">Modifier</button> <button class="btn sm danger" data-act="del-student" data-id="'+s.id+'">Retirer</button></td>':'')+'</tr>'}).join('')+'</tbody></table></div>';
   return h;
 }
@@ -2568,7 +2571,7 @@ function bulletinsTab(cls){
    '<p class="small muted" style="margin:-6px 0 12px">Le tableau d’honneur (moyenne d’au moins 12/20 et moins de 5 h d’absence non justifiée) est généré automatiquement avec le bulletin : l’impression et le téléchargement le joignent toujours.</p>'+
    '<div class="tw"><table class="t"><thead><tr><th style="width:56px">N°</th><th>Noms et prénoms</th><th class="num">Moyenne</th><th>Rang</th><th>Notes manquantes</th><th></th></tr></thead><tbody>'+
   list.map((s,i)=>{const P=res.per[s.id],mc=missingCount(cls,s.id,t);const hi=honourInfo(cls,s.id,t),honOn=!!(hi&&hi.on);
-    return '<tr><td>'+(i+1)+'</td><td><div class="stu-name"><b>'+esc(s.name)+'</b>'+(honOn?'<button type="button" class="badge gold hon-tag" data-act="honour-prev" data-id="'+s.id+'" title="Voir le tableau d’honneur">Tableau d’honneur</button>':'')+'</div></td><td class="num">'+(P.avg==null?'—':'<span style="color:'+(P.avg<10?'var(--red)':'inherit')+';font-weight:700">'+fmt(P.avg)+'</span>')+'</td><td>'+(P.rank?rankStr(P.rank)+' / '+list.length:'—')+'</td><td>'+(mc?'<span class="badge warn">'+mc+' matière'+(mc>1?'s':'')+'</span>':'<span class="badge ok">Complet</span>')+'</td>'+
+    return '<tr><td>'+(i+1)+'</td><td><div class="stu-name"><b class="nm-1l">'+esc(s.name)+'</b>'+(honOn?'<button type="button" class="badge gold hon-tag" data-act="honour-prev" data-id="'+s.id+'" title="Voir le tableau d’honneur">Tableau d’honneur</button>':'')+'</div></td><td class="num">'+(P.avg==null?'—':'<span style="color:'+(P.avg<10?'var(--red)':'inherit')+';font-weight:700">'+fmt(P.avg)+'</span>')+'</td><td>'+(P.rank?rankStr(P.rank)+' / '+list.length:'—')+'</td><td>'+(mc?'<span class="badge warn">'+mc+' matière'+(mc>1?'s':'')+'</span>':'<span class="badge ok">Complet</span>')+'</td>'+
     '<td class="right nowrap"><button class="btn sm" data-act="preview" data-id="'+s.id+'">Aperçu</button>'+(isAdmin()?' <button class="btn sm" data-act="print-one" data-id="'+s.id+'">Imprimer</button> <button class="btn sm" data-act="pack-dl" data-id="'+s.id+'" title="Télécharger le bulletin et son tableau d’honneur dans un seul fichier">Télécharger</button>':'')+'</td></tr>'}).join('')+'</tbody></table></div>';
   return h;
 }
