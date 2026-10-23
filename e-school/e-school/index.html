@@ -516,6 +516,7 @@ button.badge{border:0;cursor:pointer;font-family:inherit}
 .mn-sheet .mn-t td{border-bottom:.2mm solid #e3e8ef;padding:1.5mm 2mm;vertical-align:top}
 .mn-sheet .mn-t tr:nth-child(even) td{background:#fafbfd}
 .mn-sheet .mn-t .n{text-align:right;white-space:nowrap}
+.mn-sheet .mn-t .c{text-align:center;white-space:nowrap}
 .mn-sheet .mn-miss{color:#b91c1c;font-weight:700}
 .mn-sheet .mn-item{margin-top:3.5mm;padding-bottom:2mm;border-bottom:.2mm solid #e3e8ef;break-inside:avoid;page-break-inside:avoid}
 .mn-sheet .mn-it{display:flex;justify-content:space-between;gap:6mm;margin:0 0 .8mm;font-size:9pt}
@@ -1290,40 +1291,53 @@ function exportMissingNotesPdf(t){
    moyenne du trimestre, heures d'absence non justifiees, appreciation du
    travail et une colonne Observation laissee vide. */
 function classCouncilData(t){
+  /* La liste est refaite a zero a chaque trimestre : seules les notes et les
+     absences du trimestre choisi sont lues. Au 3e trimestre, la reference
+     devient annuelle (moyenne et rang de l'annee, absences cumulees) : le
+     conseil de classe du 3e trimestre est le bilan de l'annee. */
   return visibleClasses().map(cls=>{
-    const res=getRes(cls,t);
+    const res=getRes(cls,t),ann=t===3?annualStats(cls):null,ref=ann?ann.per:res.per;
     const rows=[...cls.students].sort(cmpName).map(s=>{
-      const P=res.per[s.id]||{};
+      const P=ref[s.id]||{};
       const abs=t===3?discSum(cls,s.id,'absNJ'):discVal(cls,s.id,t,'absNJ');
+      const hi=honourInfo(cls,s.id,t);
+      /* TH : tableau d'honneur seul ; THF : + felicitations ; THFA : + felicitations + encouragements */
+      const th=!(hi&&hi.on)?'':(hi.enc?'THFA':(hi.fel?'THF':'TH'));
       return {name:s.name,avg:P.avg==null?null:P.avg,rank:P.rank?rankStr(P.rank):'',
-        abs:abs,appr:P.avg==null?'':mention(P.avg)};
+        abs:abs,appr:P.avg==null?'':mention(P.avg),th:th};
     });
     const avgs=rows.map(r=>r.avg).filter(v=>v!=null);
     return {cls:cls.name,pp:ppName(cls),rows:rows,
-      mean:avgs.length?avgs.reduce((a,b)=>a+b,0)/avgs.length:null};
+      mean:avgs.length?avgs.reduce((a,b)=>a+b,0)/avgs.length:null,
+      hon:rows.filter(r=>r.th).length};
   }).filter(g=>g.rows.length);
 }
 function classCouncilReportHtml(t){
   const groups=classCouncilData(t),now=new Date();
   const nStu=groups.reduce((n,g)=>n+g.rows.length,0);
   const stamp=now.toLocaleDateString('fr-FR')+' à '+now.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
+  const sub=t===3?'Bilan annuel — moyennes, rangs et absences de l’année':'Liste alphabétique des élèves — '+ordSup(t)+' trimestre';
+  const note=t===3?'Bilan de fin d’année : moyenne annuelle (moyenne des trois trimestres), rang annuel, absences cumulées et distinctions de l’année.'
+    :'Liste remise à zéro à chaque trimestre : seules les notes et les absences du '+ordSup(t)+' trimestre sont prises en compte.';
   let h='<section class="mn-sheet"><header class="mn-head"><div><h1>CONSEIL DE CLASSE</h1>'+
-    '<p class="mn-sub">Liste alphabétique des élèves — '+ordSup(t)+' trimestre</p></div>'+
+    '<p class="mn-sub">'+sub+'</p></div>'+
     '<div class="mn-who"><b>'+esc(DB.school.name)+'</b><span>Année scolaire '+esc(viewYear())+'</span>'+
     (DB.school.city?'<span>'+esc(DB.school.city)+'</span>':'')+'</div></header>'+
-    '<p class="mn-meta">Édité le '+esc(stamp)+' · '+groups.length+' classe'+(groups.length>1?'s':'')+' · '+nStu+' élève'+(nStu>1?'s':'')+'</p>';
+    '<p class="mn-meta">Édité le '+esc(stamp)+' · '+groups.length+' classe'+(groups.length>1?'s':'')+' · '+nStu+' élève'+(nStu>1?'s':'')+'</p>'+
+    '<p class="mn-meta">'+note+'</p>';
   if(!groups.length)return h+'<p class="mn-empty">Aucun élève inscrit pour ce trimestre.</p></section>';
   for(const g of groups){
     h+='<h2>Classe '+esc(g.cls)+'</h2><p class="mn-meta">Effectif : '+g.rows.length+' élèves'+
       (g.mean!=null?' · Moyenne de classe : '+fmt(g.mean):'')+(g.pp?' · Professeur principal : '+esc(g.pp):'')+'</p>'+
-      '<table class="mn-t"><colgroup><col style="width:9%"><col style="width:29%"><col style="width:11%"><col style="width:13%"><col style="width:15%"><col style="width:23%"></colgroup>'+
-      '<thead><tr><th>Rang</th><th>Noms et prénoms</th><th class="n">Moyenne</th><th class="n">Abs. non just. (h)</th><th>Appréciation</th><th>Observation</th></tr></thead><tbody>';
+      '<table class="mn-t"><colgroup><col style="width:8%"><col style="width:24%"><col style="width:10%"><col style="width:11%"><col style="width:13%"><col style="width:12%"><col style="width:22%"></colgroup>'+
+      '<thead><tr><th>Rang</th><th>Noms et prénoms</th><th class="n">'+(t===3?'Moyenne annuelle':'Moyenne')+'</th><th class="n">Abs. non just. (h)</th><th>Appréciation</th><th class="c">Tableau d’honneur</th><th>Observation</th></tr></thead><tbody>';
     for(const r of g.rows)h+='<tr><td>'+(r.rank||'—')+'</td><td><b>'+esc(r.name)+'</b></td><td class="n">'+
       (r.avg==null?'—':fmt(r.avg))+'</td><td class="n">'+(r.abs==null?'—':discNum(r.abs))+'</td><td>'+
-      esc(r.appr||'—')+'</td><td></td></tr>';
+      esc(r.appr||'—')+'</td><td class="c">'+(r.th?'<b>'+r.th+'</b>':'—')+'</td><td></td></tr>';
     h+='</tbody></table>';
   }
-  return h+'<p class="mn-meta" style="margin-top:6mm">Appréciations : Insuffisant (moins de 10) · Passable (10 à 11,99) · Assez bien (12 à 13,99) · Bien (14 à 15,99) · Très bien (16 et plus).</p></section>';
+  return h+'<p class="mn-meta" style="margin-top:6mm">Appréciations : Insuffisant (moins de 10) · Passable (10 à 11,99) · Assez bien (12 à 13,99) · Bien (14 à 15,99) · Très bien (16 et plus).<br>'+
+    'Tableau d’honneur : TH = tableau d’honneur · THF = tableau d’honneur + félicitations · THFA = tableau d’honneur + félicitations + encouragements.</p></section>';
 }
 function printClassCouncil(t){
   $('#printRoot').innerHTML=classCouncilReportHtml(t);
@@ -1345,14 +1359,17 @@ function exportClassCouncilPdf(t){
   doc.y=M+62;
   doc.text('CONSEIL DE CLASSE',M,doc.y,20,'F2',navy);
   doc.y+=19;
-  doc.text('Liste alphabétique des élèves — '+TRN[t-1]+' trimestre',M,doc.y,10.5,'F1',grey);
+  doc.text(t===3?'Bilan annuel — moyennes, rangs et absences de l’année':'Liste alphabétique des élèves — '+TRN[t-1]+' trimestre',M,doc.y,10.5,'F1',grey);
   doc.y+=17;
   const stamp='Édité le '+new Date().toLocaleDateString('fr-FR')+' à '+new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
   doc.text(stamp,M,doc.y,8,'F1',grey);
   const nStu=groups.reduce((n,g)=>n+g.rows.length,0);
   doc.textRight(groups.length?(groups.length+' classe'+(groups.length>1?'s':'')+' · '+nStu+' élève'+(nStu>1?'s':'')):'Aucun élève',doc.W-M,doc.y,8.5,'F2',ink);
-  doc.y+=14;
-  doc.text('Moyenne du trimestre, absences non justifiées et appréciation du travail ; la colonne Observation reste à remplir.',M,doc.y,8,'F1',grey);
+  doc.y+=13;
+  doc.text(t===3?'Bilan de fin d’année : moyenne annuelle, rang annuel, absences cumulées et distinctions de l’année.'
+    :'Liste remise à zéro à chaque trimestre : notes et absences du '+TRN[t-1]+' trimestre uniquement.',M,doc.y,8,'F1',grey);
+  doc.y+=11;
+  doc.text('La colonne Observation reste à remplir à la main pendant le conseil.',M,doc.y,8,'F1',grey);
   doc.y+=10;
   doc.hline(M,M+cw,doc.y,line,0.6);
   doc.y+=16;
@@ -1362,12 +1379,13 @@ function exportClassCouncilPdf(t){
     doc.text('Ajoutez des élèves dans les classes pour produire la liste du conseil de classe.',M,doc.y,9,'F1',grey);
   }else{
     const cols=[
-      {w:40,label:'Rang',align:'right'},
-      {w:150,label:'Noms et prénoms'},
-      {w:50,label:'Moyenne',align:'right'},
-      {w:64,label:['Abs. non','just. (h)'],align:'right'},
-      {w:66,label:'Appréciation'},
-      {w:cw-370,label:'Observation'}
+      {w:36,label:'Rang',align:'right'},
+      {w:132,label:'Noms et prénoms'},
+      {w:46,label:(t===3?['Moyenne','annuelle']:'Moyenne'),align:'right'},
+      {w:58,label:['Abs. non','just. (h)'],align:'right'},
+      {w:60,label:'Appréciation'},
+      {w:54,label:['Tableau','d’honneur'],align:'center'},
+      {w:cw-386,label:'Observation'}
     ];
     const bottom=doc.H-doc.M-20,rowH=15,headH=24,bandH=22;
     for(const g of groups){
@@ -1387,6 +1405,7 @@ function exportClassCouncilPdf(t){
           lines.forEach((lab,k)=>{
             const ty=doc.y+(lines.length>1?(k?20:11):15);
             if(c.align==='right')doc.textRight(lab,x+c.w-4,ty,7.2,'F2',ink);
+            else if(c.align==='center')doc.text(lab,x+(c.w-pdfW(lab,7.2,true))/2,ty,7.2,'F2',ink);
             else doc.text(lab,x+5,ty,7.2,'F2',ink);
           });
           x+=c.w;
@@ -1396,13 +1415,15 @@ function exportClassCouncilPdf(t){
         while(i<g.rows.length&&doc.y+rowH<=bottom){
           const r=g.rows[i++];
           if(k%2===1)doc.rect(M,doc.y,cw,rowH,zeb);
-          const cells=[r.rank||'—',r.name,(r.avg==null?'—':fmt(r.avg)),(r.abs==null?'—':discNum(r.abs)),(r.appr||'—'),''];
+          const cells=[r.rank||'—',r.name,(r.avg==null?'—':fmt(r.avg)),(r.abs==null?'—':discNum(r.abs)),(r.appr||'—'),(r.th||'—'),''];
           x=M;
           cells.forEach((v,ci)=>{
             const c=cols[ci],sz=ci===1?8.8:8.6;
             const txt=pdfCut(v,sz,c.w-9,false);
-            if(c.align==='right')doc.textRight(txt,x+c.w-4,doc.y+10.4,sz,'F1',ink);
-            else doc.text(txt,x+5,doc.y+10.4,sz,'F1',ink);
+            const fnt=(ci===5&&r.th)?'F2':'F1',col=(ci===5&&!r.th)?grey:ink;
+            if(c.align==='right')doc.textRight(txt,x+c.w-4,doc.y+10.4,sz,fnt,col);
+            else if(c.align==='center')doc.text(txt,x+(c.w-pdfW(txt,sz,fnt==='F2'))/2,doc.y+10.4,sz,fnt,col);
+            else doc.text(txt,x+5,doc.y+10.4,sz,fnt,col);
             x+=c.w;
           });
           doc.hline(M,M+cw,doc.y+rowH,line,0.3);
@@ -1418,6 +1439,8 @@ function exportClassCouncilPdf(t){
     doc.text('Appréciations : Insuffisant < 10 · Passable 10 à 11,99 · Assez bien 12 à 13,99 · Bien 14 à 15,99 · Très bien ≥ 16.',M,doc.y,7.6,'F1',grey);
     doc.y+=11;
     doc.text('Absences non justifiées : heures du trimestre (au 3e trimestre, cumul des trois trimestres).',M,doc.y,7.6,'F1',grey);
+    doc.y+=11;
+    doc.text('Tableau d’honneur : TH = tableau d’honneur · THF = tableau d’honneur + félicitations · THFA = tableau d’honneur + félicitations + encouragements.',M,doc.y,7.6,'F1',grey);
     doc.y+=24;
     doc.text('Visa du Chef d’Établissement',M,doc.y,9,'F1',ink);
     doc.textRight('Fait à '+(DB.school.city||'…')+', le ____ / ____ / ______',doc.W-M,doc.y,9,'F1',ink);
