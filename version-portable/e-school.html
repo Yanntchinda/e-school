@@ -467,10 +467,12 @@ tr.row-focus td{background:#fff7d6!important;box-shadow:inset 0 0 0 999px rgba(2
 .hon .hn-f .en{font-size:10.5pt;font-style:italic;color:#64748b;white-space:nowrap}
 .hon .hn-f.avg .v{font-size:19pt}
 .hon .hn-foot{display:grid;grid-template-columns:1fr 1fr;gap:12mm;align-items:start;
-  /* 36,9 mm : la marge basse compense exactement le resserrement des lignes,
-     si bien que le bloc au-dessus du pied ne bouge pas d'un millimetre
-     (la feuille reste 297 x 210 mm, le sceau et la vague aussi). */
-  padding:0 8mm 36.9mm;margin-top:2mm}
+  /* 36,9 mm : la marge basse compense exactement le resserrement des lignes.
+     Les marges -6 mm / +8 mm remontent tout le pied de 8 mm vers « Moyenne
+     obtenue » : leur somme reste 2 mm, donc l'espace libre distribue par
+     space-between ne change pas et les blocs au-dessus restent en place.
+     La feuille reste 297 x 210 mm, le sceau et la vague aussi. */
+  padding:0 8mm 36.9mm;margin:-6mm 0 8mm}
 /* mentions à gauche */
 .hon .hn-ment{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:2.4mm;
   margin:0;padding-top:1mm}
