@@ -361,6 +361,15 @@ tr.row-focus td{background:#fff7d6!important;box-shadow:inset 0 0 0 999px rgba(2
 .role-switch button{flex:1;border:0;background:transparent;color:#e7eefb;font-size:12.5px;font-weight:600;padding:8px 6px;border-radius:9px;cursor:pointer;line-height:1.15}
 .role-switch button.on{background:#fff;color:var(--brand-d);box-shadow:0 2px 8px rgba(0,0,0,.16)}
 .role-switch-3 button{font-size:11.5px;padding:8px 3px;white-space:nowrap}
+.spaces{display:flex;background:rgba(255,255,255,.1);border-radius:8px;padding:3px;gap:2px}
+.spaces button{border:0;background:transparent;color:#cfd9e6;padding:5px 10px;border-radius:6px;cursor:pointer;font-weight:600;font-size:12.5px;white-space:nowrap}
+.spaces button.on{background:var(--green);color:#fff}
+.spaces button:hover{color:#fff}
+.modal.pdf-modal{width:min(1000px,100%)}
+.pdf-top{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px;position:sticky;top:0;background:#e6eaf0;padding:2px 0 8px;z-index:3}
+.pdf-top .grow{flex:1}
+.pdf-frame{width:100%;height:72vh;min-height:420px;border:1px solid var(--line);border-radius:8px;background:#fff;display:block}
+@media (max-width:700px){.pdf-frame{height:68vh;min-height:320px}}
 /* tableau de saisie de la discipline */
 .disc-t th{white-space:nowrap;font-size:12px;text-transform:uppercase;letter-spacing:.02em}
 .disc-t td{vertical-align:middle}
@@ -556,6 +565,11 @@ table.t td.stu-cell{white-space:nowrap}
   body.no-print>*{display:none!important}
   body.no-print::after{content:'';display:block!important;height:60mm}
   body.no-print::before{content:'Impression réservée à l’administrateur.';display:block!important;font-size:16pt;text-align:center;padding:40mm 20mm 0;font-family:Arial,sans-serif}
+}
+@media (max-width:1100px){
+  .topbar{gap:10px}
+  .spaces button{padding:5px 7px;font-size:11.5px}
+  .tri button{padding:5px 8px;font-size:12px}
 }
 @media (max-width:860px){
   .shell{grid-template-columns:1fr}
@@ -1496,7 +1510,7 @@ function newClass(key,name){
 /* ---------- UI utilitaires ---------- */
 function toast(msg,type){const el=document.createElement('div');el.className='toast '+(type||'');el.textContent=msg;$('#toastRoot').appendChild(el);setTimeout(()=>el.remove(),type==='err'?5200:3000)}
 function openModal(html,cls){$('#modalRoot').innerHTML='<div class="backdrop" data-bd="1"><div class="modal '+(cls||'')+'" role="dialog" aria-modal="true">'+html+'</div></div>';const f=$('#modalRoot [autofocus]');if(f)f.focus()}
-function closeModal(){$('#modalRoot').innerHTML='';try{if(typeof Cloud!=='undefined'&&Cloud.pendingRender){Cloud.pendingRender=false;render()}}catch(e){}}
+function closeModal(){$('#modalRoot').innerHTML='';try{releasePdfPreview()}catch(e){}try{if(typeof Cloud!=='undefined'&&Cloud.pendingRender){Cloud.pendingRender=false;render()}}catch(e){}}
 let confirmCb=null;
 function askConfirm(title,msg,okLabel,cb,danger){
   openModal('<h2>'+esc(title)+'</h2><p>'+msg+'</p><div class="acts"><button class="btn" data-act="mclose">Annuler</button><button class="btn '+(danger?'danger':'primary')+'" data-act="confirm-ok" autofocus>'+esc(okLabel)+'</button></div>');
@@ -2261,7 +2275,7 @@ function loginHtml(){
   '<label class="f">Mot de passe<input name="pw" type="password" autocomplete="current-password" placeholder="••••••••" required></label>'+
   '<div class="err" id="fe"></div><button class="btn primary" style="width:100%;justify-content:center;padding:11px 14px;font-size:15px">Se connecter</button>'+
   '<div class="auth-sep"></div>'+
-  '<p class="auth-links"><a href="#" data-act="reset-demo">Réinitialiser les données de démo</a></p></form>'+
+  '<p class="auth-links"><a href="#" data-act="reset-demo">Réinitialiser les données de démo</a>'+(DB.demoMode?' · <a href="#" data-act="repair-demo-login">Réparer l’accès démo</a>':'')+'</p></form>'+
   '<div class="auth-foot">Accès réservé au personnel de <b>'+esc(DB.school.name)+'</b> · '+foot+'</div>'+
   '</div></div>';
 }
@@ -2298,6 +2312,11 @@ function shellHtml(){
   const nav=cl.map(c=>'<a class="nav '+(S.view==='class'&&S.classId===c.id?'on':'')+'" data-act="open-class" data-id="'+c.id+'"><span>'+esc(c.name)+'</span><small>'+c.students.length+'</small></a>').join('');
   return '<header class="topbar"><div class="brand"><span class="dot">M</span><span class="t">'+esc(viewSchool().name)+'</span></div>'+
    (isReadOnlySession()?'<span class="role">Consultation · '+esc(viewYear())+'</span>':'<span class="role">Session en cours · '+esc(viewYear())+'</span>')+
+   (isAdmin()&&!isReadOnlySession()?'<div class="spaces" role="group" aria-label="Espaces">'+
+     '<button data-act="space" data-s="dash" class="'+(!(S.view==='discipline'||/^fin/.test(S.view))?'on':'')+'">Administration</button>'+
+     '<button data-act="space" data-s="discipline" class="'+(S.view==='discipline'?'on':'')+'">Discipline</button>'+
+     '<button data-act="space" data-s="fin" class="'+(/^fin/.test(S.view)?'on':'')+'">Finances</button>'+
+   '</div>':'')+
    '<div class="tri" role="group" aria-label="Trimestre">'+[1,2,3].map(t=>'<button data-act="trim" data-t="'+t+'" class="'+(S.trim===t?'on':'')+'">'+ordSup(t)+' trimestre</button>').join('')+'</div>'+
    '<div class="me"><span id="cloudBadge" class="badge ok" style="display:none;margin-right:8px">Sync</span><span>'+esc(ME.name)+' <span class="role">'+(isAdmin()?'Administrateur':'Professeur')+'</span></span><button class="btn sm" data-act="logout">Quitter</button></div></header>'+
    sbandHtml()+
@@ -2307,7 +2326,9 @@ function shellHtml(){
    '<h4>Classes</h4>'+(nav||'<span class="small muted" style="padding:6px 10px;display:block">Aucune classe</span>')+
    (isAdmin()&&!isReadOnlySession()?'<a class="nav" data-act="new-class" style="color:var(--green-d)">+ Nouvelle classe</a>':'')+
    '<h4>Sessions</h4><a class="nav '+(S.view==='sessions'?'on':'')+'" data-act="go" data-v="sessions">Sessions</a>'+
-   (isAdmin()&&!isReadOnlySession()?'<h4>Finances</h4><a class="nav '+(S.view==='fin'?'on':'')+'" data-act="go" data-v="fin">Gestion des finances</a>':'')+
+   (isAdmin()&&!isReadOnlySession()?'<h4>Espaces</h4>'+
+     '<a class="nav '+(S.view==='discipline'?'on':'')+'" data-act="space" data-s="discipline">Discipline</a>'+
+     '<a class="nav '+(/^fin/.test(S.view)?'on':'')+'" data-act="space" data-s="fin">Finances</a>':'')+
    '<h4>Administration</h4>'+
    (isAdmin()&&!isReadOnlySession()?'<a class="nav '+(S.view==='teachers'?'on':'')+'" data-act="go" data-v="teachers">Enseignants</a><a class="nav '+(S.view==='school'?'on':'')+'" data-act="go" data-v="school">Paramètres</a>':'')+
    (isAdmin()?'<a class="nav '+(S.view==='search'?'on':'')+'" data-act="go" data-v="search">Rechercher un élève</a>':'')+
@@ -3383,6 +3404,26 @@ function importPreview(text){
    accèdent à ces pages ; les autres rôles n'en voient rien.
    DB.finance = { fees:{ [studentId]: montant }, pays:{ [studentId]: [versements] } } */
 function canFinance(){return isAdmin()||isEcon()}
+/* Aperçu des PDF : le document s'ouvre dans une fenêtre avec un bouton de
+   téléchargement. L'adresse temporaire est libérée à la fermeture. */
+var pdfPreview={url:'',name:'',bytes:null};
+function releasePdfPreview(){
+  if(pdfPreview&&pdfPreview.url){try{URL.revokeObjectURL(pdfPreview.url)}catch(e){}}
+  pdfPreview={url:'',name:'',bytes:null};
+}
+function previewPdf(title,fileName,bytes){
+  releasePdfPreview();
+  pdfPreview.name=fileName;pdfPreview.bytes=bytes;
+  try{pdfPreview.url=URL.createObjectURL(new Blob([bytes],{type:'application/pdf'}))}catch(e){pdfPreview.url=''}
+  const head='<div class="pdf-top"><div><b>'+esc(title)+'</b><br><span class="small muted">'+esc(fileName)+'</span></div><span class="grow"></span>'+
+    '<button class="btn primary sm" data-act="pdf-download">Télécharger le PDF</button>'+
+    '<button class="btn sm" data-act="pdf-close">Fermer</button></div>';
+  const body=pdfPreview.url
+    ? '<iframe class="pdf-frame" src="'+pdfPreview.url+'" title="'+esc(title)+'"></iframe>'+
+      '<p class="small muted" style="margin:8px 0 0">Si l’aperçu ne s’affiche pas dans ce navigateur, utilisez « Télécharger le PDF ».</p>'
+    : '<div class="panel empty" style="background:#fff"><h3>Aperçu indisponible</h3><p>Ce navigateur ne peut pas afficher le PDF ici. Utilisez « Télécharger le PDF ».</p></div>';
+  openModal(head+body,'pdf-modal');
+}
 function financeStore(){
   if(!DB.finance||typeof DB.finance!=='object')DB.finance={fees:{},pays:{}};
   if(!DB.finance.fees||typeof DB.finance.fees!=='object')DB.finance.fees={};
@@ -3484,7 +3525,7 @@ function financeRecent(limit){
 function financeDashHtml(){
   const classes=DB.classes||[],tot=financeTotals(classes);
   let h='<div class="page-h"><div><h1>Gestion des finances</h1><p>Frais scolaires · année '+esc(DB.school.year)+' · '+esc(finStamp())+'</p></div>'+
-    (tot.fee>0?'<div class="toolbar" style="margin:0"><button class="btn primary" data-act="fin-report">Télécharger le bilan (PDF)</button></div>':'')+'</div>';
+    (tot.fee>0?'<div class="toolbar" style="margin:0"><button class="btn primary" data-act="fin-report">Bilan financier (PDF)</button></div>':'')+'</div>';
   if(!classes.length)return h+'<div class="panel empty"><h3>Aucune classe</h3><p>Créez des classes et inscrivez des élèves pour tenir les comptes de l’établissement.</p></div>';
   h+='<div class="kpis">'+
     '<div class="kpi"><b>'+money(tot.fee)+'</b><span>montant attendu</span></div>'+
@@ -3597,7 +3638,7 @@ function amountInWords(n){
   return parts.join(' ').trim()||'zéro';
 }
 /* ---------- Bilan financier (PDF) ---------- */
-function financeReportPdf(onlyClassId){
+function financeReportDoc(onlyClassId){
   const classes=onlyClassId?(DB.classes||[]).filter(c=>c.id===onlyClassId):(DB.classes||[]);
   if(!classes.length)return toast('Aucune classe à imprimer.','err');
   const navy=[0.039,0.098,0.184],gold=[0.788,0.635,0.153],grey=[0.42,0.46,0.53],ink=[0.09,0.12,0.18],green=[0.06,0.45,0.22],red=[0.72,0.16,0.20],
@@ -3711,11 +3752,14 @@ function financeReportPdf(onlyClassId){
   doc.textRight(ME?ME.name:'',doc.W-M,doc.y+38,8,'F1',grey);
   const tag=onlyClassId?('_'+String(classes[0].name).replace(/[^A-Za-z0-9]+/g,'-')):'';
   const name='bilan_financier'+tag+'_'+String(viewYear()).replace(/[^0-9]+/g,'-')+'.pdf';
-  downloadBytes(name,doc.finish(),'application/pdf');
-  toast('Bilan financier téléchargé.','ok');
+  return {fileName:name,bytes:doc.finish(),classes:classes.length,name:classes.length===1?classes[0].name:''};
+}
+function financeReportPdf(onlyClassId){
+  const r=financeReportDoc(onlyClassId);if(!r)return;
+  previewPdf(onlyClassId?('Bilan financier — classe '+r.name):'Bilan financier de l’établissement',r.fileName,r.bytes);
 }
 /* ---------- Reçu de paiement (PDF) ---------- */
-function receiptPdf(sid,pid){
+function receiptDoc(sid,pid){
   const f=financeStudent(sid);if(!f)return;
   const payments=paymentsOf(sid),p=payments.find(x=>x.id===pid);
   if(!p)return toast('Versement introuvable.','err');
@@ -3775,8 +3819,11 @@ function receiptPdf(sid,pid){
   doc.hline(M+cw-160,M+cw-20,doc.y+30,line,0.6);
   doc.textRight(p.by||(ME?ME.name:''),M+cw-20,doc.y+42,8,'F1',grey);
   const name='recu_'+String(Number(p.no)||0).padStart(4,'0')+'_'+String(f.st.name).replace(/[^A-Za-z0-9]+/g,'_')+'.pdf';
-  downloadBytes(name,doc.finish(),'application/pdf');
-  toast('Reçu N° '+String(Number(p.no)||0).padStart(4,'0')+' téléchargé.','ok');
+  return {fileName:name,bytes:doc.finish(),no:Number(p.no)||0,name:f.st.name};
+}
+function receiptPdf(sid,pid){
+  const r=receiptDoc(sid,pid);if(!r)return;
+  previewPdf('Reçu de paiement N° '+String(r.no).padStart(4,'0')+' · '+r.name,r.fileName,r.bytes);
 }
 
 /* ---------- Démo ---------- */
@@ -3893,7 +3940,17 @@ A['pay-del']=el=>{if(!canFinance())return;const sid=el.dataset.id,pid=el.dataset
   askConfirm('Supprimer ce versement ?','Le versement sera retiré du profil financier de l’élève et le reste à payer recalculé. Le reçu déjà remis n’aura plus de valeur.','Supprimer',()=>{delPayment(sid,pid);dirty();saveNow();render();toast('Versement supprimé.','ok')},true)};
 A['receipt']=el=>{if(!canFinance())return;receiptPdf(el.dataset.id,el.dataset.pid)};
 A['fin-report']=()=>{if(!canFinance())return;financeReportPdf(null)};
+A['pdf-download']=()=>{if(pdfPreview&&pdfPreview.bytes)downloadBytes(pdfPreview.name,pdfPreview.bytes,'application/pdf')};
+A['pdf-close']=()=>closeModal();
 A['fin-class-report']=el=>{if(!canFinance())return;financeReportPdf(el.dataset.id)};
+A['space']=el=>{
+  if(!isAdmin()||isReadOnlySession())return;
+  const target=el.dataset.s;
+  S.closeState=null;S.simulationState=null;S.focusStudent=null;
+  if(target==='discipline'){S.view='discipline';if(!discClass())S.classId=null;render();return}
+  if(target==='fin'){S.view='fin';S.classId=null;S.studentId=null;render();return}
+  S.view='dash';S.classId=null;S.studentId=null;render();
+};
 A['print-all']=()=>{if(!isAdmin())return toast('Impression réservée à l’administrateur.','err');const cls=curClass(),t=S.trim;
   /* chaque bulletin est suivi du tableau d'honneur de l'eleve quand il en a un */
   printHtml([...cls.students].sort(cmpName).map(s=>bulletinHtml(cls,s.id,t)+honourHtml(cls,s.id,t)).join(''))};
@@ -4058,7 +4115,29 @@ A['restore-start']=()=>{if(!confirm('Restaurer une sauvegarde (les données actu
 A['merge-start']=()=>{if(!confirm('Importer un fichier de notes d’enseignant ?'))return;openModal('<h2>Importer un fichier de notes</h2><p>Choisissez un fichier « notes_… .json » exporté par un enseignant. Les notes saisies sont ajoutées à la classe et à la matière correspondantes ; les cases vides du fichier ne remplacent rien.</p><input type="file" accept=".json,application/json" data-file="merge" class="inp"><div class="err" id="fe"></div><div class="acts"><button class="btn" data-act="mclose">Annuler</button></div>')};
 A.demo=()=>{if(!confirm('Ajouter une classe d’exemple avec des élèves fictifs ?'))return;const c=loadDemo();S.view='class';S.classId=c.id;S.tab='bulletins';S.trim=1;render();toast('Classe d’exemple ajoutée : vous pouvez la supprimer dans ses paramètres.','ok')};
 A['reset-demo']=()=>{if(!confirm('Réinitialiser les données de démo ? Les données actuelles seront remplacées.'))return;try{localStorage.removeItem(KEY);sessionStorage.removeItem(SKEY)}catch(e){}DB=blankDB();ME=null;S.sessionId=null;S.closeState=null;S.simulationState=null;calcCache={};seedThenRender();toast('Données de démo réinitialisées.','ok')};
-A['repair-demo-login']=async()=>{if(!DB.demoMode)return;if(!confirm('Réinitialiser les mots de passe des comptes de test ? Les classes, élèves, notes et finances seront conservés. Admin : admin1234 ; professeurs : prof1234 ; surveillant : surv1234 ; économe : econ1234.'))return;let n=0;for(const u of DB.users){let pw='';if(u.username==='admin'&&u.role==='admin')pw='admin1234';else if(['pmballa','mfotso','injoya','skamga','ressomba'].includes(u.username))pw='prof1234';else if(u.username==='surv'&&u.role==='surv')pw='surv1234';else if(u.username==='econ'&&u.role==='econ')pw='econ1234';if(!pw)continue;u.salt=uid();u.hash=await hashPw(pw,u.salt);n++}if(!n){toast('Aucun compte de démonstration trouvé.','err');return}dirty();saveNow();render();toast('Accès de test réparé, données conservées.','ok')};
+A['repair-demo-login']=async()=>{
+  if(!DB.demoMode)return;
+  if(!confirm('Réparer les comptes de démonstration ? Les mots de passe sont réinitialisés et les comptes manquants sont créés (économe, surveillant, professeurs). Classes, élèves, notes et finances sont conservés.'))return;
+  const specs=[
+    {name:'ATANGANA Jean',username:'admin',pw:'admin1234',role:'admin',phone:'699 00 11 22'},
+    {name:'TCHINDA Marc',username:'surv',pw:'surv1234',role:'surv',phone:'699 66 77 88'},
+    {name:'TCHOUA Bernadette',username:'econ',pw:'econ1234',role:'econ',phone:'699 77 88 99'},
+    {name:'MBALLA Paul',username:'pmballa',pw:'prof1234',role:'teacher',phone:'699 11 22 33'},
+    {name:'FOTSO Marie',username:'mfotso',pw:'prof1234',role:'teacher',phone:'699 22 33 44'},
+    {name:'NJOYA Ibrahim',username:'injoya',pw:'prof1234',role:'teacher',phone:'699 33 44 55'},
+    {name:'KAMGA Sophie',username:'skamga',pw:'prof1234',role:'teacher',phone:'699 44 55 66'},
+    {name:'ESSOMBA Robert',username:'ressomba',pw:'prof1234',role:'teacher',phone:'699 55 66 77'}
+  ];
+  let n=0,created=0;
+  for(const sp of specs){
+    let u=DB.users.find(x=>x.username===sp.username);
+    if(!u){u={id:uid(),username:sp.username,name:sp.name,phone:sp.phone,role:sp.role};DB.users.push(u);created++}
+    else if(sp.username!=='admin'){u.role=sp.role}
+    u.salt=uid();u.hash=await hashPw(sp.pw,u.salt);n++;
+  }
+  dirty();saveNow();render();
+  toast('Accès réparés : '+n+' compte'+(n>1?'s':'')+(created?', '+created+' créé'+(created>1?'s':''):'')+'.','ok');
+};
 A.wipe=()=>askConfirm('Tout effacer ?','Classes, élèves, notes et comptes seront supprimés de cet ordinateur. Cette action est définitive : exportez d’abord une sauvegarde si nécessaire.','Tout effacer',()=>{try{localStorage.removeItem(KEY);sessionStorage.removeItem(SKEY)}catch(e){}DB=blankDB();ME=null;S.sessionId=null;S.closeState=null;S.simulationState=null;calcCache={};S.view='dash';render()},true);
 
 const READ_ONLY_ACTIONS=new Set(['export-missing-notes','print-missing-notes','export-class-council','print-class-council','go','open-class','tab','trim','logout','session-view','session-current','sessions-cancel-close','simulation-cancel','preview','prev-b','print-all','print-one','print-results','export-csv','export-my-notes','pack-dl','honour-prev','honour-print','honour-dl','mclose','noop']);
@@ -4174,11 +4253,14 @@ document.addEventListener('submit',async e=>{
   }else if(kind==='login'||kind==='login-surv'||kind==='login-econ'){
     const u=DB.users.find(x=>x.username===fd.username.trim().toLowerCase());
     if(!u||!verifyPw(fd.pw,u.salt,u.hash))return err(DB.demoMode?'Identifiant ou mot de passe incorrect. Vérifiez admin / admin1234 ou utilisez « Réparer l’accès démo » sans effacer vos données.':'Identifiant ou mot de passe incorrect.');
-    if(kind==='login-surv'&&u.role!=='surv')return err('Ce compte n’est pas un compte de surveillant général. Choisissez l’onglet « Administration ».');
-    if(kind==='login-econ'&&u.role!=='econ')return err('Ce compte n’est pas un compte d’économe. Choisissez l’onglet « Administration ».');
-    if(kind==='login'&&u.role==='econ')return err('Ce compte est un compte d’économe. Choisissez l’onglet « Économe ».');
+    /* Un seul formulaire pour tous les espaces : le compte ouvre toujours son
+       propre tableau de bord, quel que soit l'onglet choisi. Les onglets ne
+       sont qu'une aide visuelle, ils ne bloquent jamais la connexion. */
     ME=u;try{sessionStorage.setItem(SKEY,u.id)}catch(x){}S.sessionId=null;S.closeState=null;S.simulationState=null;
     S.view=(u.role==='surv')?'discipline':(u.role==='econ'?'fin':'dash');S.classId=null;S.studentId=null;render();
+    const asked=kind==='login-surv'?'surveillance':(kind==='login-econ'?'économe':'administration');
+    const own=u.role==='surv'?'surveillance':(u.role==='econ'?'économe':'administration');
+    if(asked!==own)toast('Compte '+own+' : ouverture de l’espace correspondant.','ok');
   }else if(kind==='pw'){
     if(!isAdmin())return err('Seul l’administrateur peut changer son mot de passe. Contactez-le pour toute modification.');
     if(!confirm('Changer le mot de passe ?'))return;
