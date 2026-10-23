@@ -360,6 +360,7 @@ tr.row-focus td{background:#fff7d6!important;box-shadow:inset 0 0 0 999px rgba(2
 .role-switch{display:flex;gap:6px;padding:5px;margin:0 0 12px;border-radius:12px;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.24)}
 .role-switch button{flex:1;border:0;background:transparent;color:#e7eefb;font-size:12.5px;font-weight:600;padding:8px 6px;border-radius:9px;cursor:pointer;line-height:1.15}
 .role-switch button.on{background:#fff;color:var(--brand-d);box-shadow:0 2px 8px rgba(0,0,0,.16)}
+.role-switch-3 button{font-size:11.5px;padding:8px 3px;white-space:nowrap}
 /* tableau de saisie de la discipline */
 .disc-t th{white-space:nowrap;font-size:12px;text-transform:uppercase;letter-spacing:.02em}
 .disc-t td{vertical-align:middle}
@@ -749,13 +750,15 @@ const LB={
 /* ---------- Données ---------- */
 function schoolYear(){const d=new Date(),y=d.getFullYear();return d.getMonth()>=8?y+'/'+(y+1):(y-1)+'/'+y}
 function nextSchoolYear(y){const m=String(y||'').match(/(\d{4})\s*\/\s*(\d{4})/);return m?(+m[1]+1)+'/'+(+m[2]+1):schoolYear()}
-function blankDB(){return{v:1,school:{name:"Ming's Bilingual Institute",city:'Douala',year:schoolYear(),principal:'',header:null,logo:null},users:[],classes:[],sessions:[],archivedStudents:[]}}
+function blankDB(){return{v:1,school:{name:"Ming's Bilingual Institute",city:'Douala',year:schoolYear(),principal:'',header:null,logo:null},users:[],classes:[],sessions:[],archivedStudents:[],finance:{fees:{},pays:{},updatedAt:''}}}
 let memOnly=false;
 function loadDB(){
   try{const r=localStorage.getItem(KEY);if(r){const d=JSON.parse(r);if(d&&d.school&&Array.isArray(d.users)&&Array.isArray(d.classes)){
     // RÉPARATION AUTOMATIQUE : corrige l'état incohérent après activation interrompue
     if(!Array.isArray(d.sessions))d.sessions=[];
     if(!Array.isArray(d.archivedStudents))d.archivedStudents=[];
+    if(!d.finance||typeof d.finance!=='object')d.finance={fees:{},pays:{},updatedAt:''};
+    else{if(!d.finance.fees||typeof d.finance.fees!=='object')d.finance.fees={};if(!d.finance.pays||typeof d.finance.pays!=='object')d.finance.pays={};}
     if(Array.isArray(d.sessions)){
       // Supprime les doublons d'archives
       const seenYears=new Set();
@@ -829,11 +832,12 @@ function verifyPw(pw,salt,stored){
   return sha256Hex(input)===stored||legacyHashPw(pw,salt)===stored;
 }
 let ME=null;
-const S={view:'dash',classId:null,tab:'eleves',trim:1,mine:true,sort:'name',sessionId:null,closeState:null,simulationState:null,loginRole:'staff'};
+const S={view:'dash',classId:null,tab:'eleves',trim:1,mine:true,sort:'name',sessionId:null,closeState:null,simulationState:null,loginRole:'staff',studentId:null};
 const isAdmin=()=>ME&&ME.role==='admin';
 const isSurv=()=>ME&&ME.role==='surv';
 const isProf=()=>ME&&(ME.role==='prof'||ME.role==='teacher');
-const roleLabel=()=>isAdmin()?'Administrateur':isSurv()?'Surveillant général':isProf()?'Professeur':'';
+const isEcon=()=>ME&&ME.role==='econ';
+const roleLabel=()=>isAdmin()?'Administrateur':isSurv()?'Surveillant général':isEcon()?'Économe':isProf()?'Professeur':'';
 /* Personnel enseignant (les anciennes donnees utilisent encore « teacher ») */
 const teachingUsers=()=>(DB.users||[]).filter(u=>u.role==='prof'||u.role==='teacher');
 const archivedSessions=()=>Array.isArray(DB.sessions)?DB.sessions:[];
@@ -2078,7 +2082,7 @@ const Cloud={
       if(s.logo)DB.school.logo=s.logo;
     }
     if(Array.isArray(d.users)&&d.users.length){
-      DB.users=d.users.map(u=>({id:u.id,username:String(u.username||'').toLowerCase(),name:u.name||'',phone:u.phone||'',role:u.role==='admin'?'admin':u.role==='surv'?'surv':'prof',salt:u.salt||'',hash:u.hash||''}));
+      DB.users=d.users.map(u=>({id:u.id,username:String(u.username||'').toLowerCase(),name:u.name||'',phone:u.phone||'',role:['admin','surv','econ'].indexOf(u.role)>=0?u.role:'prof',salt:u.salt||'',hash:u.hash||''}));
       try{if(typeof ME!=='undefined'&&ME&&!DB.users.some(u=>u.id===ME.id)){ME=null;try{sessionStorage.removeItem(SKEY)}catch(e){}}}catch(e){}
     }
     const byId={};
@@ -2168,6 +2172,7 @@ function renderCore(){
   if(!ME){app.innerHTML=loginHtml();return}
   /* Le surveillant general n'accede qu'a la discipline et a son compte */
   if(isSurv()&&S.view!=='discipline'&&S.view!=='account'){S.view='discipline';S.classId=null}
+  if(isEcon()&&['fin','fin-class','fin-student','account'].indexOf(S.view)<0){S.view='fin';S.classId=null;S.studentId=null}
   const cls=curClass();
   if(S.view==='class'&&!cls){S.view='dash'}
   app.innerHTML=shellHtml();
@@ -2234,23 +2239,30 @@ function setupHtml(){
   '<p class="small" style="margin:10px 0 0"><a href="#" data-act="restore-start">Restaurer une sauvegarde existante</a></p></form></div>';
 }
 function loginHtml(){
-  const surv=S.loginRole==='surv';
+  const mode=S.loginRole==='surv'?'surv':(S.loginRole==='econ'?'econ':'staff');
+  const surv=mode==='surv',econ=mode==='econ';
+  const kind=econ?'login-econ':(surv?'login-surv':'login');
+  const kicker=econ?'Espace économe':(surv?'Espace surveillant général':'Espace sécurisé');
+  const title=econ?'Économe':(surv?'Surveillant général':'Connexion');
+  const lead=econ?'Frais scolaires, versements et reçus de paiement':(surv?'Absences, retards et consignes de chaque élève':'');
+  const foot=econ?'Gestion des finances et des reçus de paiement':(surv?'Saisie de la discipline':'Gestion des bulletins et des sessions');
   return '<div class="auth"><div style="position:relative;z-index:2;width:min(462px,100%)">'+
-  '<div class="role-switch" role="group" aria-label="Type de compte">'+
-    '<button type="button" data-act="login-role" data-r="staff" class="'+(surv?'':'on')+'">Administration · Enseignants</button>'+
+  '<div class="role-switch role-switch-3" role="group" aria-label="Type de compte">'+
+    '<button type="button" data-act="login-role" data-r="staff" class="'+(mode==='staff'?'on':'')+'">Administration</button>'+
     '<button type="button" data-act="login-role" data-r="surv" class="'+(surv?'on':'')+'">Surveillant général</button>'+
+    '<button type="button" data-act="login-role" data-r="econ" class="'+(econ?'on':'')+'">Économe</button>'+
   '</div>'+
-  '<form class="auth-box" data-form="'+(surv?'login-surv':'login')+'" style="width:100%"><img src="'+headerSrc()+'" alt="'+esc(DB.school.name)+'">'+
-  '<div class="auth-kicker">'+(surv?'Espace surveillant général':'Espace sécurisé')+'</div>'+
-  (DB.demoMode?'<div class="notice info" style="margin-bottom:12px;font-size:13px"><b>Mode démo</b> — comptes de test :<br>Administrateur : <code>admin</code> / <code>admin1234</code><br>Professeurs : <code>pmballa</code>, <code>mfotso</code>, <code>injoya</code>, <code>skamga</code>, <code>ressomba</code> / <code>prof1234</code><br>Surveillant général : <code>surv</code> / <code>surv1234</code></div>':'')+
-  '<h1>'+(surv?'Surveillant général':'Connexion')+'</h1>'+
-  '<p>'+(surv?'Absences, retards et consignes de chaque élève':'')+(surv?'<br>':'')+esc(DB.school.name)+' · année scolaire '+esc(DB.school.year)+'</p>'+
+  '<form class="auth-box" data-form="'+kind+'" style="width:100%"><img src="'+headerSrc()+'" alt="'+esc(DB.school.name)+'">'+
+  '<div class="auth-kicker">'+kicker+'</div>'+
+  (DB.demoMode?'<div class="notice info" style="margin-bottom:12px;font-size:13px"><b>Mode démo</b> — comptes de test :<br>Administrateur : <code>admin</code> / <code>admin1234</code><br>Professeurs : <code>pmballa</code>, <code>mfotso</code>, <code>injoya</code>, <code>skamga</code>, <code>ressomba</code> / <code>prof1234</code><br>Surveillant général : <code>surv</code> / <code>surv1234</code><br>Économe : <code>econ</code> / <code>econ1234</code></div>':'')+
+  '<h1>'+title+'</h1>'+
+  '<p>'+(lead?lead+'<br>':'')+esc(DB.school.name)+' · année scolaire '+esc(DB.school.year)+'</p>'+
   '<label class="f">Identifiant<input name="username" autocapitalize="none" autocomplete="username" placeholder="Votre identifiant" required autofocus></label>'+
   '<label class="f">Mot de passe<input name="pw" type="password" autocomplete="current-password" placeholder="••••••••" required></label>'+
   '<div class="err" id="fe"></div><button class="btn primary" style="width:100%;justify-content:center;padding:11px 14px;font-size:15px">Se connecter</button>'+
   '<div class="auth-sep"></div>'+
   '<p class="auth-links"><a href="#" data-act="reset-demo">Réinitialiser les données de démo</a></p></form>'+
-  '<div class="auth-foot">Accès réservé au personnel de <b>'+esc(DB.school.name)+'</b> · '+(surv?'Saisie de la discipline':'Gestion des bulletins et des sessions')+'</div>'+
+  '<div class="auth-foot">Accès réservé au personnel de <b>'+esc(DB.school.name)+'</b> · '+foot+'</div>'+
   '</div></div>';
 }
 function survShell(){
@@ -2267,8 +2279,21 @@ function survShell(){
     '<h4>Compte</h4><a class="nav '+(S.view==='account'?'on':'')+'" data-act="go" data-v="account">Mon compte</a></nav>'+
     '<main id="main">'+mainHtml()+'</main></div>';
 }
+function econShell(){
+  const cl=DB.classes||[];
+  const nav=cl.map(c=>'<a class="nav '+(S.view==='fin-class'&&S.classId===c.id?'on':'')+'" data-act="fin-class" data-id="'+c.id+'"><span>'+esc(c.name)+'</span><small>'+c.students.length+'</small></a>').join('');
+  return '<header class="topbar"><div class="brand"><span class="dot">M</span><span class="t">'+esc(viewSchool().name)+'</span></div>'+
+    '<span class="role">Économe · '+esc(DB.school.year)+'</span>'+
+    '<div class="me"><span>'+esc(ME.name)+' <span class="role">Économe</span></span><button class="btn sm" data-act="logout">Quitter</button></div></header>'+
+    '<div class="shell"><nav class="side" aria-label="Navigation">'+
+    '<a class="nav '+(S.view==='fin'?'on':'')+'" data-act="go" data-v="fin">Tableau de bord financier</a>'+
+    '<h4>Classes</h4>'+(nav||'<span class="small muted" style="padding:6px 10px;display:block">Aucune classe</span>')+
+    '<h4>Compte</h4><a class="nav '+(S.view==='account'?'on':'')+'" data-act="go" data-v="account">Mon compte</a></nav>'+
+    '<main id="main">'+mainHtml()+'</main></div>';
+}
 function shellHtml(){
   if(isSurv())return survShell();
+  if(isEcon())return econShell();
   const cl=visibleClasses();
   const nav=cl.map(c=>'<a class="nav '+(S.view==='class'&&S.classId===c.id?'on':'')+'" data-act="open-class" data-id="'+c.id+'"><span>'+esc(c.name)+'</span><small>'+c.students.length+'</small></a>').join('');
   return '<header class="topbar"><div class="brand"><span class="dot">M</span><span class="t">'+esc(viewSchool().name)+'</span></div>'+
@@ -2282,6 +2307,7 @@ function shellHtml(){
    '<h4>Classes</h4>'+(nav||'<span class="small muted" style="padding:6px 10px;display:block">Aucune classe</span>')+
    (isAdmin()&&!isReadOnlySession()?'<a class="nav" data-act="new-class" style="color:var(--green-d)">+ Nouvelle classe</a>':'')+
    '<h4>Sessions</h4><a class="nav '+(S.view==='sessions'?'on':'')+'" data-act="go" data-v="sessions">Sessions</a>'+
+   (isAdmin()&&!isReadOnlySession()?'<h4>Finances</h4><a class="nav '+(S.view==='fin'?'on':'')+'" data-act="go" data-v="fin">Gestion des finances</a>':'')+
    '<h4>Administration</h4>'+
    (isAdmin()&&!isReadOnlySession()?'<a class="nav '+(S.view==='teachers'?'on':'')+'" data-act="go" data-v="teachers">Enseignants</a><a class="nav '+(S.view==='school'?'on':'')+'" data-act="go" data-v="school">Paramètres</a>':'')+
    (isAdmin()?'<a class="nav '+(S.view==='search'?'on':'')+'" data-act="go" data-v="search">Rechercher un élève</a>':'')+
@@ -2428,6 +2454,8 @@ function searchHtml(){
 
 function mainHtml(){
   if(isSurv()&&S.view!=='discipline'&&S.view!=='account')S.view='discipline';
+  if(isEcon()&&['fin','fin-class','fin-student','account'].indexOf(S.view)<0){S.view='fin';S.classId=null;S.studentId=null}
+  if(/^fin/.test(S.view)&&(!canFinance()||isReadOnlySession()))S.view='dash';
   if(S.view==='sessions')return sessionsHtml();
   if(S.view==='lessons')return lessonsHtml();
   if(S.view==='close-year')return closeYearHtml();
@@ -2438,6 +2466,9 @@ function mainHtml(){
   if(S.view==='school'&&isAdmin())return schoolHtml();
   if(S.view==='search')return searchHtml();
   if(S.view==='discipline')return disciplineHtml();
+  if(S.view==='fin')return financeDashHtml();
+  if(S.view==='fin-class')return financeClassHtml();
+  if(S.view==='fin-student')return financeStudentHtml();
   if(S.view==='account')return accountHtml();
   return dashHtml();
 }
@@ -2934,7 +2965,8 @@ function classHtml(){
   const tabs=[['eleves','Élèves'],['notes','Notes'],['bulletins','Bulletins'],['stats','Statistiques']];
   if(isAdmin()&&!isReadOnlySession())tabs.push(['params','Paramètres de la classe']);
   const pp=ppName(cls);
-  let h='<div class="page-h"><div><h1>'+esc(cls.name)+'</h1><p>'+cls.students.length+' élève'+(cls.students.length>1?'s':'')+(pp?' · Professeur principal : '+esc(pp):'')+' · '+ordSup(t)+' trimestre</p></div></div>';
+  let h='<div class="page-h"><div><h1>'+esc(cls.name)+'</h1><p>'+cls.students.length+' élève'+(cls.students.length>1?'s':'')+(pp?' · Professeur principal : '+esc(pp):'')+' · '+ordSup(t)+' trimestre</p></div>'+
+    (isAdmin()&&!isReadOnlySession()?'<div class="toolbar" style="margin:0"><button class="btn" data-act="fin-class" data-id="'+cls.id+'">Finances de la classe</button></div>':'')+'</div>';
   if(isReadOnlySession())h+='<div class="notice info">Année archivée '+esc(viewYear())+' — consultation et impression seulement.</div>';
   h+='<div class="tabs" role="tablist">'+tabs.map(([k,l])=>'<a class="'+(S.tab===k?'on':'')+'" role="tab" data-act="tab" data-k="'+k+'">'+l+'</a>').join('')+'</div>';
   if(S.tab==='eleves')h+=studentsTab(cls);
@@ -3015,6 +3047,8 @@ function purgeStudent(id){
     '<b>'+esc(nm)+'</b> ('+esc(rec.className)+') sera effacé de l’archive : notes, absences et photo comprises. Cette action est <b>irréversible</b>.',
     'Supprimer définitivement',()=>{
       DB.archivedStudents=archivedStudents().filter(x=>x.id!==id);
+      const sid=rec.data&&rec.data.id;
+      if(sid){const fin=financeStore();delete fin.fees[sid];delete fin.pays[sid]}
       dirty();openStudentArchive();toast('Élève supprimé définitivement.','ok');
     },true);
 }
@@ -3243,19 +3277,20 @@ function paramsTab(cls){
 
 /* ---------- Enseignants ---------- */
 function teachersHtml(){
-  const ts=(DB.users||[]).filter(u=>u.role==='prof'||u.role==='teacher'||u.role==='surv');
-  let h='<div class="page-h"><div><h1>Personnel</h1><p>Chaque enseignant ne saisit que les notes de ses matières ; le surveillant général saisit la discipline (absences, retards, consignes).</p></div><button class="btn primary" data-act="add-teacher">Ajouter un compte</button></div>';
+  const ts=(DB.users||[]).filter(u=>u.role==='prof'||u.role==='teacher'||u.role==='surv'||u.role==='econ');
+  let h='<div class="page-h"><div><h1>Personnel</h1><p>Chaque enseignant ne saisit que les notes de ses matières ; le surveillant général saisit la discipline (absences, retards, consignes) ; l’économe tient les finances (montants, versements et reçus de paiement).</p></div><button class="btn primary" data-act="add-teacher">Ajouter un compte</button></div>';
   if(!ts.length)return h+'<div class="panel empty"><h3>Aucun enseignant pour l’instant</h3><p>Créez un compte par enseignant, puis affectez chacun à ses matières dans les paramètres de chaque classe.</p></div>';
   h+='<div class="tw"><table class="t"><thead><tr><th>Nom</th><th>Identifiant</th><th>Téléphone</th><th>Classes et matières</th><th></th></tr></thead><tbody>'+ts.map(u=>{
-    if(u.role==='surv')return '<tr><td><b>'+esc(u.name)+'</b></td><td>'+esc(u.username)+'</td><td>'+esc(u.phone||'')+'</td><td class="small"><span class="badge">Surveillant général</span> Discipline de toutes les classes</td><td class="right nowrap"><button class="btn sm" data-act="edit-teacher" data-id="'+u.id+'">Modifier</button> <button class="btn sm ghost" data-act="del-teacher" data-id="'+u.id+'">Supprimer</button></td></tr>';
+    if(u.role==='surv'||u.role==='econ'){const isE=u.role==='econ';
+      return '<tr><td><b>'+esc(u.name)+'</b></td><td>'+esc(u.username)+'</td><td>'+esc(u.phone||'')+'</td><td class="small"><span class="badge">'+(isE?'Économe':'Surveillant général')+'</span> '+(isE?'Finances de l’établissement':'Discipline de toutes les classes')+'</td><td class="right nowrap"><button class="btn sm" data-act="edit-teacher" data-id="'+u.id+'">Modifier</button> <button class="btn sm ghost" data-act="del-teacher" data-id="'+u.id+'">Supprimer</button></td></tr>'}
     const as=viewClasses().map(c=>{const m=c.subjects.filter(s=>s.teacherId===u.id).map(s=>s.name);return(m.length||c.ppId===u.id)?'<b>'+esc(c.name)+'</b>'+(c.ppId===u.id?' (prof. principal)':'')+(m.length?' : '+esc(m.join(', ')):''):''}).filter(Boolean);
     return '<tr><td><b>'+esc(u.name)+'</b></td><td>'+esc(u.username)+'</td><td>'+esc(u.phone||'')+'</td><td class="small">'+(as.join('<br>')||'<span class="muted">Aucune affectation</span>')+'</td><td class="right nowrap"><button class="btn sm" data-act="edit-teacher" data-id="'+u.id+'">Modifier</button> <button class="btn sm danger" data-act="del-teacher" data-id="'+u.id+'">Supprimer</button></td></tr>'}).join('')+'</tbody></table></div>';
   return h;
 }
 function teacherForm(u){
-  const surv=!!u&&u.role==='surv';
+  const role=u?(u.role==='teacher'?'prof':u.role):'prof';
   openModal('<form data-form="teacher" data-id="'+(u?u.id:'')+'"><h2>'+(u?'Modifier ce compte':'Nouveau compte de personnel')+'</h2>'+
-   '<label class="f">Rôle<select name="role"><option value="prof" '+(surv?'':'selected')+'>Enseignant</option><option value="surv" '+(surv?'selected':'')+'>Surveillant général (discipline)</option></select></label>'+
+   '<label class="f">Rôle<select name="role"><option value="prof" '+(role==='prof'?'selected':'')+'>Enseignant</option><option value="surv" '+(role==='surv'?'selected':'')+'>Surveillant général (discipline)</option><option value="econ" '+(role==='econ'?'selected':'')+'>Économe (finances)</option></select></label>'+
    '<label class="f">Nom complet<input name="name" value="'+esc(u?u.name:'')+'" required autofocus></label>'+
    '<div class="row"><label class="f">Identifiant de connexion<input name="username" value="'+esc(u?u.username:'')+'" autocapitalize="none" required></label>'+
    '<label class="f">Téléphone<input name="phone" value="'+esc(u?u.phone||'':'')+'" inputmode="tel"></label></div>'+
@@ -3339,6 +3374,409 @@ function importPreview(text){
   const ok=IMP.filter(x=>!x.dup).length,dup=IMP.length-ok;
   $('#imp-prev').innerHTML=IMP.length?'<p class="small"><b>'+ok+'</b> élève'+(ok>1?'s':'')+' à ajouter'+(dup?' · <span class="badge warn">'+dup+' déjà présent'+(dup>1?'s':'')+' (ignoré'+(dup>1?'s':'')+')</span>':'')+'</p><div class="tw" style="max-height:230px;overflow:auto"><table class="t"><tbody>'+IMP.map((x,i)=>'<tr><td style="width:40px">'+(i+1)+'</td><td'+(x.dup?' class="muted" style="text-decoration:line-through"':'')+'>'+esc(x.name)+'</td><td style="width:60px">'+(x.sex||'')+'</td></tr>').join('')+'</tbody></table></div>':'<p class="small muted">Rien à importer pour le moment.</p>';
   $('#imp-go').disabled=!ok;$('#imp-go').textContent=ok?'Importer '+ok+' élève'+(ok>1?'s':''):'Importer';
+}
+
+/* ---------- Finances : espace économe ----------
+   Chaque élève possède un profil financier : un montant à payer saisi
+   individuellement, des versements libres (date, montant, mode, référence,
+   note) et un reste à payer calculé. Seuls l'économe et l'administrateur
+   accèdent à ces pages ; les autres rôles n'en voient rien.
+   DB.finance = { fees:{ [studentId]: montant }, pays:{ [studentId]: [versements] } } */
+function canFinance(){return isAdmin()||isEcon()}
+function financeStore(){
+  if(!DB.finance||typeof DB.finance!=='object')DB.finance={fees:{},pays:{}};
+  if(!DB.finance.fees||typeof DB.finance.fees!=='object')DB.finance.fees={};
+  if(!DB.finance.pays||typeof DB.finance.pays!=='object')DB.finance.pays={};
+  return DB.finance;
+}
+function todayISO(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
+function frDate(s){const m=String(s||'').match(/^(\d{4})-(\d{2})-(\d{2})/);return m?(m[3]+'/'+m[2]+'/'+m[1]):(s||'—')}
+function finStamp(){const d=new Date();return 'Édité le '+d.toLocaleDateString('fr-FR')+' à '+d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}
+/* Montants en francs CFA, séparateur de milliers par une espace simple
+   (lisible à l'écran comme dans le PDF). */
+function money(v){
+  const n=Math.round((Number(v)||0)*100)/100;
+  const s=Number.isInteger(n)?String(n):n.toFixed(2).replace('.',',');
+  const p=s.split(',');
+  p[0]=p[0].replace(/\B(?=(\d{3})+(?!\d))/g,' ');
+  return p.join(',')+' FCFA';
+}
+function hasFee(sid){return Object.prototype.hasOwnProperty.call(financeStore().fees,sid)}
+function feeOf(sid){const v=Number(financeStore().fees[sid]);return Number.isFinite(v)&&v>=0?Math.round(v*100)/100:0}
+function setFee(sid,val){
+  const raw=String(val==null?'':val).replace(/[^0-9.,]/g,'').replace(',','.');
+  const n=raw===''?NaN:Number(raw);
+  if(!Number.isFinite(n)||n<0)delete financeStore().fees[sid];
+  else financeStore().fees[sid]=Math.round(n*100)/100;
+  financeStore().updatedAt=new Date().toISOString();
+}
+function paymentsOf(sid){
+  const a=financeStore().pays[sid];
+  if(!Array.isArray(a))return [];
+  return a.slice().sort((x,y)=>String(x.date||'').localeCompare(String(y.date||''))||(Number(x.no)||0)-(Number(y.no)||0));
+}
+function paidOf(sid){return Math.round(paymentsOf(sid).reduce((n,p)=>n+(Number(p.amount)||0),0)*100)/100}
+function restOf(sid){return Math.round((feeOf(sid)-paidOf(sid))*100)/100}
+function payModes(){return[
+  {k:'esp',fr:'Espèces',en:'Cash'},
+  {k:'mm',fr:'Mobile Money',en:'Mobile Money'},
+  {k:'banque',fr:'Virement bancaire',en:'Bank transfer'},
+  {k:'cheque',fr:'Chèque',en:'Cheque'}
+]}
+function modeLabel(k){const m=payModes().find(x=>x.k===k);return m?m.fr:'—'}
+function nextReceiptNo(){
+  let max=0;
+  const pays=financeStore().pays;
+  for(const sid in pays)for(const p of pays[sid])max=Math.max(max,Number(p.no)||0);
+  return max+1;
+}
+function addPayment(sid,data){
+  const f=financeStore();
+  const list=Array.isArray(f.pays[sid])?f.pays[sid]:(f.pays[sid]=[]);
+  const p={id:uid(),no:nextReceiptNo(),date:data.date||todayISO(),
+    amount:Math.round((Number(data.amount)||0)*100)/100,mode:data.mode||'esp',
+    ref:String(data.ref||'').trim(),note:String(data.note||'').trim(),
+    by:ME?ME.name:'',at:new Date().toISOString()};
+  list.push(p);f.updatedAt=p.at;
+  return p;
+}
+function delPayment(sid,pid){
+  const a=financeStore().pays[sid];if(!Array.isArray(a))return false;
+  const i=a.findIndex(p=>p.id===pid);if(i<0)return false;
+  a.splice(i,1);if(!a.length)delete financeStore().pays[sid];
+  financeStore().updatedAt=new Date().toISOString();return true;
+}
+function financeState(sid){
+  const defined=hasFee(sid),fee=feeOf(sid),paid=paidOf(sid),rest=Math.round((fee-paid)*100)/100;
+  return {fee,paid,rest,defined,pct:fee>0?Math.min(1,paid/fee):0,
+    status:(!defined&&paid<=0)?'none':(rest<=0?'paid':(paid<=0?'unpaid':'partial'))};
+}
+function statusText(st){return st.status==='paid'?'Soldé':st.status==='partial'?'Partiel':st.status==='unpaid'?'Impayé':'Non défini'}
+function statusBadge(st){
+  if(st.status==='paid')return '<span class="badge ok">Soldé</span>';
+  if(st.status==='partial')return '<span class="badge warn">Partiel</span>';
+  if(st.status==='unpaid')return '<span class="badge bad">Impayé</span>';
+  return '<span class="badge">Non défini</span>';
+}
+function financeTotals(list){
+  let fee=0,paid=0;const rows=[];
+  (list||[]).forEach(cls=>{
+    let cf=0,cp=0;
+    (cls.students||[]).forEach(s=>{const st=financeState(s.id);cf+=st.fee;cp+=st.paid});
+    cf=Math.round(cf*100)/100;cp=Math.round(cp*100)/100;
+    fee+=cf;paid+=cp;
+    rows.push({cls,fee:cf,paid:cp,rest:Math.round((cf-cp)*100)/100,pct:cf>0?Math.min(1,cp/cf):0,n:(cls.students||[]).length});
+  });
+  fee=Math.round(fee*100)/100;paid=Math.round(paid*100)/100;
+  return {fee,paid,rest:Math.round((fee-paid)*100)/100,pct:fee>0?Math.min(1,paid/fee):0,rows};
+}
+function financeClassOf(sid){return (DB.classes||[]).find(c=>(c.students||[]).some(s=>s.id===sid))||null}
+function financeStudent(sid){const c=financeClassOf(sid);if(!c)return null;return {cls:c,st:(c.students||[]).find(s=>s.id===sid)||null}}
+function financeStudents(cls){return [...(cls.students||[])].sort(cmpName)}
+function financeRecent(limit){
+  const out=[];
+  (DB.classes||[]).forEach(c=>(c.students||[]).forEach(s=>paymentsOf(s.id).forEach(p=>out.push({cls:c,st:s,p}))));
+  out.sort((a,b)=>String(b.p.at||'').localeCompare(String(a.p.at||''))||(Number(b.p.no)||0)-(Number(a.p.no)||0));
+  return limit?out.slice(0,limit):out;
+}
+
+/* ---------- Pages de l'espace économe ---------- */
+function financeDashHtml(){
+  const classes=DB.classes||[],tot=financeTotals(classes);
+  let h='<div class="page-h"><div><h1>Gestion des finances</h1><p>Frais scolaires · année '+esc(DB.school.year)+' · '+esc(finStamp())+'</p></div>'+
+    (tot.fee>0?'<div class="toolbar" style="margin:0"><button class="btn primary" data-act="fin-report">Télécharger le bilan (PDF)</button></div>':'')+'</div>';
+  if(!classes.length)return h+'<div class="panel empty"><h3>Aucune classe</h3><p>Créez des classes et inscrivez des élèves pour tenir les comptes de l’établissement.</p></div>';
+  h+='<div class="kpis">'+
+    '<div class="kpi"><b>'+money(tot.fee)+'</b><span>montant attendu</span></div>'+
+    '<div class="kpi"><b style="color:var(--green-d)">'+money(tot.paid)+'</b><span>encaissé</span></div>'+
+    '<div class="kpi"><b style="color:'+(tot.rest>0?'var(--red)':'inherit')+'">'+money(tot.rest)+'</b><span>reste à payer</span></div>'+
+    '<div class="kpi"><b>'+Math.round(tot.pct*100)+' %</b><span>taux de recouvrement</span></div></div>';
+  h+='<div class="panel"><h3>Situation par classe</h3><div class="tw" style="margin-top:10px"><table class="t"><thead><tr><th>Classe</th><th class="num">Élèves</th><th class="num">Attendu</th><th class="num">Encaissé</th><th class="num">Reste</th><th>Recouvrement</th><th></th></tr></thead><tbody>'+
+    tot.rows.map(r=>'<tr><td><b>'+esc(r.cls.name)+'</b></td><td class="num">'+r.n+'</td><td class="num">'+money(r.fee)+'</td><td class="num">'+money(r.paid)+'</td><td class="num">'+(r.rest>0?'<b style="color:var(--red)">'+money(r.rest)+'</b>':money(r.rest))+'</td>'+
+      '<td><div class="bar" style="width:110px;display:inline-block;vertical-align:middle"><i style="width:'+Math.round(r.pct*100)+'%"></i></div> <span class="small muted">'+Math.round(r.pct*100)+' %</span></td>'+
+      '<td class="right"><button class="btn sm" data-act="fin-class" data-id="'+r.cls.id+'">Ouvrir</button></td></tr>').join('')+'</tbody></table></div></div>';
+  const recent=financeRecent(10);
+  h+='<div class="panel"><h3>Derniers versements</h3>';
+  if(!recent.length)h+='<p class="muted" style="margin-bottom:0">Aucun versement enregistré pour le moment. Ouvrez une classe puis la fiche d’un élève pour enregistrer son premier paiement.</p>';
+  else h+='<div class="tw"><table class="t"><thead><tr><th>Date</th><th>Élève</th><th>Classe</th><th class="num">Montant</th><th>Mode</th><th>N° reçu</th><th></th></tr></thead><tbody>'+
+    recent.map(x=>'<tr><td>'+frDate(x.p.date)+'</td><td><b>'+esc(x.st.name)+'</b></td><td>'+esc(x.cls.name)+'</td><td class="num">'+money(x.p.amount)+'</td><td>'+esc(modeLabel(x.p.mode))+'</td><td class="mono small">N° '+String(Number(x.p.no)||0).padStart(4,'0')+'</td>'+
+      '<td class="right nowrap"><button class="btn sm" data-act="receipt" data-id="'+x.st.id+'" data-pid="'+x.p.id+'">Reçu</button> <button class="btn sm" data-act="fin-student" data-id="'+x.st.id+'">Fiche</button></td></tr>').join('')+'</tbody></table></div>';
+  h+='</div>';
+  return h;
+}
+function financeClassHtml(){
+  const classes=DB.classes||[];
+  const cls=classes.find(c=>c.id===S.classId)||classes[0];
+  if(!cls)return '<div class="panel empty"><h3>Aucune classe</h3><p>Créez une classe pour commencer.</p></div>';
+  const tot=financeTotals([cls]),list=financeStudents(cls);
+  let h='<div class="page-h"><div><h1>Finances · '+esc(cls.name)+'</h1><p>'+list.length+' élève'+(list.length>1?'s':'')+' · année scolaire '+esc(DB.school.year)+'</p></div>'+
+    '<div class="toolbar" style="margin:0"><button class="btn" data-act="fin-home">Toutes les classes</button><button class="btn primary" data-act="fin-class-report" data-id="'+cls.id+'">Bilan de la classe (PDF)</button></div></div>';
+  h+='<div class="kpis">'+
+    '<div class="kpi"><b>'+money(tot.fee)+'</b><span>attendu pour la classe</span></div>'+
+    '<div class="kpi"><b style="color:var(--green-d)">'+money(tot.paid)+'</b><span>encaissé</span></div>'+
+    '<div class="kpi"><b style="color:'+(tot.rest>0?'var(--red)':'inherit')+'">'+money(tot.rest)+'</b><span>reste à payer</span></div>'+
+    '<div class="kpi"><b>'+Math.round(tot.pct*100)+' %</b><span>recouvrement</span></div></div>';
+  if(!list.length)return h+'<div class="panel empty"><h3>Aucun élève dans cette classe</h3><p>Ajoutez des élèves depuis l’onglet Élèves : leur profil financier apparaîtra ici.</p></div>';
+  h+='<div class="tw"><table class="t"><thead><tr><th style="width:52px">N°</th><th>Élève</th><th>Matricule</th><th class="num">Montant à payer</th><th class="num">Payé</th><th class="num">Reste</th><th>Statut</th><th></th></tr></thead><tbody>'+
+    list.map((s,i)=>{const st=financeState(s.id);return '<tr><td>'+(i+1)+'</td><td><b>'+esc(s.name)+'</b></td><td class="mono">'+esc(s.mat||'')+'</td>'+
+      '<td class="num">'+(st.defined?money(st.fee):'<span class="muted">—</span>')+'</td><td class="num">'+money(st.paid)+'</td>'+
+      '<td class="num">'+(st.defined?(st.rest>0?'<b style="color:var(--red)">'+money(st.rest)+'</b>':money(st.rest)):'<span class="muted">—</span>')+'</td>'+
+      '<td>'+statusBadge(st)+'</td>'+
+      '<td class="right nowrap"><button class="btn sm" data-act="fee-edit" data-id="'+s.id+'">Montant</button> <button class="btn sm primary" data-act="fin-student" data-id="'+s.id+'">Fiche</button></td></tr>'}).join('')+'</tbody></table></div>';
+  return h;
+}
+function financeStudentHtml(){
+  const f=financeStudent(S.studentId);
+  if(!f)return '<div class="panel empty"><h3>Élève introuvable</h3><p>Cet élève n’existe plus dans la session en cours.</p><button class="btn" data-act="fin-home">Toutes les classes</button></div>';
+  const {cls,st}=f,state=financeState(st.id),pays=paymentsOf(st.id);
+  let h='<div class="page-h"><div><h1>'+esc(st.name)+'</h1><p>'+esc(cls.name)+' · matricule '+esc(st.mat||'—')+' · '+statusBadge(state)+' · année scolaire '+esc(DB.school.year)+'</p></div>'+
+    '<div class="toolbar" style="margin:0"><button class="btn" data-act="fin-class" data-id="'+cls.id+'">Retour à la classe</button>'+
+    '<button class="btn" data-act="fee-edit" data-id="'+st.id+'">Définir le montant</button>'+
+    '<button class="btn primary" data-act="pay-add" data-id="'+st.id+'">Enregistrer un versement</button></div></div>';
+  h+='<div class="kpis">'+
+    '<div class="kpi"><b>'+money(state.fee)+'</b><span>montant à payer</span></div>'+
+    '<div class="kpi"><b style="color:var(--green-d)">'+money(state.paid)+'</b><span>total versé · '+pays.length+' versement'+(pays.length>1?'s':'')+'</span></div>'+
+    '<div class="kpi"><b style="color:'+(state.rest<0?'var(--amber)':state.rest>0?'var(--red)':'var(--green-d)')+'">'+money(state.rest)+'</b><span>'+(state.rest<0?'trop-perçu':state.rest>0?'reste à payer':'soldé')+'</span></div></div>';
+  if(!state.defined)h+='<div class="notice info">Aucun montant à payer n’est encore défini pour cet élève. Cliquez sur <b>Définir le montant</b> : le montant est saisi élève par élève (0 pour un élève exonéré).</div>';
+  h+='<div class="panel"><h3>Versements</h3>';
+  if(!pays.length)h+='<p class="muted" style="margin-bottom:0">Aucun versement enregistré. Le reçu sera généré automatiquement à chaque paiement.</p>';
+  else h+='<div class="tw" style="margin-top:8px"><table class="t"><thead><tr><th>N° reçu</th><th>Date</th><th class="num">Montant</th><th>Mode</th><th>Référence</th><th>Observation</th><th class="num">Solde après</th><th></th></tr></thead><tbody>'+
+    (()=>{let run=state.fee;return pays.map(p=>{run=Math.round((run-(Number(p.amount)||0))*100)/100;return '<tr><td class="mono">'+String(Number(p.no)||0).padStart(4,'0')+'</td><td>'+frDate(p.date)+'</td><td class="num"><b>'+money(p.amount)+'</b></td><td>'+esc(modeLabel(p.mode))+'</td><td>'+esc(p.ref||'—')+'</td><td>'+esc(p.note||'—')+'</td><td class="num">'+money(Math.max(0,run))+'</td>'+
+      '<td class="right nowrap"><button class="btn sm" data-act="receipt" data-id="'+st.id+'" data-pid="'+p.id+'">Reçu PDF</button> <button class="btn sm danger" data-act="pay-del" data-id="'+st.id+'" data-pid="'+p.id+'">Supprimer</button></td></tr>'}).join('')})()+'</tbody></table></div>';
+  h+='</div>';
+  return h;
+}
+function feeForm(sid){
+  const f=financeStudent(sid);if(!f)return;
+  openModal('<form data-form="fee" data-id="'+sid+'"><h2>Montant à payer</h2>'+
+    '<p class="small muted" style="margin-top:0">'+esc(f.st.name)+' · '+esc(f.cls.name)+' · matricule '+esc(f.st.mat||'—')+'</p>'+
+    '<label class="f">Frais scolaires de l’année (FCFA)<input name="amount" inputmode="decimal" value="'+(hasFee(sid)?feeOf(sid):'')+'" placeholder="Ex. 85000" required autofocus><span class="small muted">Saisi élève par élève : chaque montant peut être différent dans une même classe.</span></label>'+
+    '<div class="err" id="fe"></div><div class="acts"><button type="button" class="btn" data-act="mclose">Annuler</button><button class="btn primary">Enregistrer</button></div></form>');
+}
+function paymentForm(sid){
+  const f=financeStudent(sid);if(!f)return;
+  const rest=restOf(sid);
+  openModal('<form data-form="pay" data-id="'+sid+'"><h2>Enregistrer un versement</h2>'+
+    '<p class="small muted" style="margin-top:0">'+esc(f.st.name)+' · '+esc(f.cls.name)+' · reste à payer '+money(Math.max(0,rest))+'</p>'+
+    '<div class="row"><label class="f">Date du versement<input name="date" type="date" value="'+todayISO()+'" required></label>'+
+    '<label class="f">Montant (FCFA)<input name="amount" inputmode="decimal" value="'+(rest>0?rest:'')+'" placeholder="Ex. 25000" required autofocus></label></div>'+
+    '<label class="f">Mode de paiement<select name="mode">'+payModes().map(m=>'<option value="'+m.k+'">'+m.fr+'</option>').join('')+'</select></label>'+
+    '<div class="row"><label class="f">Référence<input name="ref" placeholder="Bordereau, reçu, transaction…"></label><label class="f">Observation<input name="note" placeholder="Facultatif"></label></div>'+
+    '<p class="small muted">Le reste à payer et le reçu sont calculés automatiquement. Aucun échéancier n’est imposé : vous enregistrez chaque versement quand il arrive.</p>'+
+    '<div class="err" id="fe"></div><div class="acts"><button type="button" class="btn" data-act="mclose">Annuler</button><button class="btn primary">Enregistrer le versement</button></div></form>');
+}
+/* Montant en lettres (français), pour les reçus. */
+function amountInWords(n){
+  const num=Math.round(Math.abs(Number(n)||0));
+  const units=['zéro','un','deux','trois','quatre','cinq','six','sept','huit','neuf','dix','onze','douze','treize','quatorze','quinze','seize','dix-sept','dix-huit','dix-neuf'];
+  function under100(x){
+    if(x<20)return units[x];
+    const t=Math.floor(x/10),r=x%10;
+    if(t===7)return r===0?'soixante-dix':(r===1?'soixante-et-onze':'soixante-'+under100(10+r));
+    if(t===9)return r===0?'quatre-vingt-dix':'quatre-vingt-'+under100(10+r);
+    if(t===8)return r?'quatre-vingt-'+units[r]:'quatre-vingts';
+    const base=['','','vingt','trente','quarante','cinquante','soixante'][t];
+    if(r===0)return base;
+    return base+(r===1?'-et-un':'-'+units[r]);
+  }
+  function under1000(x){
+    if(x<100)return under100(x);
+    const c=Math.floor(x/100),r=x%100;
+    const cent=c===1?'cent':units[c]+' cent';
+    if(!r)return c>1?cent+'s':cent;
+    return cent+' '+under100(r);
+  }
+  const parts=[];let rest=num;
+  const billions=Math.floor(rest/1e9);rest-=billions*1e9;
+  const millions=Math.floor(rest/1e6);rest-=millions*1e6;
+  const thousands=Math.floor(rest/1e3);rest-=thousands*1e3;
+  if(billions)parts.push(under1000(billions)+' milliard'+(billions>1?'s':''));
+  if(millions)parts.push(under1000(millions)+' million'+(millions>1?'s':''));
+  if(thousands)parts.push(thousands===1?'mille':under1000(thousands)+' mille');
+  if(rest)parts.push(under1000(rest));
+  return parts.join(' ').trim()||'zéro';
+}
+/* ---------- Bilan financier (PDF) ---------- */
+function financeReportPdf(onlyClassId){
+  const classes=onlyClassId?(DB.classes||[]).filter(c=>c.id===onlyClassId):(DB.classes||[]);
+  if(!classes.length)return toast('Aucune classe à imprimer.','err');
+  const navy=[0.039,0.098,0.184],gold=[0.788,0.635,0.153],grey=[0.42,0.46,0.53],ink=[0.09,0.12,0.18],green=[0.06,0.45,0.22],red=[0.72,0.16,0.20],
+    band=[0.949,0.961,0.980],head=[0.929,0.945,0.965],line=[0.85,0.88,0.92],zeb=[0.975,0.98,0.99];
+  const doc=PdfDoc(),M=doc.M,cw=doc.cw,tot=financeTotals(classes);
+  const nStu=classes.reduce((n,c)=>n+(c.students||[]).length,0);
+  doc.newPage();
+  doc.text(DB.school.name,M,M+16,14,'F2',navy);
+  doc.textRight('Année scolaire '+viewYear(),doc.W-M,M+16,8.5,'F1',grey);
+  doc.textRight(DB.school.city||'',doc.W-M,M+27,8,'F1',grey);
+  doc.rect(M,M+32,cw,1.6,gold);
+  doc.y=M+62;
+  doc.text('BILAN FINANCIER',M,doc.y,20,'F2',navy);
+  doc.y+=19;
+  doc.text(onlyClassId?('Classe '+classes[0].name+' — situation des frais scolaires'):'Situation des frais scolaires par classe et par élève',M,doc.y,10.5,'F1',grey);
+  doc.y+=17;
+  doc.text(finStamp(),M,doc.y,8,'F1',grey);
+  doc.textRight(classes.length+' classe'+(classes.length>1?'s':'')+' · '+nStu+' élève'+(nStu>1?'s':''),doc.W-M,doc.y,8.5,'F2',ink);
+  doc.y+=16;
+  const bw=(cw-24)/4,bh=42;
+  const cards=[
+    {l:'MONTANT ATTENDU',v:money(tot.fee),c:ink},
+    {l:'ENCAISSÉ',v:money(tot.paid),c:green},
+    {l:'RESTE À PAYER',v:money(tot.rest),c:tot.rest>0?red:ink},
+    {l:'RECOUVREMENT',v:Math.round(tot.pct*100)+' %',c:navy}
+  ];
+  cards.forEach((c,i)=>{
+    const x=M+i*(bw+8);
+    doc.rect(x,doc.y,bw,bh,[0.965,0.973,0.985],line,0.5);
+    doc.text(c.l,x+8,doc.y+14,7,'F2',grey);
+    doc.text(pdfCut(c.v,8.5,bw-16,true),x+8,doc.y+30,12.5,'F2',c.c);
+  });
+  doc.y+=bh+22;
+  doc.text('Situation par classe',M,doc.y,11.5,'F2',navy);
+  doc.y+=8;doc.hline(M,M+cw,doc.y,gold,1);doc.y+=12;
+  doc.table([
+    {w:150,label:'Classe'},
+    {w:52,label:'Élèves',align:'right'},
+    {w:110,label:'Attendu',align:'right'},
+    {w:110,label:'Encaissé',align:'right'},
+    {w:cw-422,label:'Reste',align:'right'}
+  ],tot.rows.map(r=>[r.cls.name,String(r.n),money(r.fee),money(r.paid),money(r.rest)]),{size:8.5,boldCols:[0],zebra:true});
+  const detCols=[
+    {w:26,label:['N°'],align:'right'},
+    {w:120,label:['Noms et prénoms']},
+    {w:92,label:['Matricule']},
+    {w:78,label:['À payer'],align:'right'},
+    {w:78,label:['Payé'],align:'right'},
+    {w:78,label:['Reste'],align:'right'},
+    {w:cw-472,label:['Statut']}
+  ];
+  const bottom=doc.H-doc.M-20,rowH=15,headH=20,bandH=22;
+  for(const c of classes){
+    const st=financeTotals([c]),list=financeStudents(c);
+    const meta=list.length+' élève'+(list.length>1?'s':'')+' · Reste '+money(st.rest);
+    if(!list.length){
+      doc.need(50);
+      doc.rect(M,doc.y,cw,22,band);doc.rect(M,doc.y,3,22,gold);
+      doc.text('Classe '+c.name,M+9,doc.y+15,11.5,'F2',navy);
+      doc.y+=29;
+      doc.text('Aucun élève inscrit dans cette classe.',M+5,doc.y+9,8.5,'F1',grey);
+      doc.y+=26;continue;
+    }
+    let i=0,part=0;
+    while(i<list.length||part===0){
+      if(doc.y+bandH+headH+rowH>bottom)doc.newPage();
+      doc.rect(M,doc.y,cw,bandH,band);
+      doc.rect(M,doc.y,3,bandH,gold);
+      doc.text('Classe '+c.name+(part?' (suite)':''),M+9,doc.y+15,11.5,'F2',navy);
+      doc.textRight(pdfCut(meta,7.6,cw-150,false),doc.W-M-5,doc.y+14,7.6,'F1',grey);
+      doc.y+=bandH+7;
+      doc.rect(M,doc.y,cw,headH,head);
+      let x=M;
+      detCols.forEach(col=>{
+        const lab=col.label[0];
+        if(col.align==='right')doc.textRight(lab,x+col.w-4,doc.y+14,7.2,'F2',ink);
+        else doc.text(lab,x+5,doc.y+14,7.2,'F2',ink);
+        x+=col.w;
+      });
+      doc.y+=headH;
+      let k=0;
+      while(i<list.length&&doc.y+rowH<=bottom){
+        const s=list[i++],q=financeState(s.id);
+        if(k%2===1)doc.rect(M,doc.y,cw,rowH,zeb);
+        x=M;
+        const cells=[String(i),s.name,s.mat||'—',q.defined?money(q.fee):'—',money(q.paid),q.defined?money(q.rest):'—',statusText(q)];
+        cells.forEach((v,j)=>{
+          const col=detCols[j];
+          const bold=(j===1)||(j===5&&q.rest>0);
+          const colr=(j===5&&q.rest>0)?red:(j===6&&q.status==='paid'?green:ink);
+          const txt=pdfCut(String(v),8,col.w-8,bold);
+          if(col.align==='right')doc.textRight(txt,x+col.w-4,doc.y+10.2,8,bold?'F2':'F1',colr);
+          else doc.text(txt,x+5,doc.y+10.2,8,bold?'F2':'F1',colr);
+          x+=col.w;
+        });
+        doc.hline(M,M+cw,doc.y+rowH,line,0.35);
+        doc.y+=rowH;k++;
+      }
+      part++;
+      if(i>=list.length)break;
+    }
+    doc.y+=6;
+    doc.textRight('Total '+c.name+' : '+money(st.fee)+' attendu · '+money(st.paid)+' encaissé · '+money(st.rest)+' restant',doc.W-M,doc.y+8,8,'F2',st.rest>0?red:green);
+    doc.y+=26;
+  }
+  doc.need(70);
+  doc.y+=10;
+  doc.text('Fait à '+(DB.school.city||'')+', le '+new Date().toLocaleDateString('fr-FR'),M,doc.y,8.5,'F1',grey);
+  doc.textRight('L’Économe / The Bursar',doc.W-M,doc.y,9,'F2',ink);
+  doc.hline(doc.W-M-140,doc.W-M,doc.y+26,line,0.5);
+  doc.textRight(ME?ME.name:'',doc.W-M,doc.y+38,8,'F1',grey);
+  const tag=onlyClassId?('_'+String(classes[0].name).replace(/[^A-Za-z0-9]+/g,'-')):'';
+  const name='bilan_financier'+tag+'_'+String(viewYear()).replace(/[^0-9]+/g,'-')+'.pdf';
+  downloadBytes(name,doc.finish(),'application/pdf');
+  toast('Bilan financier téléchargé.','ok');
+}
+/* ---------- Reçu de paiement (PDF) ---------- */
+function receiptPdf(sid,pid){
+  const f=financeStudent(sid);if(!f)return;
+  const payments=paymentsOf(sid),p=payments.find(x=>x.id===pid);
+  if(!p)return toast('Versement introuvable.','err');
+  const state=financeState(sid);
+  const navy=[0.039,0.098,0.184],gold=[0.788,0.635,0.153],grey=[0.42,0.46,0.53],ink=[0.09,0.12,0.18],green=[0.06,0.45,0.22],red=[0.72,0.16,0.20],
+    band=[0.949,0.961,0.980],line=[0.85,0.88,0.92];
+  const doc=PdfDoc(),M=doc.M,cw=doc.cw,x=M+20,w=cw-40;
+  doc.newPage();
+  doc.rect(M,56,cw,doc.H-112,[1,1,1],[0.80,0.84,0.89],0.9);
+  doc.rect(M,56,cw,4,gold);
+  doc.text(DB.school.name,x,88,15,'F2',navy);
+  doc.textRight('Année scolaire '+viewYear(),M+cw-20,88,8.5,'F1',grey);
+  doc.textRight(DB.school.city||'',M+cw-20,99,8,'F1',grey);
+  doc.hline(x,M+cw-20,110,line,0.7);
+  doc.text('REÇU DE PAIEMENT',x,142,19,'F2',navy);
+  doc.text('PAYMENT RECEIPT',x,157,9,'F1',grey);
+  doc.textRight('N° '+String(Number(p.no)||0).padStart(4,'0')+' / '+viewYear(),M+cw-20,142,10.5,'F2',navy);
+  doc.textRight('Date du versement : '+frDate(p.date),M+cw-20,156,8.5,'F1',grey);
+  /* élève */
+  doc.rect(x,174,w,60,band,[],0);
+  doc.rect(x,174,3,60,gold,[],0);
+  doc.text('REÇU DE',x+12,191,7,'F2',grey);
+  doc.text(pdfCut(f.st.name,13,w-150,true),x+12,208,13,'F2',navy);
+  doc.text('Matricule '+String(f.st.mat||'—')+' · Classe '+f.cls.name,x+12,224,8.5,'F1',grey);
+  /* pastille PAYÉ (dessinée après le bandeau pour rester visible) */
+  doc.rect(M+cw-140,188,118,26,[0.90,0.96,0.87],[0.45,0.68,0.32],0.7);
+  doc.text('PAYÉ · PAID',M+cw-140+(118-pdfW('PAYÉ · PAID',9,true))/2,204,9,'F2',green);
+  /* montant */
+  doc.rect(x,248,w,66,[0.955,0.972,0.945],[0.63,0.78,0.53],0.7);
+  doc.text('MONTANT VERSÉ',x+12,264,7.4,'F2',green);
+  doc.text(money(p.amount),x+12,291,22,'F2',green);
+  doc.text('Soit : '+pdfCut(amountInWords(p.amount)+' francs CFA',8.6,w-24,false),x+12,305,8.6,'F1',ink);
+  /* détail */
+  const details=[
+    ['Mode de paiement',modeLabel(p.mode)],
+    ['Référence',p.ref||'—'],
+    ['Observation',p.note||'—'],
+    ['Imputation','Frais scolaires · année '+viewYear()],
+    ['Enregistré par',p.by||(ME?ME.name:'')]
+  ];
+  doc.y=326;
+  doc.table([{w:170,label:'DÉTAIL DU VERSEMENT'},{w:w-170,label:''}],details,{size:8.8,zebra:true,boldCols:[0],headFill:false});
+  doc.y+=14;
+  const bw=(w-16)/3,bh=46;
+  [['MONTANT À PAYER',money(state.fee),ink],['TOTAL VERSÉ À CE JOUR',money(state.paid),green],['RESTE À PAYER',money(state.rest),state.rest>0?red:green]].forEach((c,i)=>{
+    const bx=x+i*(bw+8);
+    doc.rect(bx,doc.y,bw,bh,[0.97,0.977,0.985],line,0.5);
+    doc.text(c[0],bx+8,doc.y+15,6.8,'F2',grey);
+    doc.text(pdfCut(c[1],8.2,bw-16,true),bx+8,doc.y+33,10.5,'F2',c[2]);
+  });
+  doc.y+=bh+24;
+  const para='Reçu de '+(f.st.name)+' la somme de '+money(p.amount)+' ('+amountInWords(p.amount)+' francs CFA), au titre des frais scolaires de l’année scolaire '+viewYear()+'. Ce reçu vaut quittance pour le versement indiqué ci-dessus.';
+  pdfWrap(para,9.2,w,false).forEach((ln,i)=>doc.text(ln,x,doc.y+i*13,9.2,'F1',ink));
+  doc.y+=Math.max(1,pdfWrap(para,9.2,w,false).length)*13+10;
+  doc.text('Fait à '+(DB.school.city||'')+', le '+new Date().toLocaleDateString('fr-FR'),x,doc.y,8.5,'F1',grey);
+  doc.textRight('L’Économe / The Bursar',M+cw-20,doc.y,9,'F2',ink);
+  doc.hline(M+cw-160,M+cw-20,doc.y+30,line,0.6);
+  doc.textRight(p.by||(ME?ME.name:''),M+cw-20,doc.y+42,8,'F1',grey);
+  const name='recu_'+String(Number(p.no)||0).padStart(4,'0')+'_'+String(f.st.name).replace(/[^A-Za-z0-9]+/g,'_')+'.pdf';
+  downloadBytes(name,doc.finish(),'application/pdf');
+  toast('Reçu N° '+String(Number(p.no)||0).padStart(4,'0')+' téléchargé.','ok');
 }
 
 /* ---------- Démo ---------- */
@@ -3446,6 +3884,16 @@ A['import-students']=()=>{
    '<div id="imp-prev"><p class="small muted">Rien à importer pour le moment.</p></div><div class="acts"><button class="btn" data-act="mclose">Annuler</button><button class="btn primary" id="imp-go" data-act="imp-go" disabled>Importer</button></div>','wide');
 };
 A['imp-go']=()=>{const cls=curClass();if(!confirm('Importer ces élèves dans la classe ?'))return;let n=0;for(const x of IMP){if(x.dup)continue;cls.students.push({id:uid(),name:x.name,sex:x.sex,mat:genMat(),dob:'',pob:'',photo:'',sessionTag:'N'});n++}cls.students.sort(cmpName);dirty();closeModal();render();toast(n+' élève'+(n>1?'s ajoutés':' ajouté')+'.','ok')};
+A['fin-class']=el=>{if(!canFinance())return;S.view='fin-class';S.classId=el.dataset.id;S.studentId=null;S.focusStudent=null;render()};
+A['fin-student']=el=>{if(!canFinance())return;const found=financeStudent(el.dataset.id);if(!found)return toast('Élève introuvable.','err');S.view='fin-student';S.classId=found.cls.id;S.studentId=el.dataset.id;render()};
+A['fin-home']=()=>{if(!canFinance())return;S.view='fin';S.classId=null;S.studentId=null;render()};
+A['fee-edit']=el=>{if(!canFinance())return;feeForm(el.dataset.id)};
+A['pay-add']=el=>{if(!canFinance())return;paymentForm(el.dataset.id)};
+A['pay-del']=el=>{if(!canFinance())return;const sid=el.dataset.id,pid=el.dataset.pid;
+  askConfirm('Supprimer ce versement ?','Le versement sera retiré du profil financier de l’élève et le reste à payer recalculé. Le reçu déjà remis n’aura plus de valeur.','Supprimer',()=>{delPayment(sid,pid);dirty();saveNow();render();toast('Versement supprimé.','ok')},true)};
+A['receipt']=el=>{if(!canFinance())return;receiptPdf(el.dataset.id,el.dataset.pid)};
+A['fin-report']=()=>{if(!canFinance())return;financeReportPdf(null)};
+A['fin-class-report']=el=>{if(!canFinance())return;financeReportPdf(el.dataset.id)};
 A['print-all']=()=>{if(!isAdmin())return toast('Impression réservée à l’administrateur.','err');const cls=curClass(),t=S.trim;
   /* chaque bulletin est suivi du tableau d'honneur de l'eleve quand il en a un */
   printHtml([...cls.students].sort(cmpName).map(s=>bulletinHtml(cls,s.id,t)+honourHtml(cls,s.id,t)).join(''))};
@@ -3610,7 +4058,7 @@ A['restore-start']=()=>{if(!confirm('Restaurer une sauvegarde (les données actu
 A['merge-start']=()=>{if(!confirm('Importer un fichier de notes d’enseignant ?'))return;openModal('<h2>Importer un fichier de notes</h2><p>Choisissez un fichier « notes_… .json » exporté par un enseignant. Les notes saisies sont ajoutées à la classe et à la matière correspondantes ; les cases vides du fichier ne remplacent rien.</p><input type="file" accept=".json,application/json" data-file="merge" class="inp"><div class="err" id="fe"></div><div class="acts"><button class="btn" data-act="mclose">Annuler</button></div>')};
 A.demo=()=>{if(!confirm('Ajouter une classe d’exemple avec des élèves fictifs ?'))return;const c=loadDemo();S.view='class';S.classId=c.id;S.tab='bulletins';S.trim=1;render();toast('Classe d’exemple ajoutée : vous pouvez la supprimer dans ses paramètres.','ok')};
 A['reset-demo']=()=>{if(!confirm('Réinitialiser les données de démo ? Les données actuelles seront remplacées.'))return;try{localStorage.removeItem(KEY);sessionStorage.removeItem(SKEY)}catch(e){}DB=blankDB();ME=null;S.sessionId=null;S.closeState=null;S.simulationState=null;calcCache={};seedThenRender();toast('Données de démo réinitialisées.','ok')};
-A['repair-demo-login']=async()=>{if(!DB.demoMode)return;if(!confirm('Réinitialiser les mots de passe des comptes de test ? Les classes, élèves et notes seront conservés. Admin : admin1234 ; professeurs : prof1234.'))return;let n=0;for(const u of DB.users){let pw='';if(u.username==='admin'&&u.role==='admin')pw='admin1234';else if(['pmballa','mfotso','injoya','skamga','ressomba'].includes(u.username))pw='prof1234';if(!pw)continue;u.salt=uid();u.hash=await hashPw(pw,u.salt);n++}if(!n){toast('Aucun compte de démonstration trouvé.','err');return}dirty();saveNow();render();toast('Accès de test réparé, données conservées.','ok')};
+A['repair-demo-login']=async()=>{if(!DB.demoMode)return;if(!confirm('Réinitialiser les mots de passe des comptes de test ? Les classes, élèves, notes et finances seront conservés. Admin : admin1234 ; professeurs : prof1234 ; surveillant : surv1234 ; économe : econ1234.'))return;let n=0;for(const u of DB.users){let pw='';if(u.username==='admin'&&u.role==='admin')pw='admin1234';else if(['pmballa','mfotso','injoya','skamga','ressomba'].includes(u.username))pw='prof1234';else if(u.username==='surv'&&u.role==='surv')pw='surv1234';else if(u.username==='econ'&&u.role==='econ')pw='econ1234';if(!pw)continue;u.salt=uid();u.hash=await hashPw(pw,u.salt);n++}if(!n){toast('Aucun compte de démonstration trouvé.','err');return}dirty();saveNow();render();toast('Accès de test réparé, données conservées.','ok')};
 A.wipe=()=>askConfirm('Tout effacer ?','Classes, élèves, notes et comptes seront supprimés de cet ordinateur. Cette action est définitive : exportez d’abord une sauvegarde si nécessaire.','Tout effacer',()=>{try{localStorage.removeItem(KEY);sessionStorage.removeItem(SKEY)}catch(e){}DB=blankDB();ME=null;S.sessionId=null;S.closeState=null;S.simulationState=null;calcCache={};S.view='dash';render()},true);
 
 const READ_ONLY_ACTIONS=new Set(['export-missing-notes','print-missing-notes','export-class-council','print-class-council','go','open-class','tab','trim','logout','session-view','session-current','sessions-cancel-close','simulation-cancel','preview','prev-b','print-all','print-one','print-results','export-csv','export-my-notes','pack-dl','honour-prev','honour-print','honour-dl','mclose','noop']);
@@ -3723,23 +4171,41 @@ document.addEventListener('submit',async e=>{
     const salt=uid();DB.school.name=fd.school.trim()||DB.school.name;
     const u={id:uid(),name:fd.name.trim(),username:un,phone:'',role:'admin',salt,hash:await hashPw(fd.pw,salt)};
     DB.users.push(u);dirty();saveNow();ME=u;try{sessionStorage.setItem(SKEY,u.id)}catch(x){}render();
-  }else if(kind==='login'||kind==='login-surv'){
+  }else if(kind==='login'||kind==='login-surv'||kind==='login-econ'){
     const u=DB.users.find(x=>x.username===fd.username.trim().toLowerCase());
     if(!u||!verifyPw(fd.pw,u.salt,u.hash))return err(DB.demoMode?'Identifiant ou mot de passe incorrect. Vérifiez admin / admin1234 ou utilisez « Réparer l’accès démo » sans effacer vos données.':'Identifiant ou mot de passe incorrect.');
-    if(kind==='login-surv'&&u.role!=='surv')return err('Ce compte n’est pas un compte de surveillant général. Utilisez l’espace Administration · Enseignants.');
+    if(kind==='login-surv'&&u.role!=='surv')return err('Ce compte n’est pas un compte de surveillant général. Choisissez l’onglet « Administration ».');
+    if(kind==='login-econ'&&u.role!=='econ')return err('Ce compte n’est pas un compte d’économe. Choisissez l’onglet « Administration ».');
+    if(kind==='login'&&u.role==='econ')return err('Ce compte est un compte d’économe. Choisissez l’onglet « Économe ».');
     ME=u;try{sessionStorage.setItem(SKEY,u.id)}catch(x){}S.sessionId=null;S.closeState=null;S.simulationState=null;
-    S.view=(u.role==='surv')?'discipline':'dash';S.classId=null;render();
+    S.view=(u.role==='surv')?'discipline':(u.role==='econ'?'fin':'dash');S.classId=null;S.studentId=null;render();
   }else if(kind==='pw'){
     if(!isAdmin())return err('Seul l’administrateur peut changer son mot de passe. Contactez-le pour toute modification.');
     if(!confirm('Changer le mot de passe ?'))return;
     if(!verifyPw(fd.old,ME.salt,ME.hash))return err('Le mot de passe actuel est incorrect.');
     ME.salt=uid();ME.hash=await hashPw(fd.new,ME.salt);dirty();render();toast('Mot de passe modifié.','ok');
+  }else if(kind==='fee'){
+    if(!canFinance())return err('Seuls l’économe et l’administrateur peuvent modifier les montants.');
+    const sid=f.dataset.id;if(!financeStudent(sid))return err('Élève introuvable.');
+    const raw=String(fd.amount==null?'':fd.amount).replace(/[^0-9.,]/g,'').replace(',','.');
+    if(raw===''||!Number.isFinite(Number(raw))||Number(raw)<0)return err('Saisissez un montant en FCFA (0 pour un élève exonéré).');
+    setFee(sid,raw);dirty();saveNow();closeModal();render();
+    toast('Montant à payer enregistré : '+money(feeOf(sid))+'.','ok');
+  }else if(kind==='pay'){
+    if(!canFinance())return err('Seuls l’économe et l’administrateur peuvent enregistrer les versements.');
+    const sid=f.dataset.id;if(!financeStudent(sid))return err('Élève introuvable.');
+    const raw=String(fd.amount==null?'':fd.amount).replace(/[^0-9.,]/g,'').replace(',','.'),amt=Number(raw);
+    if(!Number.isFinite(amt)||amt<=0)return err('Saisissez un montant supérieur à zéro.');
+    if(!fd.date)return err('Indiquez la date du versement.');
+    const p=addPayment(sid,{date:fd.date,amount:amt,mode:fd.mode,ref:fd.ref,note:fd.note});
+    dirty();saveNow();closeModal();render();
+    toast('Versement de '+money(p.amount)+' enregistré · reçu N° '+String(p.no).padStart(4,'0'),'ok');
   }else if(kind==='teacher'){if(!confirm('Enregistrer cet enseignant ?'))return;
     const un=fd.username.trim().toLowerCase();if(!/^[a-z0-9._-]{2,}$/.test(un))return err('Identifiant : lettres, chiffres, point ou tiret, sans espace.');
     const id=f.dataset.id;if(DB.users.some(u=>u.username===un&&u.id!==id))return err('Cet identifiant est déjà utilisé.');
     let u=id&&DB.users.find(x=>x.id===id);
     if(!u){u={id:uid(),role:'prof'};DB.users.push(u)}
-    u.role=(fd.role==='surv')?'surv':'prof';
+    u.role=(fd.role==='surv')?'surv':(fd.role==='econ'?'econ':'prof');
     u.name=fd.name.trim();u.username=un;u.phone=fd.phone.trim();
     if(fd.pw){u.salt=uid();u.hash=await hashPw(fd.pw,u.salt)}
     dirty();closeModal();render();
@@ -3805,7 +4271,7 @@ function handleFile(el){
     let d;try{d=JSON.parse(txt)}catch(e){return bad('Ce fichier n’est pas un fichier JSON valide.')}
     if(kind==='restore'){if(!confirm('Restaurer cette sauvegarde (les données actuelles seront remplacées) ?'))return;
       if(!d||!d.school||!Array.isArray(d.users)||!Array.isArray(d.classes)||!d.users.some(u=>u.role==='admin'))return bad('Ce fichier n’est pas une sauvegarde complète de cette application.');
-      DB=d;if(!Array.isArray(DB.archivedStudents))DB.archivedStudents=[];calcCache={};S.sessionId=null;S.closeState=null;S.simulationState=null;try{repairMatricules();upgradeLegacyMatricules()}catch(e){}saveNow();closeModal();ME=null;try{sessionStorage.removeItem(SKEY)}catch(e){}render();toast('Sauvegarde restaurée : connectez-vous.','ok');
+      DB=d;if(!Array.isArray(DB.archivedStudents))DB.archivedStudents=[];if(!DB.finance||typeof DB.finance!=='object')DB.finance={fees:{},pays:{},updatedAt:''};else{if(!DB.finance.fees||typeof DB.finance.fees!=='object')DB.finance.fees={};if(!DB.finance.pays||typeof DB.finance.pays!=='object')DB.finance.pays={}};calcCache={};S.sessionId=null;S.closeState=null;S.simulationState=null;try{repairMatricules();upgradeLegacyMatricules()}catch(e){}saveNow();closeModal();ME=null;try{sessionStorage.removeItem(SKEY)}catch(e){}render();toast('Sauvegarde restaurée : connectez-vous.','ok');
     }else if(kind==='merge'){if(!confirm('Fusionner les notes de ce fichier dans les classes correspondantes ?'))return;
       if(!d||d.type!=='mbi-notes'||!Array.isArray(d.classes))return bad('Ce fichier n’est pas un fichier de notes exporté par un enseignant.');
       let n=0,skipped=0;
@@ -3839,7 +4305,8 @@ async function seedDemoData(){
     await mkUser("ESSOMBA Robert", "ressomba", "prof1234", "teacher", "699 55 66 77"),
   ];
   const surv = await mkUser("TCHINDA Marc", "surv", "surv1234", "surv", "699 66 77 88");
-  DB.users = [admin, ...teachers, surv];
+  const econ = await mkUser("TCHOUA Bernadette", "econ", "econ1234", "econ", "699 77 88 99");
+  DB.users = [admin, ...teachers, surv, econ];
   DB.school.name = "Ming's Bilingual Institute";
   DB.school.city = "Douala";
   DB.school.year = schoolYear();
@@ -3963,6 +4430,36 @@ async function seedDemoData(){
         cls.remarks[s.id] = cls.remarks[s.id] || {};
         cls.remarks[s.id]['t1'] = "Élève sérieux, doit poursuivre ses efforts.";
         if(Math.random() < .5) cls.remarks[s.id]['t2'] = "Bons résultats, encouragements.";
+      }
+    }
+  }
+
+  /* Finances de demonstration : montant propre a chaque eleve, versements
+     libres (certains eleves soldes, d'autres partiels ou sans versement). */
+  DB.finance={fees:{},pays:{},updatedAt:new Date().toISOString()};
+  const feeBase={'6e':85000,'5e':90000,'4e':95000,'3e':100000,'2C':110000,'1D':115000,'TD':125000,'F1':120000};
+  const dfModes=['esp','mm','banque','cheque'];
+  let dfNo=1;
+  for(const cls of DB.classes){
+    const base=feeBase[cls.presetKey]||95000;
+    for(const st of cls.students){
+      const fee=base+[0,5000,10000,15000][Math.floor(Math.random()*4)];
+      DB.finance.fees[st.id]=fee;
+      const r=Math.random();
+      if(r<.18)continue;
+      const nPay=r<.5?1:(r<.8?2:3);
+      let left=fee;
+      for(let k=0;k<nPay;k++){
+        const last=k===nPay-1;
+        let amt=last?Math.round(left*(r>.8?1:.35+Math.random()*.4)/500)*500:Math.round(fee*(.25+Math.random()*.25)/500)*500;
+        amt=Math.min(left,Math.max(500,amt));
+        if(amt<=0)break;
+        const dd=new Date();dd.setDate(dd.getDate()-Math.floor(Math.random()*120));
+        const iso=dd.getFullYear()+'-'+String(dd.getMonth()+1).padStart(2,'0')+'-'+String(dd.getDate()).padStart(2,'0');
+        DB.finance.pays[st.id]=DB.finance.pays[st.id]||[];
+        DB.finance.pays[st.id].push({id:uid(),no:dfNo++,date:iso,amount:amt,mode:dfModes[Math.floor(Math.random()*dfModes.length)],
+          ref:'',note:'',by:econ.name,at:dd.toISOString()});
+        left-=amt;
       }
     }
   }
