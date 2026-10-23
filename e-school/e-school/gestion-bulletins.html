@@ -3287,7 +3287,16 @@ function schoolHtml(){
   '<div class="panel"><h3>Exemple et réinitialisation</h3><div class="toolbar"><button class="btn" data-act="demo">Ajouter une classe d’exemple (élèves fictifs)</button><button class="btn danger" data-act="wipe">Tout effacer</button></div></div>';
 }
 function accountHtml(){
-  return '<div class="page-h"><div><h1>Mon compte</h1><p>'+esc(ME.name)+' · identifiant « '+esc(ME.username)+' »</p></div></div>'+
+  const head='<div class="page-h"><div><h1>Mon compte</h1><p>'+esc(ME.name)+' · identifiant « '+esc(ME.username)+' »</p></div></div>';
+  /* Seul l'administrateur peut changer lui-meme son mot de passe. Les autres
+     espaces (professeurs, surveillant general, et tout role ajoute plus tard)
+     n'affichent pas le formulaire : la modification passe par l'administrateur. */
+  if(!isAdmin()){
+    return head+'<div class="panel" style="max-width:560px"><h3>Mot de passe</h3>'+
+      '<p style="margin-top:0">Le changement de mot de passe est réservé à l’administrateur de l’établissement. '+
+      'Votre identifiant reste <b>« '+esc(ME.username)+' »</b> : demandez-lui la modification si nécessaire.</p></div>';
+  }
+  return head+
   '<form class="panel" data-form="pw" style="max-width:460px"><h3>Changer mon mot de passe</h3><label class="f">Mot de passe actuel<input name="old" type="password" required></label><label class="f">Nouveau mot de passe<input name="new" type="password" minlength="4" required></label><div class="err" id="fe"></div><button class="btn primary">Enregistrer</button></form>';
 }
 
@@ -3720,7 +3729,9 @@ document.addEventListener('submit',async e=>{
     if(kind==='login-surv'&&u.role!=='surv')return err('Ce compte n’est pas un compte de surveillant général. Utilisez l’espace Administration · Enseignants.');
     ME=u;try{sessionStorage.setItem(SKEY,u.id)}catch(x){}S.sessionId=null;S.closeState=null;S.simulationState=null;
     S.view=(u.role==='surv')?'discipline':'dash';S.classId=null;render();
-  }else if(kind==='pw'){if(!confirm('Changer le mot de passe ?'))return;
+  }else if(kind==='pw'){
+    if(!isAdmin())return err('Seul l’administrateur peut changer son mot de passe. Contactez-le pour toute modification.');
+    if(!confirm('Changer le mot de passe ?'))return;
     if(!verifyPw(fd.old,ME.salt,ME.hash))return err('Le mot de passe actuel est incorrect.');
     ME.salt=uid();ME.hash=await hashPw(fd.new,ME.salt);dirty();render();toast('Mot de passe modifié.','ok');
   }else if(kind==='teacher'){if(!confirm('Enregistrer cet enseignant ?'))return;
