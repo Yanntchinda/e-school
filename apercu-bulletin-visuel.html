@@ -955,6 +955,35 @@ function missingNoteRows(t){
   }
   return rows;
 }
+/* Regroupement par classe des professeurs qui n'ont encore saisi AUCUNE note
+   dans cette classe au trimestre demande. Des qu'une seule note est saisie
+   par un professeur dans la classe, son nom disparait de la liste. */
+function missingStartRows(t){
+  const seqs=seqIdx(t),users=viewUsers(),out=[];
+  for(const cls of visibleClasses()){
+    if(!cls.students.length)continue;
+    const by=new Map();
+    for(const sub of cls.subjects){
+      const u=users.find(x=>x.id===sub.teacherId);
+      const key=u?u.id:('~'+(sub.teacherName||''));
+      let filled=0,missing=0;
+      for(const st of cls.students){
+        const g=getG(cls,st.id,sub.id);
+        for(const i of seqs){
+          const v=g?g[i]:null;
+          if(v==null||v==='')missing++;else filled++;
+        }
+      }
+      if(!filled&&!missing)continue;
+      if(!by.has(key))by.set(key,{name:u?u.name:(sub.teacherName||''),filled:0,missing:0});
+      const e=by.get(key);e.filled+=filled;e.missing+=missing;
+    }
+    const names=[...by.values()].filter(e=>e.missing>0&&e.filled===0).map(e=>e.name||'Aucun enseignant affecté');
+    if(names.length)out.push({cls:cls.name,names});
+  }
+  return out;
+}
+function missingStartTotal(rows){return rows.reduce((n,r)=>n+r.names.length,0)}
 function exportMissingNotes(t){
   const rows=missingNoteRows(t);
   const q=v=>'"'+String(v==null?'':v).replace(/"/g,'""')+'"';
@@ -1183,37 +1212,24 @@ function downloadBytes(name,bytes,mime){
 }
 /* ---------- Rapport « notes à compléter » imprimable (→ PDF par le navigateur) ---------- */
 function missingNotesReportHtml(t){
-  const rows=missingNoteRows(t),byTeacher=missingNoteSummary(rows);
-  const totMissing=rows.reduce((n,r)=>n+r.missing,0),totExpected=rows.reduce((n,r)=>n+r.expected,0);
+  const groups=missingStartRows(t),total=missingStartTotal(groups);
+  const anyMissing=missingNoteRows(t).length>0;
   const now=new Date();
   const stamp=now.toLocaleDateString('fr-FR')+' à '+now.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
   const esc2=s=>esc(s==null?'':s);
   let h='<section class="mn-sheet"><header class="mn-head"><div><h1>NOTES À COMPLÉTER</h1>'+
-    '<p class="mn-sub">Suivi de la saisie des notes — '+ordSup(t)+' trimestre</p></div>'+
+    '<p class="mn-sub">Classes et enseignants concernés — '+ordSup(t)+' trimestre</p></div>'+
     '<div class="mn-who"><b>'+esc2(DB.school.name)+'</b><span>Année scolaire '+esc(viewYear())+'</span>'+
     (DB.school.city?'<span>'+esc2(DB.school.city)+'</span>':'')+'</div></header>'+
-    '<p class="mn-meta">Édité le '+esc(stamp)+' · '+(rows.length?(rows.length+(rows.length>1?' matières à compléter':' matière à compléter')+' · '+totMissing+' note'+(totMissing>1?'s':'')+' manquante'+(totMissing>1?'s':'')+' sur '+totExpected):'Aucune matière à compléter')+'</p>';
-  if(!rows.length){
-    h+='<p class="mn-empty">Toutes les notes du '+ordSup(t)+' trimestre sont saisies. Aucune matière à compléter.</p></section>';
+    '<p class="mn-meta">Édité le '+esc(stamp)+' · '+(groups.length?(groups.length+(groups.length>1?' classes':' classe')+' · '+total+(total>1?' enseignants':' enseignant')):'aucune classe concernée')+'</p>';
+  if(!groups.length){
+    h+='<p class="mn-empty">'+(anyMissing?'Aucun professeur n’a zéro note : la saisie est commencée dans toutes les classes.':'Toutes les notes du '+ordSup(t)+' trimestre sont saisies.')+'</p></section>';
     return h;
   }
-  h+='<h2>1. Matières incomplètes</h2><table class="mn-t"><colgroup><col style="width:13%"><col style="width:24%"><col style="width:21%">'+
-    '<col style="width:9%"><col style="width:11%"><col style="width:10%"><col style="width:12%"></colgroup>'+
-    '<thead><tr><th>Classe</th><th>Matière</th><th>Enseignant</th><th class="n">Élèves</th><th class="n">Attendues</th><th class="n">Saisies</th><th class="n">Manquantes</th></tr></thead><tbody>';
-  for(const r of rows)h+='<tr><td><b>'+esc2(r.cls)+'</b></td><td>'+esc2(r.subject)+'</td><td>'+esc2(r.teacher||'Aucun enseignant affecté')+
-    '</td><td class="n">'+r.students+'</td><td class="n">'+r.expected+'</td><td class="n">'+r.filled+'</td><td class="n mn-miss">'+r.missing+'</td></tr>';
-  h+='</tbody></table><h2>2. Récapitulatif par enseignant</h2><table class="mn-t"><colgroup><col style="width:52%"><col style="width:14%">'+
-    '<col style="width:16%"><col style="width:18%"></colgroup><thead><tr><th>Enseignant</th><th class="n">Classes</th><th class="n">Matières</th>'+
-    '<th class="n">Notes manquantes</th></tr></thead><tbody>';
-  for(const [name,e] of [...byTeacher.entries()].sort((a,b)=>b[1].missing-a[1].missing))
-    h+='<tr><td><b>'+esc2(name)+'</b></td><td class="n">'+e.classes.size+'</td><td class="n">'+e.subjects+'</td><td class="n mn-miss">'+e.missing+'</td></tr>';
-  h+='</tbody></table><h2>3. Détail des élèves concernés</h2>';
-  for(const r of rows){
-    h+='<div class="mn-item"><p class="mn-it"><b>'+esc2(r.cls)+' · '+esc2(r.subject)+' · '+esc2(r.teacher||'Aucun enseignant affecté')+'</b>'+
-      '<span>'+r.studentsMissing.length+' élève'+(r.studentsMissing.length>1?'s':'')+' · '+r.missing+' note'+(r.missing>1?'s':'')+'</span></p>'+
-      '<p class="mn-names">'+r.studentsMissing.map(esc2).join(', ')+'</p></div>';
-  }
-  return h+'</section>';
+  h+='<h2>Classes et enseignants concernés</h2><table class="mn-t"><colgroup><col style="width:20%"><col style="width:80%"></colgroup>'+
+    '<thead><tr><th>Classe</th><th>Enseignants n’ayant encore saisi aucune note</th></tr></thead><tbody>';
+  for(const g of groups)h+='<tr><td><b>'+esc2(g.cls)+'</b></td><td>'+g.names.map(esc2).join(' · ')+'</td></tr>';
+  return h+'</tbody></table></section>';
 }
 /* Le rapport est imprimé par le navigateur : « Enregistrer au format PDF » donne
    un PDF identique à l'écran. (Le bouton principal, lui, écrit le PDF directement.) */
@@ -1225,11 +1241,9 @@ function printMissingNotes(t){
 }
 /* ---------- Rapport « notes à compléter » au format PDF (écriture directe) ---------- */
 function exportMissingNotesPdf(t){
-  const rows=missingNoteRows(t);
-  const navy=[0.039,0.098,0.184],gold=[0.788,0.635,0.153],grey=[0.42,0.46,0.53],ink=[0.09,0.12,0.18],red=[0.72,0.12,0.12];
-  const byTeacher=missingNoteSummary(rows);
-  const totMissing=rows.reduce((n,r)=>n+r.missing,0);
-  const totExpected=rows.reduce((n,r)=>n+r.expected,0);
+  const groups=missingStartRows(t),total=missingStartTotal(groups);
+  const anyMissing=missingNoteRows(t).length>0;
+  const navy=[0.039,0.098,0.184],gold=[0.788,0.635,0.153],grey=[0.42,0.46,0.53],ink=[0.09,0.12,0.18],green=[0.06,0.45,0.22];
   const doc=PdfDoc();const M=doc.M,cw=doc.cw;
   doc.newPage();
   /* --- en-tête --- */
@@ -1240,77 +1254,35 @@ function exportMissingNotesPdf(t){
   doc.y=M+62;
   doc.text('NOTES À COMPLÉTER',M,doc.y,20,'F2',navy);
   doc.y+=19;
-  doc.text('Suivi de la saisie des notes — '+TRN[t-1]+' trimestre',M,doc.y,10.5,'F1',grey);
+  doc.text('Classes et enseignants concernés — '+TRN[t-1]+' trimestre',M,doc.y,10.5,'F1',grey);
   doc.y+=19;
   const stamp='Édité le '+new Date().toLocaleDateString('fr-FR')+' à '+new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
   doc.text(stamp,M,doc.y,8,'F1',grey);
-  doc.textRight(rows.length?(rows.length>1?rows.length+' matières à compléter':rows.length+' matière à compléter'):'Aucune matière à compléter',doc.W-M,doc.y,8.5,'F2',rows.length?ink:[0.06,0.45,0.22]);
+  doc.textRight(groups.length?(groups.length+(groups.length>1?' classes':' classe')+' · '+total+(total>1?' enseignants':' enseignant')):'Aucune classe concernée',doc.W-M,doc.y,8.5,'F2',groups.length?ink:green);
   doc.y+=13;
-  doc.text(rows.length?(totMissing+' note'+(totMissing>1?'s':'')+' manquante'+(totMissing>1?'s':'')+' sur '+totExpected+' attendue'+(totExpected>1?'s':'')):'Toutes les notes attendues sont saisies',M,doc.y,8,'F1',grey);
+  doc.text(groups.length?'Professeurs n’ayant encore saisi aucune note dans la classe.':'Aucun professeur à relancer.',M,doc.y,8,'F1',grey);
   doc.y+=12;
   doc.hline(M,M+cw,doc.y,[0.85,0.88,0.92],0.6);
   doc.y+=20;
-  if(!rows.length){
-    doc.text('Toutes les notes du '+TRN[t-1]+' trimestre sont saisies.',M,doc.y,12,'F2',[0.06,0.45,0.22]);
+  if(!groups.length){
+    doc.text(anyMissing?'Aucun professeur n’a zéro note : la saisie est commencée dans toutes les classes.':'Toutes les notes du '+TRN[t-1]+' trimestre sont saisies.',M,doc.y,11.5,'F2',green);
     doc.y+=18;
-    doc.text('Aucune matière à compléter : vous pouvez clôturer la saisie.',M,doc.y,9,'F1',grey);
+    doc.text(anyMissing?'Les notes restantes se saisissent dans l’onglet Notes.':'Aucune matière à compléter : vous pouvez clôturer la saisie.',M,doc.y,9,'F1',grey);
   }else{
-    /* --- 1. matières incomplètes --- */
-    doc.text('1. Matières incomplètes',M,doc.y,11.5,'F2',navy);
+    doc.text('Classes et enseignants concernés',M,doc.y,11.5,'F2',navy);
     doc.y+=8;
     doc.hline(M,M+cw,doc.y,gold,1);
     doc.y+=10;
     const cols=[
-      {w:80,label:'Classe'},
-      {w:140,label:'Matière'},
-      {w:120,label:'Enseignant'},
-      {w:42,label:'Élèves',align:'right'},
-      {w:46,label:'Attendues',align:'right'},
-      {w:43,label:'Saisies',align:'right'},
-      {w:52,label:'Manquantes',align:'right',color:red}
+      {w:110,label:'Classe'},
+      {w:cw-110,label:'Enseignants n’ayant encore saisi aucune note'}
     ];
-    const tRows=rows.map(r=>[r.cls,r.subject,r.teacher||'Aucun enseignant affecté',r.students,r.expected,r.filled,r.missing]);
-    doc.table(cols,tRows,{size:7.8,boldCols:[0],zebra:true});
-    doc.y+=22;
-    /* --- 2. récapitulatif par enseignant --- */
-    doc.need(96);
-    doc.text('2. Récapitulatif par enseignant',M,doc.y,11.5,'F2',navy);
-    doc.y+=8;
-    doc.hline(M,M+cw,doc.y,gold,1);
-    doc.y+=10;
-    const tc=[
-      {w:263,label:'Enseignant'},
-      {w:70,label:'Classes',align:'right'},
-      {w:80,label:'Matières',align:'right'},
-      {w:110,label:'Notes manquantes',align:'right',color:red}
-    ];
-    const tRows2=[...byTeacher.entries()].sort((a,b)=>b[1].missing-a[1].missing)
-      .map(([name,e])=>[name,e.classes.size,e.subjects,e.missing]);
-    doc.table(tc,tRows2,{size:8,boldCols:[0],zebra:true});
-    doc.y+=22;
-    /* --- 3. détail des élèves concernés --- */
-    doc.need(60);
-    doc.text('3. Détail des élèves concernés',M,doc.y,11.5,'F2',navy);
-    doc.y+=8;
-    doc.hline(M,M+cw,doc.y,gold,1);
-    doc.y+=12;
-    for(const r of rows){
-      const head=r.cls+'  ·  '+r.subject+'  ·  '+(r.teacher||'Aucun enseignant affecté');
-      const lines=pdfWrapList(r.studentsMissing,8.4,cw-4,false);
-      const headLines=pdfWrap(head,8.8,cw-118,true).slice(0,2);
-      const need=headLines.length*11+lines.length*11+8;
-      if(doc.y+need>doc.H-M-18){doc.newPage()}
-      headLines.forEach((ln,k)=>{doc.text(ln,M,doc.y,8.8,'F2',navy);doc.y+=11});
-      doc.textRight(r.studentsMissing.length+' élève'+(r.studentsMissing.length>1?'s':'')+' · '+r.missing+' note'+(r.missing>1?'s':''),
-        doc.W-M,doc.y-headLines.length*11,8,'F2',red);
-      lines.forEach(ln=>{doc.text(ln,M,doc.y,8.4,'F1',ink);doc.y+=11});
-      doc.y+=6;
-      doc.hline(M,M+cw,doc.y-2,[0.9,0.92,0.95],0.4);
-    }
+    const tRows=groups.map(g=>[g.cls,g.names.join(' · ')]);
+    doc.table(cols,tRows,{size:9,boldCols:[0],zebra:true});
   }
   const name='notes_a_completer_'+viewYear().replace(/[^0-9]+/g,'-')+'_T'+t+'_'+new Date().toISOString().slice(0,10)+'.pdf';
   downloadBytes(name,doc.finish(),'application/pdf');
-  toast(rows.length?rows.length+' matière'+(rows.length>1?'s':'')+' à compléter — PDF téléchargé.':'Toutes les notes du '+TRN[t-1]+' trimestre sont saisies — PDF téléchargé.','ok');
+  toast(total?total+' enseignant'+(total>1?'s':'')+' à relancer — PDF téléchargé.':'Aucun professeur à relancer — PDF téléchargé.','ok');
 }
 
 const median=a=>{if(!a.length)return null;const s=[...a].sort((x,y)=>x-y),m=s.length>>1;return s.length%2?s[m]:(s[m-1]+s[m])/2};
@@ -2831,7 +2803,7 @@ function gradesTab(cls){
   const unassigned=isAdmin()?cls.subjects.filter(s=>!s.teacherId).length:0;
   let h='<div class="toolbar">'+(!isAdmin()?'<label class="chk"><input type="checkbox" data-chk="mine" '+(S.mine?'checked':'')+'> Afficher seulement mes matières</label>':'')+
    '<span class="small muted">Séquences '+seqs.map(i=>i+1).join(', ')+' · notes sur 20, virgule ou point · Entrée passe à l’élève suivant · vous pouvez coller une colonne copiée depuis Excel. Une matière sans aucune note n’est pas comptée, ni son coefficient ; 0 est une note.</span><span class="grow"></span>'+(isAdmin()
-     ?'<button class="btn primary" data-act="export-missing-notes" title="Télécharger un PDF avec la liste des matières et des professeurs qui n’ont pas terminé la saisie">Exporter les notes manquantes ('+missingNoteRows(t).length+') · PDF</button>'
+     ?'<button class="btn primary" data-act="export-missing-notes" title="Télécharger un PDF avec les classes et les noms des professeurs qui n’ont encore saisi aucune note">Exporter les notes manquantes ('+missingStartTotal(missingStartRows(t))+') · PDF</button>'
        +'<button class="btn sm" data-act="print-missing-notes" title="Aperçu imprimable du même rapport (le navigateur peut l’enregistrer en PDF)">Aperçu imprimable</button>'
      :(isReadOnlySession()?'':'<button class="btn" data-act="export-my-notes">Exporter mes notes (fichier)</button>'))+'</div>';
   if(isAdmin()&&!isReadOnlySession()){
