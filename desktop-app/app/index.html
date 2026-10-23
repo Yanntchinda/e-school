@@ -365,6 +365,21 @@ tr.row-focus td{background:#fff7d6!important;box-shadow:inset 0 0 0 999px rgba(2
 .spaces button{border:0;background:transparent;color:#cfd9e6;padding:5px 10px;border-radius:6px;cursor:pointer;font-weight:600;font-size:12.5px;white-space:nowrap}
 .spaces button.on{background:var(--green);color:#fff}
 .spaces button:hover{color:#fff}
+/* Espaces enseignants : chaque professeur ouvre son tableau de bord */
+.tspace-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
+.tcard{background:#fff;border:1px solid var(--line);border-radius:10px;padding:16px 18px;display:flex;flex-direction:column;gap:10px}
+.tcard-h{display:flex;align-items:center;gap:10px}
+.tcard-h .tav{width:32px;height:32px;border-radius:50%;background:var(--green);color:#fff;display:inline-flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex:0 0 auto}
+.tcard-h h3{margin:0;font-size:15.5px;line-height:1.25}
+.tcard-h .smt{display:block;font-size:12px;color:var(--muted);font-weight:500;margin-top:1px}
+.tcard .tstats{display:flex;gap:14px;flex-wrap:wrap;font-size:12.5px;color:var(--muted)}
+.tcard .tstats b{color:var(--ink)}
+.tcard .tb{display:flex;flex-wrap:wrap;gap:5px}
+.tcard .tacts{margin-top:auto;display:flex;gap:8px;flex-wrap:wrap}
+.preview-bar{background:#0f3a63;color:#dbe8f8;padding:9px 18px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-size:13.5px;border-bottom:1px solid #0b2c4c}
+.preview-bar b{color:#fff}
+.preview-bar .btn{margin-left:auto}
+@media (max-width:700px){.preview-bar .btn{margin-left:0}}
 .modal.pdf-modal{width:min(1000px,100%)}
 .pdf-top{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px;position:sticky;top:0;background:#e6eaf0;padding:2px 0 8px;z-index:3}
 .pdf-top .grow{flex:1}
@@ -566,10 +581,15 @@ table.t td.stu-cell{white-space:nowrap}
   body.no-print::after{content:'';display:block!important;height:60mm}
   body.no-print::before{content:'Impression réservée à l’administrateur.';display:block!important;font-size:16pt;text-align:center;padding:40mm 20mm 0;font-family:Arial,sans-serif}
 }
-@media (max-width:1100px){
-  .topbar{gap:10px}
+@media (max-width:1400px){
+  .topbar{gap:10px;padding:10px 14px}
+  .brand{font-size:16px}
   .spaces button{padding:5px 7px;font-size:11.5px}
   .tri button{padding:5px 8px;font-size:12px}
+  .me{gap:7px}
+}
+@media (max-width:1180px){
+  .topbar>.role{display:none}
 }
 @media (max-width:860px){
   .shell{grid-template-columns:1fr}
@@ -846,12 +866,15 @@ function verifyPw(pw,salt,stored){
   return sha256Hex(input)===stored||legacyHashPw(pw,salt)===stored;
 }
 let ME=null;
-const S={view:'dash',classId:null,tab:'eleves',trim:1,mine:true,sort:'name',sessionId:null,closeState:null,simulationState:null,loginRole:'staff',studentId:null};
+const S={view:'dash',classId:null,tab:'eleves',trim:1,mine:true,sort:'name',sessionId:null,closeState:null,simulationState:null,loginRole:'staff',studentId:null,asAdmin:null};
 const isAdmin=()=>ME&&ME.role==='admin';
 const isSurv=()=>ME&&ME.role==='surv';
 const isProf=()=>ME&&(ME.role==='prof'||ME.role==='teacher');
 const isEcon=()=>ME&&ME.role==='econ';
 const roleLabel=()=>isAdmin()?'Administrateur':isSurv()?'Surveillant général':isEcon()?'Économe':isProf()?'Professeur':'';
+/* Apercu d'un espace enseignant : ME devient le professeur, et l'identifiant
+   de l'administrateur est conserve pour revenir a l'administration. */
+const previewAdmin=()=>S.asAdmin?((DB.users||[]).find(u=>u.id===S.asAdmin)||null):null;
 /* Personnel enseignant (les anciennes donnees utilisent encore « teacher ») */
 const teachingUsers=()=>(DB.users||[]).filter(u=>u.role==='prof'||u.role==='teacher');
 const archivedSessions=()=>Array.isArray(DB.sessions)?DB.sessions:[];
@@ -2313,12 +2336,14 @@ function shellHtml(){
   return '<header class="topbar"><div class="brand"><span class="dot">M</span><span class="t">'+esc(viewSchool().name)+'</span></div>'+
    (isReadOnlySession()?'<span class="role">Consultation · '+esc(viewYear())+'</span>':'<span class="role">Session en cours · '+esc(viewYear())+'</span>')+
    (isAdmin()&&!isReadOnlySession()?'<div class="spaces" role="group" aria-label="Espaces">'+
-     '<button data-act="space" data-s="dash" class="'+(!(S.view==='discipline'||/^fin/.test(S.view))?'on':'')+'">Administration</button>'+
+     '<button data-act="space" data-s="dash" class="'+(!(S.view==='discipline'||S.view==='spaces-teachers'||/^fin/.test(S.view))?'on':'')+'">Administration</button>'+
+     '<button data-act="space" data-s="teachers" class="'+(S.view==='spaces-teachers'?'on':'')+'">Enseignants</button>'+
      '<button data-act="space" data-s="discipline" class="'+(S.view==='discipline'?'on':'')+'">Discipline</button>'+
      '<button data-act="space" data-s="fin" class="'+(/^fin/.test(S.view)?'on':'')+'">Finances</button>'+
    '</div>':'')+
    '<div class="tri" role="group" aria-label="Trimestre">'+[1,2,3].map(t=>'<button data-act="trim" data-t="'+t+'" class="'+(S.trim===t?'on':'')+'">'+ordSup(t)+' trimestre</button>').join('')+'</div>'+
-   '<div class="me"><span id="cloudBadge" class="badge ok" style="display:none;margin-right:8px">Sync</span><span>'+esc(ME.name)+' <span class="role">'+(isAdmin()?'Administrateur':'Professeur')+'</span></span><button class="btn sm" data-act="logout">Quitter</button></div></header>'+
+   '<div class="me"><span id="cloudBadge" class="badge ok" style="display:none;margin-right:8px">Sync</span><span>'+esc(ME.name)+' <span class="role">'+(isAdmin()?'Administrateur':'Professeur')+'</span></span><button class="btn sm" data-act="'+(S.asAdmin?'preview-exit':'logout')+'">'+(S.asAdmin?'Revenir':'Quitter')+'</button></div></header>'+
+   (S.asAdmin?'<div class="preview-bar"><span><b>Aperçu de l’espace enseignant</b> — vous voyez l’application comme <b>'+esc(ME.name)+'</b>.</span><button class="btn sm" data-act="preview-exit">Revenir à l’administration</button></div>':'')+
    sbandHtml()+
    '<div class="shell"><nav class="side" aria-label="Navigation">'+
    '<a class="nav '+(S.view==='dash'?'on':'')+'" data-act="go" data-v="dash">Tableau de bord</a>'+
@@ -2327,6 +2352,7 @@ function shellHtml(){
    (isAdmin()&&!isReadOnlySession()?'<a class="nav" data-act="new-class" style="color:var(--green-d)">+ Nouvelle classe</a>':'')+
    '<h4>Sessions</h4><a class="nav '+(S.view==='sessions'?'on':'')+'" data-act="go" data-v="sessions">Sessions</a>'+
    (isAdmin()&&!isReadOnlySession()?'<h4>Espaces</h4>'+
+     '<a class="nav '+(S.view==='spaces-teachers'?'on':'')+'" data-act="space" data-s="teachers">Enseignants</a>'+
      '<a class="nav '+(S.view==='discipline'?'on':'')+'" data-act="space" data-s="discipline">Discipline</a>'+
      '<a class="nav '+(/^fin/.test(S.view)?'on':'')+'" data-act="space" data-s="fin">Finances</a>':'')+
    '<h4>Administration</h4>'+
@@ -2483,6 +2509,7 @@ function mainHtml(){
   if(S.view==='simulate-year')return simulationHtml();
   if(S.view==='dash')return dashHtml();
   if(S.view==='class')return classHtml();
+  if(S.view==='spaces-teachers'&&isAdmin())return teachersSpaceHtml();
   if(S.view==='teachers'&&isAdmin())return teachersHtml();
   if(S.view==='school'&&isAdmin())return schoolHtml();
   if(S.view==='search')return searchHtml();
@@ -3297,6 +3324,54 @@ function paramsTab(cls){
 }
 
 /* ---------- Enseignants ---------- */
+/* ---------- Espaces enseignants : l'administrateur ouvre le tableau de bord
+   d'un professeur, exactement tel que ce professeur le voit. ---------- */
+function teacherAccountClasses(u){
+  return viewClasses().filter(c=>c.ppId===u.id||(c.subjects||[]).some(s=>s.teacherId===u.id));
+}
+function teacherSpaceCard(u){
+  const cl=teacherAccountClasses(u);
+  const subs=cl.reduce((n,c)=>n+(c.subjects||[]).filter(s=>s.teacherId===u.id).length,0);
+  const nb=cl.reduce((n,c)=>n+c.students.length,0);
+  const ini=String(u.name||'?').trim().split(/\s+/).map(w=>w[0]).slice(0,2).join('').toUpperCase();
+  return '<div class="tcard"><div class="tcard-h"><span class="tav">'+esc(ini)+'</span><div><h3>'+esc(u.name)+
+      '<span class="smt">@'+esc(u.username)+(u.phone?' · '+esc(u.phone):'')+'</span></h3></div></div>'+
+    '<div class="tstats"><span><b>'+cl.length+'</b> classe'+(cl.length>1?'s':'')+'</span>'+
+      '<span><b>'+subs+'</b> matière'+(subs>1?'s':'')+'</span>'+
+      '<span><b>'+nb+'</b> élève'+(nb>1?'s':'')+'</span></div>'+
+    '<div class="tb">'+(cl.length?cl.map(c=>'<span class="badge" title="'+esc((c.subjects||[]).filter(s=>s.teacherId===u.id).map(s=>s.name).join(', ')||'Professeur principal')+'">'+esc(c.name)+(c.ppId===u.id?' · PP':'')+'</span>').join(''):'<span class="small muted">Aucune classe attribuée</span>')+'</div>'+
+    '<div class="tacts"><button class="btn primary sm" data-act="preview-teacher" data-id="'+u.id+'">Ouvrir son espace</button></div></div>';
+}
+function teachersSpaceHtml(){
+  const ts=(DB.users||[]).filter(u=>u.role==='teacher'||u.role==='prof');
+  let h='<div class="page-h"><div><h1>Espaces enseignants</h1><p>Ouvrez le tableau de bord d’un professeur : ses classes, ses matières, ses leçons et ses notes, exactement comme il les voit — sans vous reconnecter.</p></div>'+
+    '<div class="toolbar"><button class="btn" data-act="go" data-v="teachers">Gérer les enseignants</button></div></div>';
+  if(!ts.length)return h+'<div class="panel empty"><h3>Aucun compte enseignant</h3><p>Créez un compte par professeur dans « Personnel », puis affectez ses matières dans les paramètres de chaque classe.</p><div class="toolbar"><button class="btn primary" data-act="go" data-v="teachers">Créer un enseignant</button></div></div>';
+  h+='<div class="tspace-grid">'+ts.map(teacherSpaceCard).join('')+'</div>';
+  h+='<div class="notice info">Vous pouvez naviguer et saisir comme ce professeur. Un bandeau en haut de l’écran vous rappelle l’espace ouvert et vous ramène à l’administration en un clic.</div>';
+  return h;
+}
+function startTeacherPreview(id){
+  if(!isAdmin()||isReadOnlySession())return;
+  const u=(DB.users||[]).find(x=>x.id===id&&(x.role==='teacher'||x.role==='prof'));
+  if(!u){toast('Compte enseignant introuvable.','err');return}
+  S.asAdmin=ME.id;
+  ME=u;
+  S.view='dash';S.classId=null;S.studentId=null;S.tab='eleves';S.mine=true;
+  S.closeState=null;S.simulationState=null;S.focusStudent=null;
+  render();
+  toast('Espace de '+u.name+' ouvert.','ok');
+}
+function exitTeacherPreview(){
+  if(!S.asAdmin)return;
+  const admin=previewAdmin();
+  S.asAdmin=null;
+  if(admin)ME=admin;
+  S.view='spaces-teachers';S.classId=null;S.studentId=null;
+  render();
+  if(!admin)toast('Compte administrateur introuvable : reconnectez-vous.','err');
+  else toast('Retour à l’espace administrateur.','ok');
+}
 function teachersHtml(){
   const ts=(DB.users||[]).filter(u=>u.role==='prof'||u.role==='teacher'||u.role==='surv'||u.role==='econ');
   let h='<div class="page-h"><div><h1>Personnel</h1><p>Chaque enseignant ne saisit que les notes de ses matières ; le surveillant général saisit la discipline (absences, retards, consignes) ; l’économe tient les finances (montants, versements et reçus de paiement).</p></div><button class="btn primary" data-act="add-teacher">Ajouter un compte</button></div>';
@@ -3895,7 +3970,7 @@ A['disc-clear']=el=>{
   if(cls.disc&&cls.disc[el.dataset.sid])delete cls.disc[el.dataset.sid]['t'+S.trim];
   dirty();render();toast('Ligne effacée.','ok');
 };
-A.logout=()=>{try{sessionStorage.removeItem(SKEY)}catch(e){}ME=null;S.sessionId=null;S.closeState=null;S.simulationState=null;S.view='dash';render()};
+A.logout=()=>{try{sessionStorage.removeItem(SKEY)}catch(e){}ME=null;S.asAdmin=null;S.sessionId=null;S.closeState=null;S.simulationState=null;S.view='dash';render()};
 A.mclose=closeModal;
 A['confirm-ok']=()=>{const f=confirmCb;confirmCb=null;closeModal();if(f)f()};
 A['new-class']=()=>{if(!confirm('Créer une nouvelle classe ?'))return;
@@ -3947,10 +4022,13 @@ A['space']=el=>{
   if(!isAdmin()||isReadOnlySession())return;
   const target=el.dataset.s;
   S.closeState=null;S.simulationState=null;S.focusStudent=null;
+  if(target==='teachers'){S.view='spaces-teachers';S.classId=null;S.studentId=null;render();return}
   if(target==='discipline'){S.view='discipline';if(!discClass())S.classId=null;render();return}
   if(target==='fin'){S.view='fin';S.classId=null;S.studentId=null;render();return}
   S.view='dash';S.classId=null;S.studentId=null;render();
 };
+A['preview-teacher']=el=>startTeacherPreview(el.dataset.id);
+A['preview-exit']=()=>exitTeacherPreview();
 A['print-all']=()=>{if(!isAdmin())return toast('Impression réservée à l’administrateur.','err');const cls=curClass(),t=S.trim;
   /* chaque bulletin est suivi du tableau d'honneur de l'eleve quand il en a un */
   printHtml([...cls.students].sort(cmpName).map(s=>bulletinHtml(cls,s.id,t)+honourHtml(cls,s.id,t)).join(''))};
@@ -4256,7 +4334,7 @@ document.addEventListener('submit',async e=>{
     /* Un seul formulaire pour tous les espaces : le compte ouvre toujours son
        propre tableau de bord, quel que soit l'onglet choisi. Les onglets ne
        sont qu'une aide visuelle, ils ne bloquent jamais la connexion. */
-    ME=u;try{sessionStorage.setItem(SKEY,u.id)}catch(x){}S.sessionId=null;S.closeState=null;S.simulationState=null;
+    ME=u;try{sessionStorage.setItem(SKEY,u.id)}catch(x){}S.asAdmin=null;S.sessionId=null;S.closeState=null;S.simulationState=null;
     S.view=(u.role==='surv')?'discipline':(u.role==='econ'?'fin':'dash');S.classId=null;S.studentId=null;render();
     const asked=kind==='login-surv'?'surveillance':(kind==='login-econ'?'économe':'administration');
     const own=u.role==='surv'?'surveillance':(u.role==='econ'?'économe':'administration');
