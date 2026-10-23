@@ -480,6 +480,25 @@ tr.row-focus td{background:#fff7d6!important;box-shadow:inset 0 0 0 999px rgba(2
 @media (max-width:1080px){#modalRoot .hon{zoom:.5}}
 .badge.gold{background:#fdf3d4;color:#8a5200}
 button.badge{border:0;cursor:pointer;font-family:inherit}
+.mn-sheet{width:190mm;margin:0 auto;background:#fff;color:#0b1220;font-size:9.6pt;line-height:1.45}
+.mn-sheet .mn-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10mm;border-bottom:.9mm solid #c9a227;padding-bottom:3mm}
+.mn-sheet h1{font-size:20pt;letter-spacing:-.02em;margin:0;color:#0a192f}
+.mn-sheet .mn-sub{margin:1mm 0 0;color:#475569;font-size:10.5pt}
+.mn-sheet .mn-who{text-align:right;font-size:9pt;color:#475569;line-height:1.35}
+.mn-sheet .mn-who b{display:block;color:#0a192f;font-size:10.5pt}
+.mn-sheet .mn-meta{margin:3mm 0 0;color:#475569;font-size:8.6pt}
+.mn-sheet h2{font-size:11.5pt;color:#0a192f;margin:7mm 0 0;padding-bottom:1.2mm;border-bottom:.5mm solid #c9a227}
+.mn-sheet .mn-t{width:100%;border-collapse:collapse;margin-top:2.5mm;font-size:8.8pt}
+.mn-sheet .mn-t th{background:#eef1f6;border-bottom:.35mm solid #b9c1cd;text-align:left;padding:1.6mm 2mm;font-size:8pt;text-transform:uppercase;letter-spacing:.02em;color:#0a192f}
+.mn-sheet .mn-t td{border-bottom:.2mm solid #e3e8ef;padding:1.5mm 2mm;vertical-align:top}
+.mn-sheet .mn-t tr:nth-child(even) td{background:#fafbfd}
+.mn-sheet .mn-t .n{text-align:right;white-space:nowrap}
+.mn-sheet .mn-miss{color:#b91c1c;font-weight:700}
+.mn-sheet .mn-item{margin-top:3.5mm;padding-bottom:2mm;border-bottom:.2mm solid #e3e8ef;break-inside:avoid;page-break-inside:avoid}
+.mn-sheet .mn-it{display:flex;justify-content:space-between;gap:6mm;margin:0 0 .8mm;font-size:9pt}
+.mn-sheet .mn-it span{color:#b91c1c;font-weight:700;white-space:nowrap}
+.mn-sheet .mn-names{margin:0;font-size:9pt}
+.mn-sheet .mn-empty{color:#15803d;font-weight:700;margin-top:6mm;font-size:11pt}
 button.badge:hover{filter:brightness(.96)}
 /* nom de l'eleve et, juste en dessous, la pastille du tableau d'honneur, alignes a gauche */
 .stu-name{display:flex;flex-direction:column;align-items:flex-start;text-align:left;line-height:1.25;gap:3px}
@@ -877,6 +896,15 @@ function completion(cls,t){
    de notes encore vides. Sert au bouton « Exporter les notes manquantes » de
    l'onglet Notes : l'administrateur voit d'un coup d'oeil quels professeurs
    n'ont pas termine la saisie. */
+function missingNoteSummary(rows){
+  const by=new Map();
+  for(const r of rows){
+    const k=r.teacher||'Aucun enseignant affecté';
+    if(!by.has(k))by.set(k,{classes:new Set(),subjects:0,missing:0});
+    const e=by.get(k);e.classes.add(r.cls);e.subjects++;e.missing+=r.missing;
+  }
+  return by;
+}
 function missingNoteRows(t){
   const seqs=seqIdx(t),users=viewUsers(),rows=[];
   for(const cls of visibleClasses()){
@@ -918,12 +946,7 @@ function exportMissingNotes(t){
       r.studentsMissing.length,r.studentsMissing.join(', ')]));
   }
   /* Recapitulatif par enseignant : ce que chacun doit encore saisir */
-  const byTeacher=new Map();
-  for(const r of rows){
-    const k=r.teacher||'Aucun enseignant affecté';
-    if(!byTeacher.has(k))byTeacher.set(k,{classes:new Set(),subjects:0,missing:0});
-    const e=byTeacher.get(k);e.classes.add(r.cls);e.subjects++;e.missing+=r.missing;
-  }
+  const byTeacher=missingNoteSummary(rows);
   if(byTeacher.size){
     out.push('');
     out.push(line(['Enseignants concernés','Classes','Matières','Notes manquantes']));
@@ -933,6 +956,336 @@ function exportMissingNotes(t){
   download(name,'\ufeff'+out.join('\r\n'),'text/csv;charset=utf-8');
   toast(rows.length?rows.length+' matière'+(rows.length>1?'s':'')+' à compléter — fichier exporté.':'Toutes les notes du '+TRN[t-1]+' trimestre sont saisies.','ok');
 }
+/* ---------- Génération PDF (aucune dépendance, fonctionne hors ligne) ----------
+   L'application est un fichier HTML autonome, sans accès réseau : plutôt que de
+   passer par la boîte d'impression du navigateur, on écrit directement la
+   structure d'un PDF (texte Helvetica + encodage WinAnsi) pour que les rapports
+   se téléchargent en .pdf, données comprises. */
+const PDFW={space:278,'!':278,'"':355,'#':556,$:556,'%':889,'&':667,"'":191,'(':333,')':333,'*':389,'+':584,',':278,'-':333,'.':278,'/':278,
+ '0':556,'1':556,'2':556,'3':556,'4':556,'5':556,'6':556,'7':556,'8':556,'9':556,':':278,';':278,'<':584,'=':584,'>':584,'?':556,'@':1015,
+ A:667,B:667,C:722,D:722,E:667,F:611,G:778,H:722,I:278,J:500,K:667,L:556,M:833,N:722,O:778,P:667,Q:778,R:722,S:667,T:611,U:722,V:667,W:944,X:667,Y:667,Z:611,
+ '[':278,'\\':278,']':278,'^':469,_:556,'`':333,
+ a:556,b:556,c:500,d:556,e:556,f:278,g:556,h:556,i:222,j:222,k:500,l:222,m:833,n:556,o:556,p:556,q:556,r:333,s:500,t:278,u:556,v:500,w:722,x:500,y:500,z:500,
+ '{':334,'|':260,'}':334,'~':584,'€':556,'’':191,'‘':191,'–':556,'—':1000,'…':1000,'•':350,'œ':944,'Œ':1000,'«':556,'»':556,'°':400};
+/* Largeur d'un texte en points (approximation Helvetica par caractère). */
+function pdfW(str,size,bold){
+  let u=0;
+  for(const ch of String(str==null?'':str)){const b=ch.normalize('NFD')[0];u+=PDFW[b]!==undefined?PDFW[b]:556}
+  return u/1000*size*(bold?1.045:1);
+}
+/* Coupe un texte trop large, avec des points de suspension. */
+function pdfCut(str,size,maxW,bold){
+  const s=String(str==null?'':str);
+  if(pdfW(s,size,bold)<=maxW)return s;
+  let out='';
+  for(const ch of s){
+    if(pdfW(out+ch+'…',size,bold)>maxW)break;
+    out+=ch;
+  }
+  return out.replace(/\s+$/,'')+'…';
+}
+/* Découpe un texte en lignes qui tiennent dans maxW (retour à la ligne par mots). */
+function pdfWrap(str,size,maxW,bold){
+  const words=String(str==null?'':str).split(/\s+/).filter(Boolean);
+  if(!words.length)return [''];
+  const lines=[];let cur='';
+  for(const w of words){
+    const t=cur?cur+' '+w:w;
+    if(pdfW(t,size,bold)<=maxW){cur=t}
+    else{
+      if(cur)lines.push(cur);
+      if(pdfW(w,size,bold)>maxW){
+        /* mot trop long (matricule, adresse) : on le coupe */
+        let rest=w;
+        while(pdfW(rest,size,bold)>maxW){
+          let piece='';
+          for(const ch of rest){if(pdfW(piece+ch,size,bold)>maxW)break;piece+=ch}
+          if(!piece)piece=rest[0];
+          lines.push(piece);rest=rest.slice(piece.length);
+        }
+        cur=rest;
+      }else cur=w;
+    }
+  }
+  if(cur)lines.push(cur);
+  return lines;
+}
+/* Comme pdfWrap, mais chaque élément (un nom) reste entier sur sa ligne. */
+function pdfWrapList(items,size,maxW,bold){
+  const lines=[];let cur='';
+  for(const raw of items){
+    const it=String(raw==null?'':raw);
+    const cand=cur?cur+', '+it:it;
+    if(pdfW(cand,size,bold)<=maxW){cur=cand;continue}
+    if(cur){lines.push(cur);cur=''}
+    if(pdfW(it,size,bold)<=maxW){cur=it}
+    else{
+      /* nom démesuré : on le coupe proprement */
+      let rest=it;
+      while(pdfW(rest,size,bold)>maxW){
+        let piece='';
+        for(const ch of rest){if(pdfW(piece+ch,size,bold)>maxW)break;piece+=ch}
+        if(!piece)piece=rest[0];
+        lines.push(piece);rest=rest.slice(piece.length);
+      }
+      cur=rest;
+    }
+  }
+  if(cur)lines.push(cur);
+  return lines;
+}
+/* Chaîne PDF : caractères WinAnsi (les accents français tiennent sur 1 octet). */
+function pdfLatin(str){
+  const map={0x20AC:0x80,0x201A:0x82,0x0192:0x83,0x201E:0x84,0x2026:0x85,0x2020:0x86,0x2021:0x87,0x02C6:0x88,
+    0x2030:0x89,0x0160:0x8A,0x2039:0x8B,0x0152:0x8C,0x017D:0x8E,0x2018:0x91,0x2019:0x92,0x201C:0x93,0x201D:0x94,
+    0x2022:0x95,0x2013:0x96,0x2014:0x97,0x02DC:0x98,0x2122:0x99,0x0161:0x9A,0x203A:0x9B,0x0153:0x9C,0x017E:0x9E,0x0178:0x9F};
+  let out='';
+  for(const ch of String(str==null?'':str)){
+    const c=ch.codePointAt(0);
+    if(c===10||c===13||c===9){out+=' ';continue}
+    if(c<32){continue}
+    if(map[c]!==undefined)out+=String.fromCharCode(map[c]);
+    else if(c<256)out+=String.fromCharCode(c);
+    else if(c<0x0100)out+=String.fromCharCode(c); /* latin étendu : approché */
+    else out+='?';
+  }
+  return out;
+}
+const pdfEsc=s=>pdfLatin(s).replace(/[\\()]/g,c=>'\\'+c);
+/* Assemble les objets PDF : polices Helvetica (F1 normale, F2 gras). */
+function buildPdfBytes(pages){
+  const objs=[];const put=(n,b)=>{objs[n]=b};
+  const pageNums=[],contentNums=[];let n=5;
+  pages.forEach(()=>{pageNums.push(n);contentNums.push(n+1);n+=2});
+  put(1,'<< /Type /Catalog /Pages 2 0 R >>');
+  put(2,'<< /Type /Pages /Kids ['+pageNums.map(x=>x+' 0 R').join(' ')+'] /Count '+pages.length+' >>');
+  put(3,'<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>');
+  put(4,'<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>');
+  pages.forEach((p,i)=>{
+    put(pageNums[i],'<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595.28 841.89] '+
+      '/Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents '+contentNums[i]+' 0 R >>');
+    put(contentNums[i],'<< /Length '+p.length+' >>\nstream\n'+p+'\nendstream');
+  });
+  let out='%PDF-1.4\n%\u00E2\u00E3\u00CF\u00D3\n';
+  const off=[];
+  for(let i=1;i<objs.length;i++){off[i]=out.length;out+=i+' 0 obj\n'+objs[i]+'\nendobj\n'}
+  const xref=out.length;
+  out+='xref\n0 '+objs.length+'\n0000000000 65535 f \n';
+  for(let i=1;i<objs.length;i++)out+=String(off[i]).padStart(10,'0')+' 00000 n \n';
+  out+='trailer\n<< /Size '+objs.length+' /Root 1 0 R >>\nstartxref\n'+xref+'\n%%EOF\n';
+  const bytes=new Uint8Array(out.length);
+  for(let i=0;i<out.length;i++)bytes[i]=out.charCodeAt(i)&255;
+  return bytes;
+}
+/* Petit moteur de mise en page A4 : texte, filets, tableaux paginés. */
+function PdfDoc(){
+  const d={pages:[],cur:'',y:0,W:595.28,H:841.89,M:36,has:false};
+  d.cw=d.W-2*d.M;
+  const put=s=>{d.cur+=s;d.has=true};
+  const PY=y=>d.H-y;                       /* y : distance depuis le haut */
+  d.text=(str,x,y,size,font,color)=>{
+    if(str==null||str==='')return;
+    const col=color||[0,0,0];
+    put('BT /'+(font||'F1')+' '+size+' Tf '+col.map(c=>c.toFixed(3)).join(' ')+' rg '+
+      x.toFixed(2)+' '+PY(y).toFixed(2)+' Td ('+pdfEsc(str)+') Tj ET\n');
+  };
+  d.textRight=(str,xr,y,size,font,color)=>d.text(str,xr-pdfW(str,size,font==='F2'),y,size,font,color);
+  d.rect=(x,y,w,h,fill,stroke,lw)=>{
+    if(fill)put(fill.map(c=>c.toFixed(3)).join(' ')+' rg '+x.toFixed(2)+' '+(PY(y+h)).toFixed(2)+' '+w.toFixed(2)+' '+h.toFixed(2)+' re f\n');
+    if(stroke)put(stroke.map(c=>c.toFixed(3)).join(' ')+' RG '+(lw||0.5)+' w '+x.toFixed(2)+' '+(PY(y+h)).toFixed(2)+' '+w.toFixed(2)+' '+h.toFixed(2)+' re S\n');
+  };
+  d.hline=(x1,x2,y,color,lw)=>put((color||[0,0,0]).map(c=>c.toFixed(3)).join(' ')+' RG '+(lw||0.5)+' w '+
+    x1.toFixed(2)+' '+PY(y).toFixed(2)+' m '+x2.toFixed(2)+' '+PY(y).toFixed(2)+' l S\n');
+  d.newPage=()=>{if(d.has)d.endPage();d.cur='';d.has=false;d.y=d.M};
+  d.endPage=()=>{
+    d.textRight('page __PAGE__/__NPAGES__',d.W-d.M,d.H-20,7.5,'F1',[0.45,0.5,0.58]);
+    d.pages.push(d.cur);d.cur='';d.has=false;
+  };
+  d.need=h=>{if(d.y+h>d.H-d.M-16){d.newPage();return true}return false};
+  /* Tableau : cols=[{w,label,align}] — rows = [[valeurs]] */
+  d.table=(cols,rows,opt)=>{
+    const o=opt||{},size=o.size||8,lh=size*1.28,pad=3.2,headH=15,headSize=o.headSize||7.4;
+    const drawHead=()=>{
+      if(o.headFill!==false)d.rect(d.M,d.y,d.cw,headH,[0.929,0.945,0.965],[0.72,0.76,0.82],0.5);
+      let x=d.M;
+      cols.forEach(c=>{
+        const label=c.label;
+        const lab=pdfCut(label,headSize,c.w-6,true);
+        d.text(lab, c.align==='right'?x+c.w-3-pdfW(lab,headSize,true):x+3,
+          d.y+10.4,headSize,'F2',[0.06,0.10,0.18]);
+        x+=c.w;
+      });
+      d.y+=headH;
+    };
+    d.need(headH+18);drawHead();
+    let z=0;
+    for(const r of rows){
+      const cells=r.map((v,i)=>pdfWrap(String(v==null?'':v),size,cols[i].w-6,false));
+      const maxL=Math.max.apply(null,cells.map(c=>c.length));
+      const h=Math.max(o.rowH||13,maxL*lh+pad*2);
+      if(d.y+h>d.H-d.M-18){d.newPage();drawHead()}
+      if(o.zebra!==false&&z%2===1)d.rect(d.M,d.y,d.cw,h,[0.975,0.98,0.99]);
+      let x=d.M;
+      r.forEach((v,i)=>{
+        const col=cols[i];const bold=o.boldCols&&o.boldCols.indexOf(i)>=0;
+        cells[i].forEach((ln,k)=>{
+          const tx=col.align==='right'?x+col.w-3-pdfW(ln,size,bold):x+3;
+          d.text(ln,tx,d.y+pad+(k+1)*lh-size*0.22,size,bold?'F2':'F1',col.color||[0.09,0.12,0.18]);
+        });
+        x+=col.w;
+      });
+      d.y+=h;
+      d.hline(d.M,d.M+d.cw,d.y,[0.85,0.88,0.92],0.4);
+      z++;
+    }
+  };
+  d.finish=()=>{
+    if(d.has)d.endPage();
+    if(!d.pages.length){d.cur='';d.has=true;d.endPage()}
+    const n=d.pages.length;
+    const pages=d.pages.map((p,i)=>p.replace(/__PAGE__/g,String(i+1)).replace(/__NPAGES__/g,String(n)));
+    return buildPdfBytes(pages);
+  };
+  return d;
+}
+function downloadBytes(name,bytes,mime){
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([bytes],{type:mime||'application/pdf'}));
+  a.download=name;document.body.appendChild(a);a.click();
+  setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},900);
+}
+/* ---------- Rapport « notes à compléter » imprimable (→ PDF par le navigateur) ---------- */
+function missingNotesReportHtml(t){
+  const rows=missingNoteRows(t),byTeacher=missingNoteSummary(rows);
+  const totMissing=rows.reduce((n,r)=>n+r.missing,0),totExpected=rows.reduce((n,r)=>n+r.expected,0);
+  const now=new Date();
+  const stamp=now.toLocaleDateString('fr-FR')+' à '+now.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
+  const esc2=s=>esc(s==null?'':s);
+  let h='<section class="mn-sheet"><header class="mn-head"><div><h1>NOTES À COMPLÉTER</h1>'+
+    '<p class="mn-sub">Suivi de la saisie des notes — '+ordSup(t)+' trimestre</p></div>'+
+    '<div class="mn-who"><b>'+esc2(DB.school.name)+'</b><span>Année scolaire '+esc(viewYear())+'</span>'+
+    (DB.school.city?'<span>'+esc2(DB.school.city)+'</span>':'')+'</div></header>'+
+    '<p class="mn-meta">Édité le '+esc(stamp)+' · '+(rows.length?(rows.length+(rows.length>1?' matières à compléter':' matière à compléter')+' · '+totMissing+' note'+(totMissing>1?'s':'')+' manquante'+(totMissing>1?'s':'')+' sur '+totExpected):'Aucune matière à compléter')+'</p>';
+  if(!rows.length){
+    h+='<p class="mn-empty">Toutes les notes du '+ordSup(t)+' trimestre sont saisies. Aucune matière à compléter.</p></section>';
+    return h;
+  }
+  h+='<h2>1. Matières incomplètes</h2><table class="mn-t"><colgroup><col style="width:13%"><col style="width:24%"><col style="width:21%">'+
+    '<col style="width:9%"><col style="width:11%"><col style="width:10%"><col style="width:12%"></colgroup>'+
+    '<thead><tr><th>Classe</th><th>Matière</th><th>Enseignant</th><th class="n">Élèves</th><th class="n">Attendues</th><th class="n">Saisies</th><th class="n">Manquantes</th></tr></thead><tbody>';
+  for(const r of rows)h+='<tr><td><b>'+esc2(r.cls)+'</b></td><td>'+esc2(r.subject)+'</td><td>'+esc2(r.teacher||'Aucun enseignant affecté')+
+    '</td><td class="n">'+r.students+'</td><td class="n">'+r.expected+'</td><td class="n">'+r.filled+'</td><td class="n mn-miss">'+r.missing+'</td></tr>';
+  h+='</tbody></table><h2>2. Récapitulatif par enseignant</h2><table class="mn-t"><colgroup><col style="width:52%"><col style="width:14%">'+
+    '<col style="width:16%"><col style="width:18%"></colgroup><thead><tr><th>Enseignant</th><th class="n">Classes</th><th class="n">Matières</th>'+
+    '<th class="n">Notes manquantes</th></tr></thead><tbody>';
+  for(const [name,e] of [...byTeacher.entries()].sort((a,b)=>b[1].missing-a[1].missing))
+    h+='<tr><td><b>'+esc2(name)+'</b></td><td class="n">'+e.classes.size+'</td><td class="n">'+e.subjects+'</td><td class="n mn-miss">'+e.missing+'</td></tr>';
+  h+='</tbody></table><h2>3. Détail des élèves concernés</h2>';
+  for(const r of rows){
+    h+='<div class="mn-item"><p class="mn-it"><b>'+esc2(r.cls)+' · '+esc2(r.subject)+' · '+esc2(r.teacher||'Aucun enseignant affecté')+'</b>'+
+      '<span>'+r.studentsMissing.length+' élève'+(r.studentsMissing.length>1?'s':'')+' · '+r.missing+' note'+(r.missing>1?'s':'')+'</span></p>'+
+      '<p class="mn-names">'+r.studentsMissing.map(esc2).join(', ')+'</p></div>';
+  }
+  return h+'</section>';
+}
+/* Le rapport est imprimé par le navigateur : « Enregistrer au format PDF » donne
+   un PDF identique à l'écran. (Le bouton principal, lui, écrit le PDF directement.) */
+function printMissingNotes(t){
+  const html=missingNotesReportHtml(t);
+  $('#printRoot').innerHTML=html;
+  document.body.classList.add('printing');
+  setTimeout(()=>{window.print()},180);
+}
+/* ---------- Rapport « notes à compléter » au format PDF (écriture directe) ---------- */
+function exportMissingNotesPdf(t){
+  const rows=missingNoteRows(t);
+  const navy=[0.039,0.098,0.184],gold=[0.788,0.635,0.153],grey=[0.42,0.46,0.53],ink=[0.09,0.12,0.18],red=[0.72,0.12,0.12];
+  const byTeacher=missingNoteSummary(rows);
+  const totMissing=rows.reduce((n,r)=>n+r.missing,0);
+  const totExpected=rows.reduce((n,r)=>n+r.expected,0);
+  const doc=PdfDoc();const M=doc.M,cw=doc.cw;
+  doc.newPage();
+  /* --- en-tête --- */
+  doc.text(DB.school.name,M,M+16,14,'F2',navy);
+  doc.textRight('Année scolaire '+viewYear(),doc.W-M,M+16,8.5,'F1',grey);
+  doc.textRight(DB.school.city||'',doc.W-M,M+27,8,'F1',grey);
+  doc.rect(M,M+32,cw,1.6,gold);
+  doc.y=M+62;
+  doc.text('NOTES À COMPLÉTER',M,doc.y,20,'F2',navy);
+  doc.y+=19;
+  doc.text('Suivi de la saisie des notes — '+TRN[t-1]+' trimestre',M,doc.y,10.5,'F1',grey);
+  doc.y+=19;
+  const stamp='Édité le '+new Date().toLocaleDateString('fr-FR')+' à '+new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
+  doc.text(stamp,M,doc.y,8,'F1',grey);
+  doc.textRight(rows.length?(rows.length>1?rows.length+' matières à compléter':rows.length+' matière à compléter'):'Aucune matière à compléter',doc.W-M,doc.y,8.5,'F2',rows.length?ink:[0.06,0.45,0.22]);
+  doc.y+=13;
+  doc.text(rows.length?(totMissing+' note'+(totMissing>1?'s':'')+' manquante'+(totMissing>1?'s':'')+' sur '+totExpected+' attendue'+(totExpected>1?'s':'')):'Toutes les notes attendues sont saisies',M,doc.y,8,'F1',grey);
+  doc.y+=12;
+  doc.hline(M,M+cw,doc.y,[0.85,0.88,0.92],0.6);
+  doc.y+=20;
+  if(!rows.length){
+    doc.text('Toutes les notes du '+TRN[t-1]+' trimestre sont saisies.',M,doc.y,12,'F2',[0.06,0.45,0.22]);
+    doc.y+=18;
+    doc.text('Aucune matière à compléter : vous pouvez clôturer la saisie.',M,doc.y,9,'F1',grey);
+  }else{
+    /* --- 1. matières incomplètes --- */
+    doc.text('1. Matières incomplètes',M,doc.y,11.5,'F2',navy);
+    doc.y+=8;
+    doc.hline(M,M+cw,doc.y,gold,1);
+    doc.y+=10;
+    const cols=[
+      {w:80,label:'Classe'},
+      {w:140,label:'Matière'},
+      {w:120,label:'Enseignant'},
+      {w:42,label:'Élèves',align:'right'},
+      {w:46,label:'Attendues',align:'right'},
+      {w:43,label:'Saisies',align:'right'},
+      {w:52,label:'Manquantes',align:'right',color:red}
+    ];
+    const tRows=rows.map(r=>[r.cls,r.subject,r.teacher||'Aucun enseignant affecté',r.students,r.expected,r.filled,r.missing]);
+    doc.table(cols,tRows,{size:7.8,boldCols:[0],zebra:true});
+    doc.y+=22;
+    /* --- 2. récapitulatif par enseignant --- */
+    doc.need(96);
+    doc.text('2. Récapitulatif par enseignant',M,doc.y,11.5,'F2',navy);
+    doc.y+=8;
+    doc.hline(M,M+cw,doc.y,gold,1);
+    doc.y+=10;
+    const tc=[
+      {w:263,label:'Enseignant'},
+      {w:70,label:'Classes',align:'right'},
+      {w:80,label:'Matières',align:'right'},
+      {w:110,label:'Notes manquantes',align:'right',color:red}
+    ];
+    const tRows2=[...byTeacher.entries()].sort((a,b)=>b[1].missing-a[1].missing)
+      .map(([name,e])=>[name,e.classes.size,e.subjects,e.missing]);
+    doc.table(tc,tRows2,{size:8,boldCols:[0],zebra:true});
+    doc.y+=22;
+    /* --- 3. détail des élèves concernés --- */
+    doc.need(60);
+    doc.text('3. Détail des élèves concernés',M,doc.y,11.5,'F2',navy);
+    doc.y+=8;
+    doc.hline(M,M+cw,doc.y,gold,1);
+    doc.y+=12;
+    for(const r of rows){
+      const head=r.cls+'  ·  '+r.subject+'  ·  '+(r.teacher||'Aucun enseignant affecté');
+      const lines=pdfWrapList(r.studentsMissing,8.4,cw-4,false);
+      const headLines=pdfWrap(head,8.8,cw-118,true).slice(0,2);
+      const need=headLines.length*11+lines.length*11+8;
+      if(doc.y+need>doc.H-M-18){doc.newPage()}
+      headLines.forEach((ln,k)=>{doc.text(ln,M,doc.y,8.8,'F2',navy);doc.y+=11});
+      doc.textRight(r.studentsMissing.length+' élève'+(r.studentsMissing.length>1?'s':'')+' · '+r.missing+' note'+(r.missing>1?'s':''),
+        doc.W-M,doc.y-headLines.length*11,8,'F2',red);
+      lines.forEach(ln=>{doc.text(ln,M,doc.y,8.4,'F1',ink);doc.y+=11});
+      doc.y+=6;
+      doc.hline(M,M+cw,doc.y-2,[0.9,0.92,0.95],0.4);
+    }
+  }
+  const name='notes_a_completer_'+viewYear().replace(/[^0-9]+/g,'-')+'_T'+t+'_'+new Date().toISOString().slice(0,10)+'.pdf';
+  downloadBytes(name,doc.finish(),'application/pdf');
+  toast(rows.length?rows.length+' matière'+(rows.length>1?'s':'')+' à compléter — PDF téléchargé.':'Toutes les notes du '+TRN[t-1]+' trimestre sont saisies — PDF téléchargé.','ok');
+}
+
 const median=a=>{if(!a.length)return null;const s=[...a].sort((x,y)=>x-y),m=s.length>>1;return s.length%2?s[m]:(s[m-1]+s[m])/2};
 const mean=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:null;
 function mention(a){return a==null?'':a>=16?'Très bien':a>=14?'Bien':a>=12?'Assez bien':a>=10?'Passable':'Insuffisant'}
@@ -2432,7 +2785,8 @@ function gradesTab(cls){
   const unassigned=isAdmin()?cls.subjects.filter(s=>!s.teacherId).length:0;
   let h='<div class="toolbar">'+(!isAdmin()?'<label class="chk"><input type="checkbox" data-chk="mine" '+(S.mine?'checked':'')+'> Afficher seulement mes matières</label>':'')+
    '<span class="small muted">Séquences '+seqs.map(i=>i+1).join(', ')+' · notes sur 20, virgule ou point · Entrée passe à l’élève suivant · vous pouvez coller une colonne copiée depuis Excel. Une matière sans aucune note n’est pas comptée, ni son coefficient ; 0 est une note.</span><span class="grow"></span>'+(isAdmin()
-     ?'<button class="btn primary" data-act="export-missing-notes">Exporter les notes manquantes ('+missingNoteRows(t).length+')</button>'
+     ?'<button class="btn primary" data-act="export-missing-notes" title="Télécharger un PDF avec la liste des matières et des professeurs qui n’ont pas terminé la saisie">Exporter les notes manquantes ('+missingNoteRows(t).length+') · PDF</button>'
+       +'<button class="btn sm" data-act="print-missing-notes" title="Aperçu imprimable du même rapport (le navigateur peut l’enregistrer en PDF)">Aperçu imprimable</button>'
      :(isReadOnlySession()?'':'<button class="btn" data-act="export-my-notes">Exporter mes notes (fichier)</button>'))+'</div>';
   if(isAdmin()&&!isReadOnlySession()){
     h+='<div class="toolbar"><span class="small muted" style="font-weight:600">Verrouillage de la saisie :</span>'+
@@ -2846,7 +3200,8 @@ A.preview=el=>openPreview(el.dataset.id);
 A['prev-b']=el=>{if(el.dataset.id)openPreview(el.dataset.id)};
 A['print-results']=()=>{if(!isAdmin())return toast('Impression réservée à l’administrateur.','err');printHtml(resultsSheet(curClass(),S.trim))};
 A['export-csv']=()=>exportCsv(curClass(),S.trim);
-A['export-missing-notes']=()=>exportMissingNotes(S.trim);
+A['export-missing-notes']=()=>exportMissingNotesPdf(S.trim);
+A['print-missing-notes']=()=>printMissingNotes(S.trim);
 A['cloud-retry']=async()=>{
   const ok=await Cloud.connect();
   if(ok)await Cloud.pull(true);
@@ -2963,7 +3318,7 @@ A['reset-demo']=()=>{if(!confirm('Réinitialiser les données de démo ? Les don
 A['repair-demo-login']=async()=>{if(!DB.demoMode)return;if(!confirm('Réinitialiser les mots de passe des comptes de test ? Les classes, élèves et notes seront conservés. Admin : admin1234 ; professeurs : prof1234.'))return;let n=0;for(const u of DB.users){let pw='';if(u.username==='admin'&&u.role==='admin')pw='admin1234';else if(['pmballa','mfotso','injoya','skamga','ressomba'].includes(u.username))pw='prof1234';if(!pw)continue;u.salt=uid();u.hash=await hashPw(pw,u.salt);n++}if(!n){toast('Aucun compte de démonstration trouvé.','err');return}dirty();saveNow();render();toast('Accès de test réparé, données conservées.','ok')};
 A.wipe=()=>askConfirm('Tout effacer ?','Classes, élèves, notes et comptes seront supprimés de cet ordinateur. Cette action est définitive : exportez d’abord une sauvegarde si nécessaire.','Tout effacer',()=>{try{localStorage.removeItem(KEY);sessionStorage.removeItem(SKEY)}catch(e){}DB=blankDB();ME=null;S.sessionId=null;S.closeState=null;S.simulationState=null;calcCache={};S.view='dash';render()},true);
 
-const READ_ONLY_ACTIONS=new Set(['export-missing-notes','go','open-class','tab','trim','logout','session-view','session-current','sessions-cancel-close','simulation-cancel','preview','prev-b','print-all','print-one','print-results','export-csv','export-my-notes','pack-dl','honour-prev','honour-print','honour-dl','mclose','noop']);
+const READ_ONLY_ACTIONS=new Set(['export-missing-notes','print-missing-notes','go','open-class','tab','trim','logout','session-view','session-current','sessions-cancel-close','simulation-cancel','preview','prev-b','print-all','print-one','print-results','export-csv','export-my-notes','pack-dl','honour-prev','honour-print','honour-dl','mclose','noop']);
 document.addEventListener('click',e=>{
   const bd=e.target.closest('[data-bd]');if(bd&&e.target===bd){closeModal();return}
   const el=e.target.closest('[data-act]');if(!el)return;
