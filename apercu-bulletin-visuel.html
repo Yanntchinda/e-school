@@ -274,11 +274,12 @@ td.sumc{font-weight:700;min-width:64px;padding:0 8px;background:#fcfcf6}
 .bulletin .b-bottom-t .mtn .chk{vertical-align:-.6mm}
 /* Avertissement et Blâme : libelle et traduction alignes a gauche, case a cocher
    poussee contre le bord droit de la cellule. */
-.bulletin .b-bottom-t td.mtn-split{text-align:left}
-.bulletin .b-bottom-t .mtn-split .mtn{display:flex;align-items:center;justify-content:space-between;gap:2mm;width:100%;text-align:left}
-.bulletin .b-bottom-t .mtn-split .mtn-t{display:block;min-width:0}
-.bulletin .b-bottom-t .mtn-split .mtn-t i{display:block;text-align:left}
-.bulletin .b-bottom-t .mtn-split .chk{flex:none;margin-left:auto}
+.bulletin .b-bottom-t td.mtn-left{text-align:left;vertical-align:top}
+.bulletin .b-bottom-t .mtn-left .mtn{display:flex;align-items:flex-start;justify-content:space-between;gap:1.6mm;width:100%;
+  text-align:left;line-height:1.1}
+.bulletin .b-bottom-t .mtn-left .mtn-t{display:block;min-width:0}
+.bulletin .b-bottom-t .mtn-left .mtn-t i{display:block;text-align:left;font-size:7.8pt;color:#333}
+.bulletin .b-bottom-t .mtn-left .chk{flex:none;margin:.55mm 0 0 1.2mm}
 .bulletin .b-bottom-t .val{display:block;width:100%;font-weight:700;font-size:10.6pt;text-align:center;min-height:4.4mm;padding:.15mm 0;color:#1a2fb5;line-height:1.12}
 .bulletin .b-bottom-t .row-h{height:9.6mm}
 .bulletin .b-bottom-t .appr>td{height:25mm;vertical-align:top}
@@ -1550,7 +1551,7 @@ function bBottomHtml(cls,st,res,P,t,ann,remark,pp,sc){
     /* --- 3e trimestre : 7 lignes, la colonne Decision recoit 3 cases de plus --- */
     '<tr class="row-t3">'+
       '<td class="lbl" rowspan="2">Abs. non. J. (h)'+v(dv('absNJ'))+'</td>'+
-      '<td class="lbl mtn-cell mtn-split" rowspan="2"><span class="mtn"><span class="mtn-t">Avertissement de conduite<i>Conduct warning</i></span>'+chkOn(dOn.a)+'</span></td>'+
+      '<td class="lbl mtn-left" rowspan="2"><span class="mtn"><span class="mtn-t">Avertissement de conduite<i>Conduct warning</i></span>'+chkOn(dOn.a)+'</span></td>'+
       '<td class="lbl center" rowspan="2"><b>Total général</b>'+v(num(P.cs?fmt(P.pts):'&nbsp;'))+'</td>'+
       '<td class="lbl center dcc"><b>Décision du conseil de classe</b><i>Class council decision</i></td>'+
       '<td class="lbl" rowspan="2">Moyenne Générale / General Average'+v(pAvg==null?'&nbsp;':fmt1(pAvg))+'</td>'+
@@ -1560,7 +1561,7 @@ function bBottomHtml(cls,st,res,P,t,ann,remark,pp,sc){
     '</tr>'+
     '<tr class="row-t3">'+
       '<td class="lbl" rowspan="2">Abs. just. (h)'+v(dv('absJ'))+'</td>'+
-      '<td class="lbl mtn-cell mtn-split" rowspan="2"><span class="mtn"><span class="mtn-t">Blâme de cond.<i>Conduct reprimand</i></span>'+chkOn(dOn.b)+'</span></td>'+
+      '<td class="lbl mtn-left" rowspan="2"><span class="mtn"><span class="mtn-t">Blâme de cond.<i>Conduct reprimand</i></span>'+chkOn(dOn.b)+'</span></td>'+
       '<td class="lbl center" rowspan="2"><b>Coef.</b>'+v(num(P.cs||''))+'</td>'+
       '<td class="lbl center mtn-cell"><span class="mtn">Félicitations'+chkOn(mOn.f)+'</span></td>'+
       '<td class="lbl center" rowspan="2">[ Min - Max ]'+v(pMn==null?'&nbsp;':fmt1(pMn)+' – '+fmt1(pMx))+'</td>'+
@@ -1592,14 +1593,14 @@ function bBottomHtml(cls,st,res,P,t,ann,remark,pp,sc){
     /* --- 1er et 2e trimestres : bloc inchange --- */
     '<tr class="row-h">'+
       '<td class="lbl">Abs. non. J. (h)'+v(dv('absNJ'))+'</td>'+
-      '<td class="lbl mtn-cell mtn-split"><span class="mtn"><span class="mtn-t">Avertissement de conduite<i>Conduct warning</i></span>'+chkOn(dOn.a)+'</span></td>'+
+      '<td class="lbl mtn-left"><span class="mtn"><span class="mtn-t">Avertissement de conduite<i>Conduct warning</i></span>'+chkOn(dOn.a)+'</span></td>'+
       '<td class="lbl center"><b>Total général</b>'+v(num(P.cs?fmt(P.pts):'&nbsp;'))+'</td>'+
       '<td class="lbl center dcc"><b>Décision du conseil de classe</b><i>Class council decision</i></td>'+
       '<td class="lbl">Moyenne Générale / General Average'+v(pAvg==null?'&nbsp;':fmt1(pAvg))+'</td>'+
     '</tr>'+
     '<tr class="row-h">'+
       '<td class="lbl">Abs. just. (h)'+v(dv('absJ'))+'</td>'+
-      '<td class="lbl mtn-cell mtn-split"><span class="mtn"><span class="mtn-t">Blâme de cond.<i>Conduct reprimand</i></span>'+chkOn(dOn.b)+'</span></td>'+
+      '<td class="lbl mtn-left"><span class="mtn"><span class="mtn-t">Blâme de cond.<i>Conduct reprimand</i></span>'+chkOn(dOn.b)+'</span></td>'+
       '<td class="lbl center"><b>Coef.</b>'+v(num(P.cs||''))+'</td>'+
       '<td class="lbl center mtn-cell"><span class="mtn">Tableau d’honneur'+chkOn(mOn.h)+'</span></td>'+
       '<td class="lbl center">[ Min - Max ]'+v(pMn==null?'&nbsp;':fmt1(pMn)+' – '+fmt1(pMx))+'</td>'+
