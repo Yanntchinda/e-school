@@ -234,12 +234,11 @@ td.sumc{font-weight:700;min-width:64px;padding:0 8px;background:#fcfcf6}
 .bulletin .b-line{flex-wrap:nowrap;min-width:0}
 .bulletin .b-line .val{min-width:0}
 .bulletin table.b-table{width:100%;border-collapse:collapse;margin-top:1.6mm;table-layout:fixed}
-.bulletin .b-table th,.bulletin .b-table td{border:1px solid #000;padding:.85mm 1.4mm;font-size:10pt;text-align:center;overflow:hidden}
+.bulletin .b-table th,.bulletin .b-table td{border:1px solid #000;padding:1.1mm 1.4mm;font-size:10pt;text-align:center;overflow:hidden}
 .bulletin .b-table th{font-weight:700;font-size:10pt}
 .bulletin .b-table td.mt{text-align:left;white-space:normal}
 .bulletin .b-table td.mt .sub-teacher{font-size:8.5pt;font-weight:400;white-space:normal}
-.bulletin .b-table td.mt{line-height:1.08}
-.bulletin .b-table td.mt .sub-en{font-size:8pt;font-weight:400;font-style:italic;white-space:normal}
+.bulletin .b-table th .th-en{font-size:8pt;font-weight:600;letter-spacing:.01em}
 .bulletin sup,.b-bottom sup,.b-year sup,.b-legend sup,.hon sup{font-size:.72em;line-height:0;vertical-align:super;font-weight:600}
 .bulletin .b-table td.m{color:#c00000;font-weight:700}
 .bulletin .b-table th:last-child,.bulletin .b-table td.ob{text-align:left;padding-left:2mm}
@@ -542,35 +541,8 @@ const ordSup=n=>String(n)+'<sup>'+(n===1?'er':'e')+'</sup>';
 const ordEn=n=>String(n)+'<sup>'+['st','nd','rd'][n-1]+'</sup>';
 const ordTxtEn=n=>['1st','2nd','3rd'][n-1];
 /* Rang affiche : « 1er », « 2e ex » (ex = ex aequo), suffixe en exposant. */
-const rankHtml=r=>r?(ordSup(r.r)+(r.tie?'&nbsp;<sup>ex</sup>':'')):'';
+const rankHtml=r=>r?(ordSup(r.r)+(r.tie?' ex':'')):'';
 
-/* ---------- Traduction anglaise des intitulés de matières ----------
-   Les bulletins sont bilingues : chaque matiere s'ecrit « FRANÇAIS / French ».
-   La correspondance ignore la casse et les accents, pour couvrir les
-   matieres saisies a la main aussi bien que celles des modeles. */
-const normSubTxt=s=>String(s==null?'':s).toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim();
-const SUB_EN={
- 'DICTEE':'Dictation','ETUDE DE TEXTE':'Text study','REDACTION':'Essay writing',
- 'ANGLAIS':'English','ALLEMAND':'German','ESPAGNOL':'Spanish','ECM':'Citizenship',
- 'HISTOIRE':'History','GEOGRAPHIE':'Geography','MATHEMATIQUES':'Mathematics',
- 'INFORMATIQUE':'Computer science','SVTEEHB/PCT':'Biology & Physics-Chemistry',
- 'SVTEEHB':'Biology','SVTEEHB PRATIQUE':'Practical biology','PCT':'Physics-Chemistry',
- 'PHYSIQUE':'Physics','PHYSIQUE PRATIQUE':'Practical physics','CHIMIE':'Chemistry',
- 'CHIMIE PRATIQUE':'Practical chemistry','EPS':'Physical education',
- 'ESF/TM':'Home economics & Manual work','LV II':'Second foreign language',
- 'LANGUE FRANCAISE':'French language','LITTERATURE FRANCAISE':'French literature',
- 'PHILOSOPHIE':'Philosophy','HISTOIRE/GEOGRAPHIE':'History & Geography',
- 'BIOLOGY':'Biology','CHEMISTRY':'Chemistry','CITIZENSHIP':'Citizenship',
- 'COMPUTER':'Computer science','ENGLISH':'English','FRENCH':'French',
- 'GEOGRAPHY':'Geography','HISTORY':'History','LITERATURE':'Literature',
- 'MATHEMATICS':'Mathematics','PHYSICS':'Physics'
-};
-/* Libelle bilingue d'une matiere, pret a inserer dans le document. */
-function subLabel(name,lang){
-  const raw=String(name==null?'':name),en=SUB_EN[normSubTxt(raw)];
-  if((lang||'fr')==='en'||!en||en.toUpperCase()===normSubTxt(raw))return esc(raw);
-  return esc(raw)+' <span class="sub-en">/ '+esc(en)+'</span>';
-}
 const uid=()=>Math.random().toString(36).slice(2,9)+Date.now().toString(36).slice(-4);
 let matCounter=0;
 /* ---------- Matricules : uniques, longs et definitifs ----------
@@ -704,7 +676,7 @@ const PRESETS=[
  {key:'X',label:'Classe personnalisée (vierge)',lang:'fr',subs:()=>[P('MATIÈRE 1',1),P('MATIÈRE 2',1)]}
 ];
 const LB={
- fr:{title:()=>'BULLETIN DE NOTES',sub:'REPORT CARD',year:'Année scolaire',cls:'Classe',name:'Nom',pp:'Prof. Principal',cel:'Cel',sex:'Sexe',statut:'Statut',sexM:'Masculin',sexF:'Féminin',stOld:'Ancien',stNew:'Nouveau',stOldNew:'Ancien nouveau',subject:'MATIERE',n1:t=>'N'+((t-1)*2+1)+'/20',n2:t=>'N'+((t-1)*2+2)+'/20',m:'M/20',coef:'COEF',pts:'N X COEF',rank:'RANG',obs:'OBSERVATION',total:'TOTAL',
+ fr:{title:()=>'BULLETIN DE NOTES',sub:'REPORT CARD',year:'Année scolaire',cls:'Classe',name:'Nom',pp:'Prof. Principal',cel:'Cel',sex:'Sexe',statut:'Statut',sexM:'Masculin',sexF:'Féminin',stOld:'Ancien',stNew:'Nouveau',stOldNew:'Ancien nouveau',subject:'MATIÈRES <span class="th-en">/ SUBJECTS</span>',n1:t=>'N'+((t-1)*2+1)+'/20',n2:t=>'N'+((t-1)*2+2)+'/20',m:'M/20',coef:'COEF',pts:'N X COEF',rank:'RANG',obs:'OBSERVATION',total:'TOTAL',
   legend:"NON ACQUIS (N A) ; EN COURS D'ACQUISITION (E C A) ; ACQUIS (A) ; PLUS QUE ACQUIS (A+)",avgT:'Moyenne trimestrielle',rankL:'Rang',avgG:'Moyenne générale',prev:n=>'Moyenne TRI '+n,annual:'Moyenne annuelle',at:'le',principal:'Le Principal',grp:'MOYENNE ',tr:t=>ordSup(t)+' Trimestre',order:['n1','n2','m','coef','pts'],totalAvg:true},
  en:{title:t=>['1st','2nd','3rd'][t-1]+' TRIMESTRIAL MARK SHEET',sub:'BULLETIN DE NOTES',year:'School academic year',cls:'Class',name:'Name and surname',pp:'Class Master',cel:'Tel',sex:'Sex',statut:'Status',sexM:'Male',sexF:'Female',stOld:'Old',stNew:'New',stOldNew:'Old-new',subject:'SUBJECT',n1:t=>'M'+((t-1)*2+1)+'/20',n2:t=>'M'+((t-1)*2+2)+'/20',m:'A/20',coef:'COEF',pts:'A X COEF',rank:'RANK',obs:'OBSERVATIONS',total:'TOTAL',
   legend:'N A = Not acquired ; E C A = Being acquired ; A = Acquired ; A+ = More than acquired',avgT:'Average/20',rankL:'RANK',avgG:'Class average',prev:n=>'Average TRI '+n,annual:'Annual average',at:'at',principal:'The Principal',grp:'AVERAGE ',tr:t=>ordEn(t)+' Term',order:['n1','n2','coef','m','pts'],totalAvg:true}
@@ -1314,7 +1286,7 @@ function bulletinHtml(cls,sid,t){
       const cell={n1:fmt(r.n1),n2:fmt(r.n2),m:fmt(r.m),
         coef:(r.coef==null?'':fmt(r.coef,r.coef%1?1:0)),
         pts:fmt(r.pts)};
-      const teacher=viewUsers().find(u=>u.id===r.sub.teacherId);b+='<tr><td class="mt"><span>'+subLabel(r.sub.name,cls.lang||'fr')+'</span>'+(teacher?' <span class="sub-teacher">/&nbsp;&nbsp;'+esc(teacher.name)+'</span>':'')+'</td>'+order.map(k=>{
+      const teacher=viewUsers().find(u=>u.id===r.sub.teacherId);b+='<tr><td class="mt"><span>'+esc(r.sub.name)+'</span>'+(teacher?' <span class="sub-teacher">/&nbsp;&nbsp;'+esc(teacher.name)+'</span>':'')+'</td>'+order.map(k=>{
         const val=k==='n1'?r.n1:k==='n2'?r.n2:k==='m'?r.m:null;
         let style='';
         if(k==='m')style='font-weight:700;';
@@ -2519,7 +2491,7 @@ function statsTab(cls){
    '<div class="panel"><h3>Évolution de la moyenne de classe</h3><div class="hist">'+D.evo.map((a,i)=>'<div class="hr"><span>'+ordSup(i+1)+' trim.</span><div class="hb"><i style="width:'+(a==null?0:a/20*100)+'%"></i></div><b style="width:auto;color:'+(a!=null&&a<10?'var(--red)':'inherit')+'">'+(a==null?'—':fmt(a))+'</b></div>').join('')+'</div>'+
    (D.bySex.some(x=>x.n)?'<h3 style="margin-top:18px">Filles et garçons</h3><table class="t"><thead><tr><th></th><th class="num">Effectif</th><th class="num">Moyenne</th><th class="num">Réussite</th></tr></thead><tbody>'+D.bySex.map(x=>'<tr><td>'+(x.k==='M'?'Garçons':'Filles')+'</td><td class="num">'+x.n+'</td><td class="num"><span style="color:'+(x.avg!=null&&x.avg<10?'var(--red)':'inherit')+';font-weight:700">'+fmt1(x.avg)+'</span></td><td class="num">'+(x.pass==null?'—':Math.round(x.pass*100)+' %')+'</td></tr>').join('')+'</tbody></table>':'')+'</div></div>';
   h+='<div class="panel"><h3>Résultats par matière</h3><div class="tw"><table class="t"><thead><tr><th>Matière</th><th class="num">Coef.</th><th class="num">Élèves notés</th><th class="num">Moyenne</th><th class="num">Min.</th><th class="num">Max.</th><th class="num">≥ 10</th><th style="width:140px"></th></tr></thead><tbody>'+
-   D.subs.map(x=>'<tr><td>'+subLabel(x.sub.name,cls.lang||'fr')+'</td><td class="num">'+fmt(x.sub.coef,x.sub.coef%1?1:0)+'</td><td class="num">'+x.n+'</td><td class="num"><b style="color:'+(x.avg!=null&&x.avg<10?'var(--red)':'inherit')+'">'+fmt1(x.avg)+'</b></td><td class="num">'+fmt1(x.min)+'</td><td class="num">'+fmt1(x.max)+'</td><td class="num">'+(x.pass==null?'—':Math.round(x.pass*100)+' %')+'</td><td><div class="bar b"><i style="width:'+(x.avg==null?0:x.avg/20*100)+'%"></i></div></td></tr>').join('')+'</tbody></table></div></div>';
+   D.subs.map(x=>'<tr><td>'+esc(x.sub.name)+'</td><td class="num">'+fmt(x.sub.coef,x.sub.coef%1?1:0)+'</td><td class="num">'+x.n+'</td><td class="num"><b style="color:'+(x.avg!=null&&x.avg<10?'var(--red)':'inherit')+'">'+fmt1(x.avg)+'</b></td><td class="num">'+fmt1(x.min)+'</td><td class="num">'+fmt1(x.max)+'</td><td class="num">'+(x.pass==null?'—':Math.round(x.pass*100)+' %')+'</td><td><div class="bar b"><i style="width:'+(x.avg==null?0:x.avg/20*100)+'%"></i></div></td></tr>').join('')+'</tbody></table></div></div>';
   h+='<div class="panel"><h3>Classement</h3><div class="tw"><table class="t"><thead><tr><th>Rang</th><th>Noms et prénoms</th><th class="num">Moyenne</th><th>Appréciation</th></tr></thead><tbody>'+
    D.rk.map(x=>{const r=D.res.per[x.s.id].rank;return '<tr><td>'+rankHtml(r)+'</td><td>'+esc(x.s.name)+'</td><td class="num"><span style="color:'+(x.a<10?'var(--red)':'inherit')+';font-weight:700">'+fmt(x.a)+'</span></td><td><span class="badge '+(x.a>=10?'ok':'bad')+'">'+mention(x.a)+'</span></td></tr>'}).join('')+'</tbody></table></div></div>';
   h+='<div class="panel"><h3>État civil des élèves</h3><div class="tw"><table class="t"><thead><tr><th>N°</th><th>Noms et prénoms</th><th>Matricule</th><th>Date de naissance</th><th>Lieu de naissance</th><th>Sexe</th></tr></thead><tbody>'+
@@ -2533,7 +2505,7 @@ function resultsSheet(cls,t){
    '<table><thead><tr><th style="width:14mm">Rang</th><th>Noms et prénoms</th><th style="width:24mm">Moyenne</th><th style="width:34mm">Appréciation</th></tr></thead><tbody>'+
    D.rk.map(x=>'<tr><td>'+rankHtml(D.res.per[x.s.id].rank)+'</td><td>'+esc(x.s.name)+'</td><td style="text-align:center"><b style="color:'+(x.a<10?'#c00000':'inherit')+'">'+fmt(x.a)+'</b></td><td>'+mention(x.a)+'</td></tr>').join('')+'</tbody></table>'+
    '<table><thead><tr><th>Matière</th><th style="width:16mm">Coef.</th><th style="width:20mm">Moyenne</th><th style="width:18mm">Min.</th><th style="width:18mm">Max.</th><th style="width:18mm">≥ 10</th></tr></thead><tbody>'+
-   D.subs.map(x=>'<tr><td>'+subLabel(x.sub.name,cls.lang||'fr')+'</td><td style="text-align:center">'+fmt(x.sub.coef,x.sub.coef%1?1:0)+'</td><td style="text-align:center"><span style="color:'+(x.avg!=null&&x.avg<10?'#c00000':'inherit')+';font-weight:700">'+fmt1(x.avg)+'</span></td><td style="text-align:center">'+fmt1(x.min)+'</td><td style="text-align:center">'+fmt1(x.max)+'</td><td style="text-align:center">'+(x.pass==null?'—':Math.round(x.pass*100)+' %')+'</td></tr>').join('')+'</tbody></table>'+
+   D.subs.map(x=>'<tr><td>'+esc(x.sub.name)+'</td><td style="text-align:center">'+fmt(x.sub.coef,x.sub.coef%1?1:0)+'</td><td style="text-align:center"><span style="color:'+(x.avg!=null&&x.avg<10?'#c00000':'inherit')+';font-weight:700">'+fmt1(x.avg)+'</span></td><td style="text-align:center">'+fmt1(x.min)+'</td><td style="text-align:center">'+fmt1(x.max)+'</td><td style="text-align:center">'+(x.pass==null?'—':Math.round(x.pass*100)+' %')+'</td></tr>').join('')+'</tbody></table>'+
    '<div style="display:flex;justify-content:flex-end;margin-top:8mm"><div>'+esc(viewSchool().city)+' '+L.at+' _______________<br><b>'+L.principal+'</b></div></div></section>';
 }
 function exportCsv(cls,t){
