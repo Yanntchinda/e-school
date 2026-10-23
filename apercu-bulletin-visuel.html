@@ -47,6 +47,18 @@ label.f input,label.f select,label.f textarea,.inp{display:block;width:100%;marg
 .inp.sm{padding:5px 8px;font-size:14px;margin:0}
 label.f textarea{resize:vertical;min-height:80px}
 .row{display:flex;gap:12px;flex-wrap:wrap}
+/* Bloc « Contact du parent / tuteur » dans la fiche de l'élève */
+.form-sec{display:flex;align-items:center;gap:9px;margin:6px 0 10px;font-size:11.5px;font-weight:700;
+  letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+.form-sec::after{content:'';flex:1;height:1px;background:var(--line)}
+.pc{display:flex;flex-direction:column;gap:1px;line-height:1.3}
+.pc .pc-n{font-weight:600;font-size:13px}
+.pc a.pc-t{font-size:12.5px;color:var(--brand);text-decoration:none;font-variant-numeric:tabular-nums;white-space:nowrap}
+.pc a.pc-t:hover{text-decoration:underline}
+.pc .pc-m{font-size:11.5px;color:var(--muted);word-break:break-all}
+.pc-inline{color:var(--muted);font-size:13px}
+.pc-inline a{color:var(--brand);text-decoration:none;font-weight:600}
+.pc-inline a:hover{text-decoration:underline}
 .row>*{flex:1 1 180px}
 .err{color:var(--red);font-size:13px;min-height:18px;margin:2px 0 8px}
 
@@ -687,6 +699,41 @@ const genMat=()=>{
   matCounter++;
   return m;
 };
+/* ---------- Contact du parent / tuteur ----------
+   Renseigne dans « Modifier l'élève ». Tous les champs sont facultatifs :
+   un élève dont les parents n'ont pas encore donne leurs coordonnees reste
+   valide, et l'application affiche simplement un tiret. */
+const PARENT_LINKS=['Père','Mère','Tuteur','Autre'];
+function parentInfo(s){
+  s=s||{};
+  return {name:String(s.parent||'').trim(),link:String(s.parentLink||'').trim(),
+          phone:String(s.parentPhone||'').trim(),email:String(s.parentEmail||'').trim()};
+}
+const hasParentInfo=s=>{const p=parentInfo(s);return !!(p.name||p.phone||p.email)};
+/* Lien téléphonique : on ne garde que les chiffres et le + international. */
+const telHref=v=>{const d=String(v||'').replace(/[^\d+]/g,'');return d?'tel:'+d:''};
+const mailHref=v=>{const d=String(v||'').trim();return d&&/^[^\s@]+@[^\s@]+$/.test(d)?'mailto:'+d:''};
+/* Bloc « contact » affiche dans la liste des eleves et l'etat civil. */
+function parentCellHtml(s){
+  const p=parentInfo(s);
+  if(!p.name&&!p.phone&&!p.email)return '<span class="muted">—</span>';
+  const tel=telHref(p.phone),mail=mailHref(p.email);
+  return '<div class="pc">'+
+    '<span class="pc-n">'+(p.name?esc(p.name):'<span class="muted">Parent non nommé</span>')+(p.link?' <span class="small muted">('+esc(p.link)+')</span>':'')+'</span>'+
+    (p.phone?'<a class="pc-t" href="'+esc(tel)+'">'+esc(p.phone)+'</a>':'')+
+    (p.email?'<span class="pc-m">'+(mail?'<a href="'+esc(mail)+'">'+esc(p.email)+'</a>':esc(p.email))+'</span>':'')+
+  '</div>';
+}
+/* Ligne compacte "Parent / tuteur : ... " (fiche eleve). */
+function parentLineHtml(s){
+  const p=parentInfo(s);
+  if(!p.name&&!p.phone&&!p.email)return '';
+  const tel=telHref(p.phone),mail=mailHref(p.email);
+  return '<span class="pc-inline">Parent / tuteur : <b>'+esc(p.name||'—')+'</b>'+
+    (p.link?' ('+esc(p.link)+')':'')+
+    (p.phone?' · <a href="'+esc(tel)+'">'+esc(p.phone)+'</a>':'')+
+    (p.email?' · '+(mail?'<a href="'+esc(mail)+'">'+esc(p.email)+'</a>':esc(p.email)):'')+'</span>';
+}
 /* Repare les doublons et les matricules vides de l'annee en cours (jamais les archives) */
 function repairMatricules(){
   const seen=new Set();let fixed=0;
@@ -1984,7 +2031,7 @@ const Cloud={
     (DB.classes||[]).forEach(c=>{
       o.classes.push({id:c.id,name:c.name,preset_key:c.presetKey||'',ord:c.ord||0,lang:c.lang||'fr',pp_id:c.ppId||'',pp_name:c.ppName||'',pp_tel:c.ppTel||'',locks:c.locks||{}});
       (c.subjects||[]).forEach((s,i)=>o.subjects.push({id:s.id,class_id:c.id,name:s.name,coef:Number(s.coef)||0,is_opt:!!s.opt,group_name:s.group||'',teacher_id:s.teacherId||'',ord:i}));
-      (c.students||[]).forEach((s,i)=>o.students.push({id:s.id,class_id:c.id,name:s.name,sex:s.sex||'',mat:s.mat||'',dob:s.dob||'',pob:s.pob||'',photo:s.photo||'',session_tag:s.sessionTag||'N',ord:i}));
+      (c.students||[]).forEach((s,i)=>o.students.push({id:s.id,class_id:c.id,name:s.name,sex:s.sex||'',mat:s.mat||'',dob:s.dob||'',pob:s.pob||'',parent:s.parent||'',parent_link:s.parentLink||'',parent_phone:s.parentPhone||'',parent_email:s.parentEmail||'',photo:s.photo||'',session_tag:s.sessionTag||'N',ord:i}));
       for(const sid in (c.grades||{})){
         for(const sub in c.grades[sid]){
           const arr=c.grades[sid][sub]||[];
@@ -2135,7 +2182,7 @@ const Cloud={
     (d.subjects||[]).forEach(s=>{const c=byId[s.class_id];if(c)c.subjects.push({id:s.id,name:s.name,coef:Number(s.coef)||1,group:s.group_name||'',opt:!!s.is_opt,teacherId:s.teacher_id||'',_ord:s.ord||0})});
     /* Un eleve archive localement ne doit pas revenir lors d'une synchronisation. */
     const archIds=new Set((Array.isArray(DB.archivedStudents)?DB.archivedStudents:[]).map(r=>r&&r.data&&r.data.id).filter(Boolean));
-    (d.students||[]).forEach(s=>{if(archIds.has(s.id))return;const c=byId[s.class_id];if(c)c.students.push({id:s.id,name:s.name,sex:s.sex||'',mat:s.mat||'',dob:s.dob||'',pob:s.pob||'',photo:s.photo||'',sessionTag:s.session_tag||'N'})});
+    (d.students||[]).forEach(s=>{if(archIds.has(s.id))return;const c=byId[s.class_id];if(c)c.students.push({id:s.id,name:s.name,sex:s.sex||'',mat:s.mat||'',dob:s.dob||'',pob:s.pob||'',parent:s.parent||'',parentLink:s.parent_link||'',parentPhone:s.parent_phone||'',parentEmail:s.parent_email||'',photo:s.photo||'',sessionTag:s.session_tag||'N'})});
     (d.grades||[]).forEach(g=>{
       const c=byId[stuCls[g.student_id]];if(!c)return;
       const arr=(g.seqs||[]).slice(0,5).map(v=>v==null||v===''?null:Number(v));
@@ -3035,8 +3082,8 @@ function studentsTab(cls){
      '<input id="stu-filter" class="inp sm stu-filter" type="text" autocomplete="off" spellcheck="false" placeholder="Filtrer cette classe : nom ou matricule" aria-label="Filtrer les élèves de cette classe">'+
      '<span id="stu-count" class="stu-count">'+list.length+(list.length>1?' élèves':' élève')+'</span>'+
      '<span class="grow"></span><span class="small muted">Pour chercher dans toutes les classes, utilisez la barre en haut de l’écran.</span></div>';
-  h+='<div class="tw"><table class="t"><thead><tr><th style="width:56px">N°</th><th style="width:58px">Photo</th><th>Noms et prénoms</th><th>Matricule</th><th>Date de naissance</th><th>Lieu de naissance</th><th>Sexe</th>'+(can?'<th></th>':'')+'</tr></thead><tbody>'+
-   list.map((s,i)=>{const photo=studentPhotoSrc(cls,s);return '<tr data-st="'+s.id+'" data-q="'+esc(normTxt(s.name+' '+(s.mat||'')))+'" class="'+(S.focusStudent===s.id?'row-focus':'')+'"><td>'+(i+1)+'</td><td>'+(photo?'<img src="'+photo+'" alt="" style="width:32px;height:40px;object-fit:cover;border-radius:3px;vertical-align:middle">':'<span class="muted">—</span>')+'</td><td class="stu-cell">'+tagBadge(s)+' <b>'+esc(s.name)+'</b></td><td class="mono">'+esc(s.mat||'')+'</td><td>'+(s.dob?esc(s.dob):'<span class="muted">—</span>')+'</td><td>'+(s.pob?esc(s.pob):'<span class="muted">—</span>')+'</td><td>'+(s.sex==='M'?'Masculin':s.sex==='F'?'Féminin':'<span class="muted">—</span>')+'</td>'+
+  h+='<div class="tw"><table class="t"><thead><tr><th style="width:56px">N°</th><th style="width:58px">Photo</th><th>Noms et prénoms</th><th>Matricule</th><th>Date de naissance</th><th>Lieu de naissance</th><th>Sexe</th><th>Contact du parent</th>'+(can?'<th></th>':'')+'</tr></thead><tbody>'+
+   list.map((s,i)=>{const photo=studentPhotoSrc(cls,s);return '<tr data-st="'+s.id+'" data-q="'+esc(normTxt(s.name+' '+(s.mat||'')+' '+(s.parent||'')+' '+(s.parentPhone||'')))+'" class="'+(S.focusStudent===s.id?'row-focus':'')+'"><td>'+(i+1)+'</td><td>'+(photo?'<img src="'+photo+'" alt="" style="width:32px;height:40px;object-fit:cover;border-radius:3px;vertical-align:middle">':'<span class="muted">—</span>')+'</td><td class="stu-cell">'+tagBadge(s)+' <b>'+esc(s.name)+'</b></td><td class="mono">'+esc(s.mat||'')+'</td><td>'+(s.dob?esc(s.dob):'<span class="muted">—</span>')+'</td><td>'+(s.pob?esc(s.pob):'<span class="muted">—</span>')+'</td><td>'+(s.sex==='M'?'Masculin':s.sex==='F'?'Féminin':'<span class="muted">—</span>')+'</td><td>'+parentCellHtml(s)+'</td>'+
    (can?'<td class="right nowrap"><button class="btn sm" data-act="edit-student" data-id="'+s.id+'">Modifier</button> <button class="btn sm danger" data-act="del-student" data-id="'+s.id+'">Retirer</button></td>':'')+'</tr>'}).join('')+'</tbody></table></div>';
   return h;
 }
@@ -3278,8 +3325,8 @@ function statsTab(cls){
    D.subs.map(x=>'<tr><td>'+esc(x.sub.name)+'</td><td class="num">'+fmt(x.sub.coef,x.sub.coef%1?1:0)+'</td><td class="num">'+x.n+'</td><td class="num"><b style="color:'+(x.avg!=null&&x.avg<10?'var(--red)':'inherit')+'">'+fmt1(x.avg)+'</b></td><td class="num">'+fmt1(x.min)+'</td><td class="num">'+fmt1(x.max)+'</td><td class="num">'+(x.pass==null?'—':Math.round(x.pass*100)+' %')+'</td><td><div class="bar b"><i style="width:'+(x.avg==null?0:x.avg/20*100)+'%"></i></div></td></tr>').join('')+'</tbody></table></div></div>';
   h+='<div class="panel"><h3>Classement</h3><div class="tw"><table class="t"><thead><tr><th>Rang</th><th>Noms et prénoms</th><th class="num">Moyenne</th><th>Appréciation</th></tr></thead><tbody>'+
    D.rk.map(x=>{const r=D.res.per[x.s.id].rank;return '<tr><td>'+rankHtml(r)+'</td><td>'+esc(x.s.name)+'</td><td class="num"><span style="color:'+(x.a<10?'var(--red)':'inherit')+';font-weight:700">'+fmt(x.a)+'</span></td><td><span class="badge '+(x.a>=10?'ok':'bad')+'">'+mention(x.a)+'</span></td></tr>'}).join('')+'</tbody></table></div></div>';
-  h+='<div class="panel"><h3>État civil des élèves</h3><div class="tw"><table class="t"><thead><tr><th>N°</th><th>Noms et prénoms</th><th>Matricule</th><th>Date de naissance</th><th>Lieu de naissance</th><th>Sexe</th></tr></thead><tbody>'+
-   [...cls.students].sort(cmpName).map((s,i)=>'<tr><td>'+(i+1)+'</td><td><b>'+esc(s.name)+'</b></td><td>'+esc(s.mat||'')+'</td><td>'+(s.dob?esc(s.dob):'<span class="muted">—</span>')+'</td><td>'+(s.pob?esc(s.pob):'<span class="muted">—</span>')+'</td><td>'+(s.sex==='M'?'Masculin':s.sex==='F'?'Féminin':'<span class="muted">—</span>')+'</td></tr>').join('')+'</tbody></table></div></div>';
+  h+='<div class="panel"><h3>État civil des élèves</h3><div class="tw"><table class="t"><thead><tr><th>N°</th><th>Noms et prénoms</th><th>Matricule</th><th>Date de naissance</th><th>Lieu de naissance</th><th>Sexe</th><th>Contact du parent / tuteur</th></tr></thead><tbody>'+
+   [...cls.students].sort(cmpName).map((s,i)=>'<tr><td>'+(i+1)+'</td><td><b>'+esc(s.name)+'</b></td><td>'+esc(s.mat||'')+'</td><td>'+(s.dob?esc(s.dob):'<span class="muted">—</span>')+'</td><td>'+(s.pob?esc(s.pob):'<span class="muted">—</span>')+'</td><td>'+(s.sex==='M'?'Masculin':s.sex==='F'?'Féminin':'<span class="muted">—</span>')+'</td><td>'+parentCellHtml(s)+'</td></tr>').join('')+'</tbody></table></div></div>';
   return h;
 }
 function resultsSheet(cls,t){
@@ -3645,7 +3692,7 @@ function financeStudentHtml(){
   const f=financeStudent(S.studentId);
   if(!f)return '<div class="panel empty"><h3>Élève introuvable</h3><p>Cet élève n’existe plus dans la session en cours.</p><button class="btn" data-act="fin-home">Toutes les classes</button></div>';
   const {cls,st}=f,state=financeState(st.id),pays=paymentsOf(st.id);
-  let h='<div class="page-h"><div><h1>'+esc(st.name)+'</h1><p>'+esc(cls.name)+' · matricule '+esc(st.mat||'—')+' · '+statusBadge(state)+' · année scolaire '+esc(DB.school.year)+'</p></div>'+
+  let h='<div class="page-h"><div><h1>'+esc(st.name)+'</h1><p>'+esc(cls.name)+' · matricule '+esc(st.mat||'—')+' · '+statusBadge(state)+' · année scolaire '+esc(DB.school.year)+'</p>'+(hasParentInfo(st)?'<p style="margin-top:3px">'+parentLineHtml(st)+'</p>':'')+'</div>'+
     '<div class="toolbar" style="margin:0"><button class="btn" data-act="fin-class" data-id="'+cls.id+'">Retour à la classe</button>'+
     '<button class="btn" data-act="fee-edit" data-id="'+st.id+'">Définir le montant</button>'+
     '<button class="btn primary" data-act="pay-add" data-id="'+st.id+'">Enregistrer un versement</button></div></div>';
@@ -3902,12 +3949,23 @@ function receiptPdf(sid,pid){
 }
 
 /* ---------- Démo ---------- */
+/* Coordonnées de parents pour la démonstration (numéros fictifs). */
+const demoPhone=()=>'6'+String(10+Math.floor(Math.random()*90))+' '+String(10+Math.floor(Math.random()*90))+' '+String(10+Math.floor(Math.random()*90))+' '+String(10+Math.floor(Math.random()*90));
+const DEMO_GIVEN_M=['JEAN','PAUL','EMMANUEL','FRANÇOIS','ALAIN','SERGE','RODRIGUE','BLAISE'];
+const DEMO_GIVEN_F=['MARIE','JOSÉPHINE','BERNADETTE','CHANTAL','SYLVIE','AGNÈS','PAULINE','GRÂCE'];
+/* Un parent de demonstration coherent : le prenom suit le lien de parente. */
+function demoParentOf(families){
+  const link=Math.random()<.5?'Père':'Mère';
+  const g=(link==='Père'?DEMO_GIVEN_M:DEMO_GIVEN_F)[Math.floor(Math.random()*8)];
+  return {parent:(families[Math.floor(Math.random()*families.length)]+' '+g).toLocaleUpperCase('fr'),parentLink:link};
+}
 function loadDemo(){
   const cls=newClass('6e','6e (exemple)');
   const sn=['MBALLA','FOTSO','NJOYA','TCHAMBA','ESSOMBA','KAMGA','NKOULOU','BELLO','ATANGANA','MOUKOKO','TCHOUMI','ONANA'];
   const gn=['Arnaud','Sandrine','Michel','Grace','Brice','Laure','Junior','Estelle','Franck','Mireille','Cédric','Nadine','Prisca','Yannick'];
   const used=new Set();
-  while(cls.students.length<14){const n=(sn[Math.floor(Math.random()*sn.length)]+' '+gn[Math.floor(Math.random()*gn.length)]).toLocaleUpperCase('fr');if(used.has(n))continue;used.add(n);cls.students.push({id:uid(),name:n,sex:Math.random()<.5?'M':'F',mat:genMat(),dob:'',pob:'',sessionTag:'N'})}
+  while(cls.students.length<14){const n=(sn[Math.floor(Math.random()*sn.length)]+' '+gn[Math.floor(Math.random()*gn.length)]).toLocaleUpperCase('fr');if(used.has(n))continue;used.add(n);const par=demoParentOf(sn);cls.students.push({id:uid(),name:n,sex:Math.random()<.5?'M':'F',mat:genMat(),dob:'',pob:'',
+      parent:par.parent,parentLink:par.parentLink,parentPhone:demoPhone(),parentEmail:'',sessionTag:'N'})}
   cls.students.sort(cmpName);
   cls.students.slice(0,3).forEach((s,i)=>s.photo='sample:'+i);
   for(const s of cls.students){const lvl=6+Math.random()*8;for(const sub of cls.subjects){
@@ -3985,10 +4043,17 @@ function studentForm(s){
   const matVal=s?s.mat||'':genMat();
   const dobVal=s?s.dob||'':'';
   const pobVal=s?s.pob||'':'';
+  const par=parentInfo(s);
+  const linkOpts=PARENT_LINKS.map(k=>'<option value="'+k+'" '+(par.link===k?'selected':'')+'>'+k+'</option>').join('');
   const photoPreview=s?studentPhotoSrc(curClass(),s):'';
   openModal('<form data-form="student" data-id="'+(s?s.id:'')+'"><h2>'+(s?'Modifier l\'élève':'Ajouter un élève')+'</h2><label class="f">Noms et prénoms<input name="name" value="'+esc(s?s.name:'')+'" required autofocus></label>'+
    '<div class="row"><label class="f">Sexe<select name="sex"><option value="">Non précisé</option><option value="M" '+(s&&s.sex==='M'?'selected':'')+'>Masculin</option><option value="F" '+(s&&s.sex==='F'?'selected':'')+'>Féminin</option></select></label><label class="f">Matricule (attribué automatiquement)<input name="mat" value="'+esc(matVal)+'" readonly style="background:#f2f5f9;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;letter-spacing:.03em"><span class="small muted">Unique dans tout l’établissement, définitif : il suit l’élève s’il change de classe ou d’année.</span></label></div>'+
    '<div class="row"><label class="f">Date de naissance<input name="dob" type="date" value="'+esc(dobVal)+'"></label><label class="f">Lieu de naissance<input name="pob" value="'+esc(pobVal)+'" placeholder="Ex. Douala"></label></div>'+
+   '<div class="form-sec">Contact du parent / tuteur</div>'+
+   '<div class="row"><label class="f" style="flex:1 1 210px">Nom et prénoms du parent ou tuteur<input name="parent" value="'+esc(par.name)+'" placeholder="Ex. MBALLA Jean" autocomplete="off"></label>'+
+     '<label class="f" style="flex:0 1 150px">Lien de parenté<select name="parentLink"><option value="">Non précisé</option>'+linkOpts+'</select></label></div>'+
+   '<div class="row"><label class="f" style="flex:1 1 180px">Téléphone du parent<input name="parentPhone" type="tel" inputmode="tel" value="'+esc(par.phone)+'" placeholder="Ex. 6 99 00 11 22" autocomplete="off"><span class="small muted">Numéro joignable en cas d’urgence.</span></label>'+
+     '<label class="f" style="flex:1 1 180px">E-mail du parent (facultatif)<input name="parentEmail" type="email" value="'+esc(par.email)+'" placeholder="parent@exemple.cm" autocomplete="off"></label></div>'+
    '<div class="row" style="align-items:center"><label class="f" style="flex:1 1 240px">Photo de profil (format 3 × 4 cm)<input type="file" accept="image/*" data-file="photo" class="inp"><span class="small muted">Choisissez une image ; elle sera ajoutée automatiquement aux bulletins de cet élève.</span></label>'+
    (photoPreview?'<img data-photo-preview src="'+photoPreview+'" alt="Aperçu de la photo" style="width:28mm;height:35mm;object-fit:cover;border:1px solid var(--line);border-radius:4px;flex:0 0 auto">':'<div data-photo-empty style="width:28mm;height:35mm;display:flex;align-items:center;justify-content:center;border:1px dashed var(--line);border-radius:4px;color:var(--muted);font-size:11px;flex:0 0 auto">Photo</div><img data-photo-preview alt="Aperçu de la photo" style="display:none;width:28mm;height:35mm;object-fit:cover;border:1px solid var(--line);border-radius:4px;flex:0 0 auto">')+'</div>'+
    '<div class="err" id="fe"></div><div class="acts"><button type="button" class="btn" data-act="mclose">Annuler</button><button class="btn primary">'+(s?'Enregistrer':'Ajouter')+'</button></div></form>');
@@ -4005,7 +4070,7 @@ A['import-students']=()=>{
    '<div class="toolbar" style="margin-top:8px"><label class="btn sm" style="cursor:pointer">Ouvrir un fichier .csv ou .txt<input type="file" accept=".csv,.txt,.tsv,text/plain,text/csv" data-file="imp" class="hide"></label></div>'+
    '<div id="imp-prev"><p class="small muted">Rien à importer pour le moment.</p></div><div class="acts"><button class="btn" data-act="mclose">Annuler</button><button class="btn primary" id="imp-go" data-act="imp-go" disabled>Importer</button></div>','wide');
 };
-A['imp-go']=()=>{const cls=curClass();if(!confirm('Importer ces élèves dans la classe ?'))return;let n=0;for(const x of IMP){if(x.dup)continue;cls.students.push({id:uid(),name:x.name,sex:x.sex,mat:genMat(),dob:'',pob:'',photo:'',sessionTag:'N'});n++}cls.students.sort(cmpName);dirty();closeModal();render();toast(n+' élève'+(n>1?'s ajoutés':' ajouté')+'.','ok')};
+A['imp-go']=()=>{const cls=curClass();if(!confirm('Importer ces élèves dans la classe ?'))return;let n=0;for(const x of IMP){if(x.dup)continue;cls.students.push({id:uid(),name:x.name,sex:x.sex,mat:genMat(),dob:'',pob:'',parent:'',parentLink:'',parentPhone:'',parentEmail:'',photo:'',sessionTag:'N'});n++}cls.students.sort(cmpName);dirty();closeModal();render();toast(n+' élève'+(n>1?'s ajoutés':' ajouté')+'.','ok')};
 A['fin-class']=el=>{if(!canFinance())return;S.view='fin-class';S.classId=el.dataset.id;S.studentId=null;S.focusStudent=null;render()};
 A['fin-student']=el=>{if(!canFinance())return;const found=financeStudent(el.dataset.id);if(!found)return toast('Élève introuvable.','err');S.view='fin-student';S.classId=found.cls.id;S.studentId=el.dataset.id;render()};
 A['fin-home']=()=>{if(!canFinance())return;S.view='fin';S.classId=null;S.studentId=null;render()};
@@ -4380,9 +4445,19 @@ document.addEventListener('submit',async e=>{
     const detenteur=matTaken(mat,id);
     if(detenteur)return err('Matricule déjà attribué à '+detenteur.st.name+' ('+(detenteur.current?detenteur.cls.name:'archive '+detenteur.year)+'). Chaque élève doit avoir un matricule unique.');
     if(existant&&existant.mat&&matKey(mat)!==matKey(existant.mat)&&!confirm('Changer le matricule de '+existant.name+' ?\n'+existant.mat+' → '+mat+'\n\nLe matricule est normalement définitif.'))return;
+    /* Contact du parent / tuteur : facultatif, mais verifie quand il est renseigne. */
+    const parent=(fd.parent||'').replace(/\s+/g,' ').trim().toLocaleUpperCase('fr');
+    const parentLink=(fd.parentLink||'').trim();
+    const parentPhone=(fd.parentPhone||'').replace(/\s+/g,' ').trim();
+    const parentEmail=(fd.parentEmail||'').trim();
+    if(parentPhone&&parentPhone.replace(/\D/g,'').length<6)return err('Numéro de téléphone du parent invalide : indiquez au moins 6 chiffres.');
+    if(parentEmail&&!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(parentEmail))return err('Adresse e-mail du parent invalide (exemple : parent@exemple.cm).');
+    if(parentLink&&!PARENT_LINKS.includes(parentLink))return err('Lien de parenté inconnu.');
     const photoInput=f.querySelector('input[data-file="photo"]');let photo='';
     if(photoInput&&photoInput.files&&photoInput.files[0]){try{photo=await compactStudentPhoto(photoInput.files[0])}catch(ex){return err(ex.message||'Photo illisible.')}}
-    if(id){const s=cls.students.find(x=>x.id===id),legacySample=!Object.prototype.hasOwnProperty.call(s,'photo')?demoPhotoIndex(cls,s):-1;s.name=name;s.sex=fd.sex;s.mat=mat;s.dob=fd.dob||'';s.pob=(fd.pob||'').trim();if(photo)s.photo=photo;else if(legacySample>=0&&legacySample<DEMO_PHOTOS.length)s.photo='sample:'+legacySample}else cls.students.push({id:uid(),name,sex:fd.sex,mat:mat,dob:fd.dob||'',pob:(fd.pob||'').trim(),photo:photo||'',sessionTag:'N'});
+    if(id){const s=cls.students.find(x=>x.id===id),legacySample=!Object.prototype.hasOwnProperty.call(s,'photo')?demoPhotoIndex(cls,s):-1;s.name=name;s.sex=fd.sex;s.mat=mat;s.dob=fd.dob||'';s.pob=(fd.pob||'').trim();
+      s.parent=parent;s.parentLink=parentLink;s.parentPhone=parentPhone;s.parentEmail=parentEmail;
+      if(photo)s.photo=photo;else if(legacySample>=0&&legacySample<DEMO_PHOTOS.length)s.photo='sample:'+legacySample}else cls.students.push({id:uid(),name,sex:fd.sex,mat:mat,dob:fd.dob||'',pob:(fd.pob||'').trim(),parent:parent,parentLink:parentLink,parentPhone:parentPhone,parentEmail:parentEmail,photo:photo||'',sessionTag:'N'});
     cls.students.sort(cmpName);dirty();closeModal();render();
   }else if(kind==='group'){if(!confirm('Ajouter ce groupe ?'))return;
     const cls=curClass(),g=fd.g.trim().toLocaleUpperCase('fr');if(!g)return;
@@ -4483,7 +4558,9 @@ async function seedDemoData(){
       const name = (families[Math.floor(Math.random()*families.length)] + ' ' + given[Math.floor(Math.random()*given.length)]).toLocaleUpperCase('fr');
       if(used.has(name)) continue;
       used.add(name);
-      out.push({id: uid(), name, sex: Math.random()<.5?'M':'F', mat: genMat(), sessionTag:'N', dob: (2008+Math.floor(Math.random()*4))+'-'+String(1+Math.floor(Math.random()*12)).padStart(2,'0')+'-'+String(1+Math.floor(Math.random()*28)).padStart(2,'0'), pob: ['Douala','Yaoundé','Bafoussam','Garoua','Bamenda','Maroua'][Math.floor(Math.random()*6)]});
+      const par = demoParentOf(families);
+      out.push({id: uid(), name, sex: Math.random()<.5?'M':'F', mat: genMat(), sessionTag:'N', dob: (2008+Math.floor(Math.random()*4))+'-'+String(1+Math.floor(Math.random()*12)).padStart(2,'0')+'-'+String(1+Math.floor(Math.random()*28)).padStart(2,'0'), pob: ['Douala','Yaoundé','Bafoussam','Garoua','Bamenda','Maroua'][Math.floor(Math.random()*6)],
+        parent: par.parent, parentLink: par.parentLink, parentPhone: demoPhone(), parentEmail: ''});
     }
     out.sort(cmpName);
     return out;

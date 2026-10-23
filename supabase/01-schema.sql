@@ -95,12 +95,23 @@ create table if not exists public.students (
  mat text default '', -- matricule (permanent)
  dob text default '',
  pob text default '',
+ parent text default '', -- nom et prénoms du parent / tuteur
+ parent_link text default '', -- Père, Mère, Tuteur, Autre
+ parent_phone text default '', -- téléphone joignable
+ parent_email text default '',
  photo text, -- base64 éventuel
  session_tag text not null default 'N', -- N = nouveau, NA = promu, Ancien = redoublant
  ord int not null default 0,
  created_at timestamptz not null default now(),
  updated_at timestamptz not null default now()
 );
+
+-- Évolution : contact du parent / tuteur ajouté aux fiches élèves.
+-- Idempotent : sans effet si les colonnes existent déjà.
+alter table public.students add column if not exists parent text default '';
+alter table public.students add column if not exists parent_link text default '';
+alter table public.students add column if not exists parent_phone text default '';
+alter table public.students add column if not exists parent_email text default '';
 
 -- ---------------------------------------------------------------------
 -- 6. NOTES (1 ligne = 1 élève × 1 matière, 5 séquences possibles)
