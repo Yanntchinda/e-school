@@ -470,7 +470,8 @@ tr.row-focus td{background:#fff7d6!important;box-shadow:inset 0 0 0 999px rgba(2
   border-right:.7mm solid #1e3a8a;border-bottom:.7mm solid #1e3a8a;transform:rotate(38deg)}
 .hon .hn-m b{display:block;font-size:12.5pt;font-weight:700;color:#0a192f;line-height:1.1}
 .hon .hn-m i{display:block;font-size:9.5pt;font-style:italic;color:#64748b;line-height:1.15}
-.hon .hn-sign{display:grid;grid-template-columns:1fr 1fr;gap:26mm;padding:0 10mm 22mm;margin-top:4mm}
+.hon .hn-sign{display:block;padding:0 10mm 22mm;margin-top:4mm}
+.hon .hn-sign .hn-sg{max-width:104mm;margin:0 auto}
 .hon .hn-sg{text-align:center}
 .hon .hn-sg .r{display:block;font-size:12pt;font-weight:700;color:#0a192f;line-height:1.15}
 .hon .hn-sg .r i{display:block;font-size:9pt;font-style:italic;font-weight:400;color:#64748b}
@@ -1465,7 +1466,7 @@ function honourHtml(cls,sid,t){
         '<div class="hn-m">'+box(hi.fel)+'<span><b>Avec félicitations</b><i>With distinctions</i></span></div>'+
       '</div>'+
       '<footer class="hn-sign">'+
-        '<div class="hn-sg"><span class="r">Le Titulaire de la classe<i>Class Master</i></span><span class="nm">'+(pp?esc(pp):'&nbsp;')+'</span><span class="ln"></span></div>'+
+        /* Une seule signature : le chef d'établissement (le titulaire de la classe est retiré) */
         '<div class="hn-sg"><span class="r">Le Chef d’Établissement<i>Headmaster</i></span><span class="nm">'+(sc.principal?esc(sc.principal):'&nbsp;')+'</span><span class="ln"></span></div>'+
       '</footer>'+
     '</div>'+
