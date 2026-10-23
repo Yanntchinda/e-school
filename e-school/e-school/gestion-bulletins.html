@@ -467,29 +467,32 @@ tr.row-focus td{background:#fff7d6!important;box-shadow:inset 0 0 0 999px rgba(2
 .hon .hn-f .en{font-size:10.5pt;font-style:italic;color:#64748b;white-space:nowrap}
 .hon .hn-f.avg .v{font-size:19pt}
 .hon .hn-foot{display:grid;grid-template-columns:1fr 1fr;gap:12mm;align-items:start;
-  /* 34 mm de marge basse : le bloc reste franc au-dessus du sceau centre et de la vague */
-  padding:0 8mm 34mm;margin-top:2mm}
+  /* 36,9 mm : la marge basse compense exactement le resserrement des lignes,
+     si bien que le bloc au-dessus du pied ne bouge pas d'un millimetre
+     (la feuille reste 297 x 210 mm, le sceau et la vague aussi). */
+  padding:0 8mm 36.9mm;margin-top:2mm}
 /* mentions à gauche */
-.hon .hn-ment{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:4.2mm;
+.hon .hn-ment{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:2.4mm;
   margin:0;padding-top:1mm}
 .hon .hn-m{display:flex;align-items:center;gap:4mm;text-align:left}
 .hon .hn-box{width:5.2mm;height:5.2mm;border:.45mm solid #1e3a8a;border-radius:.7mm;background:#fff;
   display:inline-block;position:relative;flex:none}
 .hon .hn-box.on::after{content:'';position:absolute;left:1mm;top:.4mm;width:2.1mm;height:3.4mm;
   border-right:.7mm solid #1e3a8a;border-bottom:.7mm solid #1e3a8a;transform:rotate(38deg)}
-.hon .hn-m b{display:block;font-size:12.5pt;font-weight:700;color:#0a192f;line-height:1.1}
-.hon .hn-m i{display:block;font-size:9.5pt;font-style:italic;color:#64748b;line-height:1.15}
+.hon .hn-m b{display:block;font-size:12.5pt;font-weight:700;color:#0a192f;line-height:1.05}
+.hon .hn-m i{display:block;font-size:9.5pt;font-style:italic;color:#64748b;line-height:1.05}
 /* signature du chef d'établissement a droite, date juste au-dessus.
    padding-left : decale le bloc de 22 mm vers la droite (la moitie du
    padding, puisque le texte reste centre) sans jamais sortir de la colonne.
    nowrap : le libelle reste sur une ligne, meme si la police du poste est large. */
 .hon .hn-sign{display:block;padding:0 0 0 44mm;margin:0;text-align:center;white-space:nowrap}
 .hon .hn-sign .hn-sg{max-width:none;margin:0;text-align:center}
-/* la date reprend exactement la police du libelle « Le Chef d'Etablissement » */
+/* la date reprend exactement la police du libelle « Le Chef d'Etablissement » ;
+   interligne resserre : 2,6 mm seulement entre la date et le libelle */
 .hon .hn-sign .hn-date{font-family:var(--hn-body);font-size:12pt;font-weight:700;font-style:normal;
-  color:#0a192f;line-height:1.15;letter-spacing:0;margin:0 0 5.5mm}
+  color:#0a192f;line-height:1.15;letter-spacing:0;margin:0 0 2.6mm}
 .hon .hn-sg{text-align:center}
-.hon .hn-sg .r{display:block;font-size:12pt;font-weight:700;color:#0a192f;line-height:1.15}
+.hon .hn-sg .r{display:block;font-size:12pt;font-weight:700;color:#0a192f;line-height:1.05}
 .hon .hn-sg .r i{display:block;font-size:9pt;font-style:italic;font-weight:400;color:#64748b}
 .hon .hn-sg .nm{display:block;font-family:var(--hn-script);font-size:15pt;color:#1e3a8a;
   min-height:9mm;padding-top:2.4mm;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
