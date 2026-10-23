@@ -882,6 +882,68 @@ function completion(cls,t){
   for(const s of cls.students)for(const sub of subs){const g=getG(cls,s.id,sub.id);if(g)for(const i of seqs)if(g[i]!=null)f++}
   return f/tot;
 }
+
+/* ---------- Suivi de la saisie des notes ----------
+   Pour un trimestre donne, on lit chaque classe / matiere et on compte les cases
+   de notes encore vides. Sert au bouton « Exporter les notes manquantes » de
+   l'onglet Notes : l'administrateur voit d'un coup d'oeil quels professeurs
+   n'ont pas termine la saisie. */
+function missingNoteRows(t){
+  const seqs=seqIdx(t),users=viewUsers(),rows=[];
+  for(const cls of visibleClasses()){
+    if(!cls.students.length)continue;
+    for(const sub of cls.subjects){
+      let expected=0,filled=0,missing=0;const studentsMissing=[];
+      for(const st of cls.students){
+        const g=getG(cls,st.id,sub.id);let manque=0;
+        for(const i of seqs){
+          expected++;
+          const v=g?g[i]:null;
+          if(v==null||v==='')manque++;else filled++;
+        }
+        if(manque){missing+=manque;studentsMissing.push(st.name)}
+      }
+      if(!missing)continue;
+      const u=users.find(x=>x.id===sub.teacherId);
+      rows.push({cls:cls.name,subject:sub.name+(sub.opt?' (option)':''),teacher:u?u.name:(sub.teacherName||''),
+        students:cls.students.length,expected,filled,missing,studentsMissing});
+    }
+  }
+  return rows;
+}
+function exportMissingNotes(t){
+  const rows=missingNoteRows(t);
+  const q=v=>'"'+String(v==null?'':v).replace(/"/g,'""')+'"';
+  const line=a=>a.map(q).join(';');
+  const out=[];
+  out.push(line(['École',DB.school.name]));
+  out.push(line(['Année scolaire',viewYear()]));
+  out.push(line(['Trimestre',TRN[t-1]+' trimestre']));
+  out.push(line(['Édité le',new Date().toLocaleString('fr-FR')]));
+  out.push(line(['Matières à compléter',rows.length]));
+  out.push('');
+  out.push(line(['Classe','Matière','Enseignant','Élèves','Notes attendues','Notes saisies','Notes manquantes','Élèves concernés','Noms des élèves concernés']));
+  if(!rows.length)out.push(line(['—','Toutes les notes sont saisies','','','','','','','']));
+  for(const r of rows){
+    out.push(line([r.cls,r.subject,r.teacher||'Aucun enseignant affecté',r.students,r.expected,r.filled,r.missing,
+      r.studentsMissing.length,r.studentsMissing.join(', ')]));
+  }
+  /* Recapitulatif par enseignant : ce que chacun doit encore saisir */
+  const byTeacher=new Map();
+  for(const r of rows){
+    const k=r.teacher||'Aucun enseignant affecté';
+    if(!byTeacher.has(k))byTeacher.set(k,{classes:new Set(),subjects:0,missing:0});
+    const e=byTeacher.get(k);e.classes.add(r.cls);e.subjects++;e.missing+=r.missing;
+  }
+  if(byTeacher.size){
+    out.push('');
+    out.push(line(['Enseignants concernés','Classes','Matières','Notes manquantes']));
+    for(const [name,e] of byTeacher)out.push(line([name,e.classes.size,e.subjects,e.missing]));
+  }
+  const name=('notes_a_completer_'+viewYear().replace(/[^0-9]+/g,'-')+'_T'+t+'_'+new Date().toISOString().slice(0,10)+'.csv');
+  download(name,'\ufeff'+out.join('\r\n'),'text/csv;charset=utf-8');
+  toast(rows.length?rows.length+' matière'+(rows.length>1?'s':'')+' à compléter — fichier exporté.':'Toutes les notes du '+TRN[t-1]+' trimestre sont saisies.','ok');
+}
 const median=a=>{if(!a.length)return null;const s=[...a].sort((x,y)=>x-y),m=s.length>>1;return s.length%2?s[m]:(s[m-1]+s[m])/2};
 const mean=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:null;
 function mention(a){return a==null?'':a>=16?'Très bien':a>=14?'Bien':a>=12?'Assez bien':a>=10?'Passable':'Insuffisant'}
@@ -2328,7 +2390,9 @@ function gradesTab(cls){
   const res=getRes(cls,t);
   const unassigned=isAdmin()?cls.subjects.filter(s=>!s.teacherId).length:0;
   let h='<div class="toolbar">'+(!isAdmin()?'<label class="chk"><input type="checkbox" data-chk="mine" '+(S.mine?'checked':'')+'> Afficher seulement mes matières</label>':'')+
-   '<span class="small muted">Séquences '+seqs.map(i=>i+1).join(', ')+' · notes sur 20, virgule ou point · Entrée passe à l’élève suivant · vous pouvez coller une colonne copiée depuis Excel. Une matière sans aucune note n’est pas comptée, ni son coefficient ; 0 est une note.</span><span class="grow"></span>'+(isReadOnlySession()?'':'<button class="btn" data-act="export-my-notes">Exporter mes notes (fichier)</button>')+'</div>';
+   '<span class="small muted">Séquences '+seqs.map(i=>i+1).join(', ')+' · notes sur 20, virgule ou point · Entrée passe à l’élève suivant · vous pouvez coller une colonne copiée depuis Excel. Une matière sans aucune note n’est pas comptée, ni son coefficient ; 0 est une note.</span><span class="grow"></span>'+(isAdmin()
+     ?'<button class="btn primary" data-act="export-missing-notes">Exporter les notes manquantes ('+missingNoteRows(t).length+')</button>'
+     :(isReadOnlySession()?'':'<button class="btn" data-act="export-my-notes">Exporter mes notes (fichier)</button>'))+'</div>';
   if(isAdmin()&&!isReadOnlySession()){
     h+='<div class="toolbar"><span class="small muted" style="font-weight:600">Verrouillage de la saisie :</span>'+
      [1,2,3].map(t=>'<button class="btn sm '+(cls.locks&&cls.locks[t]===false?'':'green')+'" data-act="toggle-lock" data-t="'+t+'">'+ordSup(t)+' trim. '+(cls.locks&&cls.locks[t]===false?'bloqué':'débloqué')+'</button>').join('')+
@@ -2741,6 +2805,7 @@ A.preview=el=>openPreview(el.dataset.id);
 A['prev-b']=el=>{if(el.dataset.id)openPreview(el.dataset.id)};
 A['print-results']=()=>{if(!isAdmin())return toast('Impression réservée à l’administrateur.','err');printHtml(resultsSheet(curClass(),S.trim))};
 A['export-csv']=()=>exportCsv(curClass(),S.trim);
+A['export-missing-notes']=()=>exportMissingNotes(S.trim);
 A['cloud-retry']=async()=>{
   const ok=await Cloud.connect();
   if(ok)await Cloud.pull(true);
@@ -2857,7 +2922,7 @@ A['reset-demo']=()=>{if(!confirm('Réinitialiser les données de démo ? Les don
 A['repair-demo-login']=async()=>{if(!DB.demoMode)return;if(!confirm('Réinitialiser les mots de passe des comptes de test ? Les classes, élèves et notes seront conservés. Admin : admin1234 ; professeurs : prof1234.'))return;let n=0;for(const u of DB.users){let pw='';if(u.username==='admin'&&u.role==='admin')pw='admin1234';else if(['pmballa','mfotso','injoya','skamga','ressomba'].includes(u.username))pw='prof1234';if(!pw)continue;u.salt=uid();u.hash=await hashPw(pw,u.salt);n++}if(!n){toast('Aucun compte de démonstration trouvé.','err');return}dirty();saveNow();render();toast('Accès de test réparé, données conservées.','ok')};
 A.wipe=()=>askConfirm('Tout effacer ?','Classes, élèves, notes et comptes seront supprimés de cet ordinateur. Cette action est définitive : exportez d’abord une sauvegarde si nécessaire.','Tout effacer',()=>{try{localStorage.removeItem(KEY);sessionStorage.removeItem(SKEY)}catch(e){}DB=blankDB();ME=null;S.sessionId=null;S.closeState=null;S.simulationState=null;calcCache={};S.view='dash';render()},true);
 
-const READ_ONLY_ACTIONS=new Set(['go','open-class','tab','trim','logout','session-view','session-current','sessions-cancel-close','simulation-cancel','preview','prev-b','print-all','print-one','print-results','export-csv','export-my-notes','pack-dl','honour-prev','honour-print','honour-dl','mclose','noop']);
+const READ_ONLY_ACTIONS=new Set(['export-missing-notes','go','open-class','tab','trim','logout','session-view','session-current','sessions-cancel-close','simulation-cancel','preview','prev-b','print-all','print-one','print-results','export-csv','export-my-notes','pack-dl','honour-prev','honour-print','honour-dl','mclose','noop']);
 document.addEventListener('click',e=>{
   const bd=e.target.closest('[data-bd]');if(bd&&e.target===bd){closeModal();return}
   const el=e.target.closest('[data-act]');if(!el)return;
