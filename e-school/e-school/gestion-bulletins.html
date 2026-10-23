@@ -749,12 +749,13 @@ const LB={
 /* ---------- Données ---------- */
 function schoolYear(){const d=new Date(),y=d.getFullYear();return d.getMonth()>=8?y+'/'+(y+1):(y-1)+'/'+y}
 function nextSchoolYear(y){const m=String(y||'').match(/(\d{4})\s*\/\s*(\d{4})/);return m?(+m[1]+1)+'/'+(+m[2]+1):schoolYear()}
-function blankDB(){return{v:1,school:{name:"Ming's Bilingual Institute",city:'Douala',year:schoolYear(),principal:'',header:null,logo:null},users:[],classes:[],sessions:[]}}
+function blankDB(){return{v:1,school:{name:"Ming's Bilingual Institute",city:'Douala',year:schoolYear(),principal:'',header:null,logo:null},users:[],classes:[],sessions:[],archivedStudents:[]}}
 let memOnly=false;
 function loadDB(){
   try{const r=localStorage.getItem(KEY);if(r){const d=JSON.parse(r);if(d&&d.school&&Array.isArray(d.users)&&Array.isArray(d.classes)){
     // RÉPARATION AUTOMATIQUE : corrige l'état incohérent après activation interrompue
     if(!Array.isArray(d.sessions))d.sessions=[];
+    if(!Array.isArray(d.archivedStudents))d.archivedStudents=[];
     if(Array.isArray(d.sessions)){
       // Supprime les doublons d'archives
       const seenYears=new Set();
@@ -2091,7 +2092,9 @@ const Cloud={
     (d.students||[]).forEach(s=>stuCls[s.id]=s.class_id);
     (d.subjects||[]).forEach(s=>subCls[s.id]=s.class_id);
     (d.subjects||[]).forEach(s=>{const c=byId[s.class_id];if(c)c.subjects.push({id:s.id,name:s.name,coef:Number(s.coef)||1,group:s.group_name||'',opt:!!s.is_opt,teacherId:s.teacher_id||'',_ord:s.ord||0})});
-    (d.students||[]).forEach(s=>{const c=byId[s.class_id];if(c)c.students.push({id:s.id,name:s.name,sex:s.sex||'',mat:s.mat||'',dob:s.dob||'',pob:s.pob||'',photo:s.photo||'',sessionTag:s.session_tag||'N'})});
+    /* Un eleve archive localement ne doit pas revenir lors d'une synchronisation. */
+    const archIds=new Set((Array.isArray(DB.archivedStudents)?DB.archivedStudents:[]).map(r=>r&&r.data&&r.data.id).filter(Boolean));
+    (d.students||[]).forEach(s=>{if(archIds.has(s.id))return;const c=byId[s.class_id];if(c)c.students.push({id:s.id,name:s.name,sex:s.sex||'',mat:s.mat||'',dob:s.dob||'',pob:s.pob||'',photo:s.photo||'',sessionTag:s.session_tag||'N'})});
     (d.grades||[]).forEach(g=>{
       const c=byId[stuCls[g.student_id]];if(!c)return;
       const arr=(g.seqs||[]).slice(0,5).map(v=>v==null||v===''?null:Number(v));
@@ -2901,7 +2904,8 @@ function classSummary(cls,t){
 }
 function dashHtml(){
   const cl=visibleClasses(),t=S.trim;
-  let h='<div class="page-h"><div><h1>Tableau de bord</h1><p>'+ordSup(t)+' trimestre · année scolaire '+esc(viewYear())+'</p></div></div>';
+  let h='<div class="page-h"><div><h1>Tableau de bord</h1><p>'+ordSup(t)+' trimestre · année scolaire '+esc(viewYear())+'</p></div>'+
+    (isAdmin()&&!isReadOnlySession()?'<button class="btn" data-act="student-archive" title="Élèves retirés d’une classe : les restaurer ou les supprimer définitivement">Élèves archivés ('+archivedStudents().length+')</button>':'')+'</div>';
   if(isReadOnlySession())h+='<div class="notice info">Session archivée en consultation seulement. <button class="btn sm" data-act="session-current">Revenir à la session en cours</button></div>';
   if(memOnly)h+='<div class="notice">Ce navigateur n’autorise pas l’enregistrement local : les données seront perdues à la fermeture. Exportez une sauvegarde depuis Paramètres.</div>';
   if(!cl.length){
@@ -2943,7 +2947,7 @@ function classHtml(){
 function studentsTab(cls){
   const can=canManageStudents(cls);
   const list=[...cls.students].sort(cmpName);
-  let h='<div class="toolbar">'+(can?'<button class="btn primary" data-act="add-student">Ajouter un élève</button><button class="btn" data-act="import-students">Importer une liste</button>':'<span class="small muted">Seuls l’administrateur et le professeur principal peuvent modifier la liste des élèves.</span>')+'<span class="grow"></span><span class="small muted">'+list.length+' élève'+(list.length>1?'s':'')+'</span></div>';
+  let h='<div class="toolbar">'+(can?'<button class="btn primary" data-act="add-student">Ajouter un élève</button><button class="btn" data-act="import-students">Importer une liste</button><button class="btn" data-act="student-archive" title="Élèves retirés d’une classe : les restaurer ou les supprimer définitivement">Élèves archivés ('+archivedStudents().length+')</button>':'<span class="small muted">Seuls l’administrateur et le professeur principal peuvent modifier la liste des élèves.</span>')+'<span class="grow"></span><span class="small muted">'+list.length+' élève'+(list.length>1?'s':'')+'</span></div>';
   if(!list.length)return h+'<div class="panel empty"><h3>La liste est vide</h3><p>'+(can?'Importez les noms depuis Excel (copier-coller) ou ajoutez les élèves un par un.':'Le professeur principal ou l’administrateur doit d’abord ajouter les élèves.')+'</p></div>';
   const hasSex=list.some(s=>s.sex);
   /* Filtre rapide a l'interieur de la classe (nom ou matricule) */
@@ -2955,6 +2959,95 @@ function studentsTab(cls){
    list.map((s,i)=>{const photo=studentPhotoSrc(cls,s);return '<tr data-st="'+s.id+'" data-q="'+esc(normTxt(s.name+' '+(s.mat||'')))+'" class="'+(S.focusStudent===s.id?'row-focus':'')+'"><td>'+(i+1)+'</td><td>'+(photo?'<img src="'+photo+'" alt="" style="width:32px;height:40px;object-fit:cover;border-radius:3px;vertical-align:middle">':'<span class="muted">—</span>')+'</td><td class="stu-cell">'+tagBadge(s)+' <b>'+esc(s.name)+'</b></td><td class="mono">'+esc(s.mat||'')+'</td><td>'+(s.dob?esc(s.dob):'<span class="muted">—</span>')+'</td><td>'+(s.pob?esc(s.pob):'<span class="muted">—</span>')+'</td><td>'+(s.sex==='M'?'Masculin':s.sex==='F'?'Féminin':'<span class="muted">—</span>')+'</td>'+
    (can?'<td class="right nowrap"><button class="btn sm" data-act="edit-student" data-id="'+s.id+'">Modifier</button> <button class="btn sm danger" data-act="del-student" data-id="'+s.id+'">Retirer</button></td>':'')+'</tr>'}).join('')+'</tbody></table></div>';
   return h;
+}
+
+/* ---------- Eleves archives (corbeille) ----------
+   Retirer un eleve ne l'efface plus : il passe dans DB.archivedStudents avec
+   ses notes, ses absences et sa photo. On peut ensuite le restaurer tel quel
+   ou le supprimer definitivement. */
+function archivedStudents(){return Array.isArray(DB.archivedStudents)?DB.archivedStudents:[]}
+function archivedVisible(){
+  const list=archivedStudents();
+  if(isAdmin())return list;
+  const mine=new Set(visibleClasses().filter(c=>c.ppId===ME.id).map(c=>c.id));
+  return list.filter(r=>mine.has(r.classId));
+}
+function archiveStudent(cls,s){
+  const snapshot={grades:(cls.grades&&cls.grades[s.id])||null,
+    remarks:(cls.remarks&&cls.remarks[s.id])||null,
+    disc:(cls.disc&&cls.disc[s.id])||null};
+  const rec={id:uid(),at:new Date().toISOString(),by:(ME&&ME.name)||'',year:viewYear(),
+    classId:cls.id,className:cls.name,data:JSON.parse(JSON.stringify(s)),snapshot:snapshot};
+  DB.archivedStudents=archivedStudents().concat([rec]);
+  cls.students=cls.students.filter(x=>x.id!==s.id);
+  if(cls.grades)delete cls.grades[s.id];
+  if(cls.remarks)delete cls.remarks[s.id];
+  if(cls.disc)delete cls.disc[s.id];
+  return rec;
+}
+function restoreStudent(id){
+  const list=archivedStudents(),rec=list.find(x=>x.id===id);
+  if(!rec||!rec.data)return;
+  let cls=DB.classes.find(c=>c.id===rec.classId)||null;
+  if(!cls){
+    if(!isAdmin())return toast('La classe d’origine n’existe plus : seul l’administrateur peut restaurer cet élève.','err');
+    const sel=document.querySelector('[data-restore-class="'+id+'"]');
+    cls=DB.classes.find(c=>c.id===(sel?sel.value:''))||DB.classes[0]||null;
+  }
+  if(!cls)return toast('Créez d’abord une classe pour restaurer cet élève.','err');
+  if(cls.students.some(s=>s.id===rec.data.id))return toast('Cet élève figure déjà dans la classe '+cls.name+'.','err');
+  if(rec.data.mat&&DB.classes.some(c=>c.students.some(s=>s.mat===rec.data.mat)))
+    return toast('Un élève porte déjà le matricule '+rec.data.mat+' : vérifiez avant de restaurer.','err');
+  cls.students.push(rec.data);cls.students.sort(cmpName);
+  if(rec.snapshot){
+    if(rec.snapshot.grades){cls.grades=cls.grades||{};cls.grades[rec.data.id]=rec.snapshot.grades}
+    if(rec.snapshot.remarks){cls.remarks=cls.remarks||{};cls.remarks[rec.data.id]=rec.snapshot.remarks}
+    if(rec.snapshot.disc){cls.disc=cls.disc||{};cls.disc[rec.data.id]=rec.snapshot.disc}
+  }
+  DB.archivedStudents=list.filter(x=>x.id!==id);
+  dirty();closeModal();render();
+  toast(rec.data.name+' restauré dans '+cls.name+'.','ok');
+}
+function purgeStudent(id){
+  const rec=archivedStudents().find(x=>x.id===id);if(!rec)return;
+  const nm=rec.data&&rec.data.name?rec.data.name:'cet élève';
+  askConfirm('Supprimer définitivement ?',
+    '<b>'+esc(nm)+'</b> ('+esc(rec.className)+') sera effacé de l’archive : notes, absences et photo comprises. Cette action est <b>irréversible</b>.',
+    'Supprimer définitivement',()=>{
+      DB.archivedStudents=archivedStudents().filter(x=>x.id!==id);
+      dirty();openStudentArchive();toast('Élève supprimé définitivement.','ok');
+    },true);
+}
+function openStudentArchive(){
+  const list=archivedVisible().slice().sort((a,b)=>{
+    const da=Date.parse(a.at)||0,db=Date.parse(b.at)||0;
+    if(da!==db)return db-da;
+    return String(a.data&&a.data.name||'').localeCompare(String(b.data&&b.data.name||''),'fr',{sensitivity:'base'});
+  });
+  let h='<h2>Élèves archivés</h2><p class="small muted" style="margin-top:0">Un élève retiré de sa classe n’est plus compté dans les notes ni les bulletins, mais il est conservé ici avec ses notes, ses absences et sa photo. Vous pouvez le <b>restaurer</b> ou le <b>supprimer définitivement</b>.</p>';
+  if(!list.length){
+    h+='<div class="panel empty" style="margin:0"><h3>Aucun élève archivé</h3><p>Les élèves retirés d’une classe apparaîtront ici.</p></div>'+
+       '<div class="acts"><button class="btn primary" data-act="mclose">Fermer</button></div>';
+    return openModal(h,'xl');
+  }
+  h+='<div class="tw"><table class="t"><thead><tr><th>Élève</th><th>Matricule</th><th>Classe d’origine</th><th>Archivé le</th><th class="right">Actions</th></tr></thead><tbody>';
+  for(const r of list){
+    const d=r.data||{};
+    const clsOk=DB.classes.some(c=>c.id===r.classId);
+    const when=(function(){const x=new Date(r.at);if(isNaN(x))return '';
+      return x.toLocaleDateString('fr-FR')+' à '+x.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})})();
+    const photo=d.photo?'<img src="'+d.photo+'" alt="" style="width:24px;height:30px;object-fit:cover;border-radius:3px;vertical-align:middle;margin-right:6px">':'';
+    h+='<tr><td>'+photo+'<b>'+esc(d.name||'')+'</b>'+(r.year?' <span class="small muted">'+esc(r.year)+'</span>':'')+'</td>'+
+      '<td class="mono">'+esc(d.mat||'—')+'</td>'+
+      '<td>'+(clsOk?esc(r.className):esc(r.className)+' <span class="badge warn">classe supprimée</span>')+
+        (clsOk||!isAdmin()?'':'<br><select class="inp sm" data-restore-class="'+r.id+'" aria-label="Classe d’accueil">'+
+          DB.classes.map(c=>'<option value="'+c.id+'">'+esc(c.name)+'</option>').join('')+'</select>')+'</td>'+
+      '<td class="small muted">'+esc(when||'—')+(r.by?'<br>par '+esc(r.by):'')+'</td>'+
+      '<td class="right nowrap"><button class="btn sm primary" data-act="restore-student" data-id="'+r.id+'">Restaurer</button> '+
+      '<button class="btn sm danger" data-act="purge-student" data-id="'+r.id+'">Supprimer définitivement</button></td></tr>';
+  }
+  h+='</tbody></table></div><div class="acts"><button class="btn" data-act="mclose">Fermer</button></div>';
+  openModal(h,'xl');
 }
 
 /* --- Saisie des notes --- */
@@ -3331,8 +3424,11 @@ function studentForm(s){
    (photoPreview?'<img data-photo-preview src="'+photoPreview+'" alt="Aperçu de la photo" style="width:28mm;height:35mm;object-fit:cover;border:1px solid var(--line);border-radius:4px;flex:0 0 auto">':'<div data-photo-empty style="width:28mm;height:35mm;display:flex;align-items:center;justify-content:center;border:1px dashed var(--line);border-radius:4px;color:var(--muted);font-size:11px;flex:0 0 auto">Photo</div><img data-photo-preview alt="Aperçu de la photo" style="display:none;width:28mm;height:35mm;object-fit:cover;border:1px solid var(--line);border-radius:4px;flex:0 0 auto">')+'</div>'+
    '<div class="err" id="fe"></div><div class="acts"><button type="button" class="btn" data-act="mclose">Annuler</button><button class="btn primary">'+(s?'Enregistrer':'Ajouter')+'</button></div></form>');
 }
-A['del-student']=el=>{const cls=curClass(),s=cls.students.find(x=>x.id===el.dataset.id);
-  askConfirm('Retirer cet élève ?','<b>'+esc(s.name)+'</b> sera retiré de la classe et toutes ses notes seront supprimées.','Retirer',()=>{cls.students=cls.students.filter(x=>x.id!==s.id);delete cls.grades[s.id];delete cls.remarks[s.id];dirty();render();toast('Élève retiré.')},true)};
+A['del-student']=el=>{const cls=curClass(),s=cls.students.find(x=>x.id===el.dataset.id);if(!s)return;
+  askConfirm('Archiver cet élève ?','<b>'+esc(s.name)+'</b> sera retiré de la classe et conservé dans « Élèves archivés » avec ses notes, ses absences et sa photo. Il ne comptera plus dans les notes ni les bulletins, et pourra être restauré ou supprimé définitivement à tout moment.','Archiver',()=>{archiveStudent(cls,s);dirty();render();toast(s.name+' archivé — « Élèves archivés » permet de le restaurer.','ok')})};
+A['student-archive']=()=>openStudentArchive();
+A['restore-student']=el=>restoreStudent(el.dataset.id);
+A['purge-student']=el=>purgeStudent(el.dataset.id);
 A['import-students']=()=>{
   IMP=[];
   openModal('<h2>Importer une liste d’élèves</h2><p class="small muted" style="margin-top:0">Collez les noms (un élève par ligne). Depuis Excel : sélectionnez la colonne des noms, copiez, puis collez ici. Un numéro en début de ligne et une colonne M/F sont reconnus.</p>'+
@@ -3698,7 +3794,7 @@ function handleFile(el){
     let d;try{d=JSON.parse(txt)}catch(e){return bad('Ce fichier n’est pas un fichier JSON valide.')}
     if(kind==='restore'){if(!confirm('Restaurer cette sauvegarde (les données actuelles seront remplacées) ?'))return;
       if(!d||!d.school||!Array.isArray(d.users)||!Array.isArray(d.classes)||!d.users.some(u=>u.role==='admin'))return bad('Ce fichier n’est pas une sauvegarde complète de cette application.');
-      DB=d;calcCache={};S.sessionId=null;S.closeState=null;S.simulationState=null;try{repairMatricules();upgradeLegacyMatricules()}catch(e){}saveNow();closeModal();ME=null;try{sessionStorage.removeItem(SKEY)}catch(e){}render();toast('Sauvegarde restaurée : connectez-vous.','ok');
+      DB=d;if(!Array.isArray(DB.archivedStudents))DB.archivedStudents=[];calcCache={};S.sessionId=null;S.closeState=null;S.simulationState=null;try{repairMatricules();upgradeLegacyMatricules()}catch(e){}saveNow();closeModal();ME=null;try{sessionStorage.removeItem(SKEY)}catch(e){}render();toast('Sauvegarde restaurée : connectez-vous.','ok');
     }else if(kind==='merge'){if(!confirm('Fusionner les notes de ce fichier dans les classes correspondantes ?'))return;
       if(!d||d.type!=='mbi-notes'||!Array.isArray(d.classes))return bad('Ce fichier n’est pas un fichier de notes exporté par un enseignant.');
       let n=0,skipped=0;
