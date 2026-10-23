@@ -1180,7 +1180,7 @@ function bBottomHtml(cls,st,res,P,t,ann,remark,pp,sc){
     /* --- 3e trimestre : 7 lignes, la colonne Decision recoit 3 cases de plus --- */
     '<tr class="row-t3">'+
       '<td class="lbl" rowspan="2">Abs. non. J. (h)'+v(dv('absNJ'))+'</td>'+
-      '<td class="lbl" rowspan="2">Avertissement de conduite'+chkOn(dOn.a)+v('&nbsp;')+'</td>'+
+      '<td class="lbl" rowspan="2">Avertissement de conduite<i>Conduct warning</i>'+chkOn(dOn.a)+v('&nbsp;')+'</td>'+
       '<td class="lbl center" rowspan="2"><b>Total général</b>'+v(num(P.cs?fmt(P.pts):'&nbsp;'))+'</td>'+
       '<td class="lbl center dcc"><b>Décision du conseil de classe</b><i>Class council decision</i></td>'+
       '<td class="lbl" rowspan="2">Moyenne Générale / General Average'+v(pAvg==null?'&nbsp;':fmt1(pAvg))+'</td>'+
@@ -1190,7 +1190,7 @@ function bBottomHtml(cls,st,res,P,t,ann,remark,pp,sc){
     '</tr>'+
     '<tr class="row-t3">'+
       '<td class="lbl" rowspan="2">Abs. just. (h)'+v(dv('absJ'))+'</td>'+
-      '<td class="lbl" rowspan="2">Blâme de cond.'+chkOn(dOn.b)+v('&nbsp;')+'</td>'+
+      '<td class="lbl" rowspan="2">Blâme de cond.<i>Conduct reprimand</i>'+chkOn(dOn.b)+v('&nbsp;')+'</td>'+
       '<td class="lbl center" rowspan="2"><b>Coef.</b>'+v(num(P.cs||''))+'</td>'+
       '<td class="lbl center mtn-cell"><span class="mtn">Félicitations'+chkOn(mOn.f)+'</span></td>'+
       '<td class="lbl center" rowspan="2">[ Min - Max ]'+v(pMn==null?'&nbsp;':fmt1(pMn)+' – '+fmt1(pMx))+'</td>'+
@@ -1221,14 +1221,14 @@ function bBottomHtml(cls,st,res,P,t,ann,remark,pp,sc){
     /* --- 1er et 2e trimestres : bloc inchange --- */
     '<tr class="row-h">'+
       '<td class="lbl">Abs. non. J. (h)'+v(dv('absNJ'))+'</td>'+
-      '<td class="lbl">Avertissement de conduite'+chkOn(dOn.a)+v('&nbsp;')+'</td>'+
+      '<td class="lbl">Avertissement de conduite<i>Conduct warning</i>'+chkOn(dOn.a)+v('&nbsp;')+'</td>'+
       '<td class="lbl center"><b>Total général</b>'+v(num(P.cs?fmt(P.pts):'&nbsp;'))+'</td>'+
       '<td class="lbl center dcc"><b>Décision du conseil de classe</b><i>Class council decision</i></td>'+
       '<td class="lbl">Moyenne Générale / General Average'+v(pAvg==null?'&nbsp;':fmt1(pAvg))+'</td>'+
     '</tr>'+
     '<tr class="row-h">'+
       '<td class="lbl">Abs. just. (h)'+v(dv('absJ'))+'</td>'+
-      '<td class="lbl">Blâme de cond.'+chkOn(dOn.b)+v('&nbsp;')+'</td>'+
+      '<td class="lbl">Blâme de cond.<i>Conduct reprimand</i>'+chkOn(dOn.b)+v('&nbsp;')+'</td>'+
       '<td class="lbl center"><b>Coef.</b>'+v(num(P.cs||''))+'</td>'+
       '<td class="lbl center mtn-cell"><span class="mtn">Tableau d’honneur'+chkOn(mOn.h)+'</span></td>'+
       '<td class="lbl center">[ Min - Max ]'+v(pMn==null?'&nbsp;':fmt1(pMn)+' – '+fmt1(pMx))+'</td>'+
