@@ -3647,7 +3647,10 @@ function financeRecent(limit){
 function financeDashHtml(){
   const classes=DB.classes||[],tot=financeTotals(classes);
   let h='<div class="page-h"><div><h1>Gestion des finances</h1><p>Frais scolaires · année '+esc(DB.school.year)+' · '+esc(finStamp())+'</p></div>'+
-    (tot.fee>0?'<div class="toolbar" style="margin:0"><button class="btn primary" data-act="fin-report">Bilan financier (PDF)</button></div>':'')+'</div>';
+    (classes.length?'<div class="toolbar" style="margin:0">'+
+      (tot.fee>0?'<button class="btn primary" data-act="fin-report">Bilan financier (PDF)</button>':'')+
+      '<button class="btn" data-act="fin-dues" title="Liste des élèves qui doivent encore payer, classée par classe et par nom">Reste à payer (PDF)</button>'+
+    '</div>':'')+'</div>';
   if(!classes.length)return h+'<div class="panel empty"><h3>Aucune classe</h3><p>Créez des classes et inscrivez des élèves pour tenir les comptes de l’établissement.</p></div>';
   h+='<div class="kpis">'+
     '<div class="kpi"><b>'+money(tot.fee)+'</b><span>montant attendu</span></div>'+
@@ -3673,7 +3676,9 @@ function financeClassHtml(){
   if(!cls)return '<div class="panel empty"><h3>Aucune classe</h3><p>Créez une classe pour commencer.</p></div>';
   const tot=financeTotals([cls]),list=financeStudents(cls);
   let h='<div class="page-h"><div><h1>Finances · '+esc(cls.name)+'</h1><p>'+list.length+' élève'+(list.length>1?'s':'')+' · année scolaire '+esc(DB.school.year)+'</p></div>'+
-    '<div class="toolbar" style="margin:0"><button class="btn" data-act="fin-home">Toutes les classes</button><button class="btn primary" data-act="fin-class-report" data-id="'+cls.id+'">Bilan de la classe (PDF)</button></div></div>';
+    '<div class="toolbar" style="margin:0"><button class="btn" data-act="fin-home">Toutes les classes</button>'+
+      '<button class="btn" data-act="fin-class-dues" data-id="'+cls.id+'" title="Élèves de cette classe qui doivent encore payer">Reste à payer (PDF)</button>'+
+      '<button class="btn primary" data-act="fin-class-report" data-id="'+cls.id+'">Bilan de la classe (PDF)</button></div></div>';
   h+='<div class="kpis">'+
     '<div class="kpi"><b>'+money(tot.fee)+'</b><span>attendu pour la classe</span></div>'+
     '<div class="kpi"><b style="color:var(--green-d)">'+money(tot.paid)+'</b><span>encaissé</span></div>'+
@@ -3880,6 +3885,156 @@ function financeReportPdf(onlyClassId){
   const r=financeReportDoc(onlyClassId);if(!r)return;
   previewPdf(onlyClassId?('Bilan financier — classe '+r.name):'Bilan financier de l’établissement',r.fileName,r.bytes);
 }
+/* ---------- Reste à payer : liste de relance (PDF) ----------
+   Le document ne contient QUE les élèves non soldés : un élève qui a tout
+   payé (ou dont le montant est nul) n'y figure pas, et une classe dont tous
+   les élèves sont soldés est entièrement omise. Il sert à relancer les
+   familles, d'où la colonne du téléphone du parent quand elle est remplie. */
+function financeDuesGroups(onlyClassId){
+  const classes=onlyClassId?(DB.classes||[]).filter(c=>c.id===onlyClassId):(DB.classes||[]);
+  const groups=[];let nUndef=0;
+  for(const c of classes){
+    const rows=[];let rest=0;
+    for(const s of financeStudents(c)){
+      const q=financeState(s.id);
+      if(!q.defined){if(q.paid<=0)nUndef++;continue}
+      if(q.rest<=0)continue;                 /* soldé : on ne le met pas */
+      rows.push({st:s,q});rest+=q.rest;
+    }
+    if(rows.length)groups.push({cls:c,rows,rest:Math.round(rest*100)/100});
+  }
+  const n=groups.reduce((a,g)=>a+g.rows.length,0);
+  const rest=Math.round(groups.reduce((a,g)=>a+g.rest,0)*100)/100;
+  return {groups,n,rest,undef:nUndef,classes:classes.length,tot:financeTotals(classes)};
+}
+function financeDuesDoc(onlyClassId){
+  const classes=onlyClassId?(DB.classes||[]).filter(c=>c.id===onlyClassId):(DB.classes||[]);
+  if(!classes.length)return toast('Aucune classe à imprimer.','err');
+  const D=financeDuesGroups(onlyClassId);
+  const navy=[0.039,0.098,0.184],gold=[0.788,0.635,0.153],grey=[0.42,0.46,0.53],ink=[0.09,0.12,0.18],
+    green=[0.06,0.45,0.22],red=[0.72,0.16,0.20],band=[0.949,0.961,0.980],head=[0.929,0.945,0.965],
+    line=[0.85,0.88,0.92],zeb=[0.975,0.98,0.99];
+  const doc=PdfDoc(),M=doc.M,cw=doc.cw;
+  const withPhone=D.groups.some(g=>g.rows.some(r=>String(r.st.parentPhone||'').trim()));
+  doc.newPage();
+  doc.text(DB.school.name,M,M+16,14,'F2',navy);
+  doc.textRight('Année scolaire '+viewYear(),doc.W-M,M+16,8.5,'F1',grey);
+  doc.textRight(DB.school.city||'',doc.W-M,M+27,8,'F1',grey);
+  doc.rect(M,M+32,cw,1.6,gold);
+  doc.y=M+62;
+  doc.text('RESTE À PAYER',M,doc.y,20,'F2',navy);
+  doc.y+=19;
+  doc.text(onlyClassId?('Classe '+classes[0].name+' — élèves qui doivent encore payer'):'Élèves non soldés — situation par classe et par nom',M,doc.y,10.5,'F1',grey);
+  doc.y+=17;
+  doc.text(finStamp(),M,doc.y,8,'F1',grey);
+  doc.textRight(D.n+' élève'+(D.n>1?'s':'')+' à relancer · '+D.groups.length+' classe'+(D.groups.length>1?'s':'')+' concernée'+(D.groups.length>1?'s':''),doc.W-M,doc.y,8.5,'F2',ink);
+  doc.y+=16;
+  const bw=(cw-24)/4,bh=42;
+  const cards=[
+    {l:'RESTE À RECOUVRER',v:money(D.rest),c:D.rest>0?red:green},
+    {l:'ÉLÈVES À RELANCER',v:String(D.n),c:ink},
+    {l:'CLASSES CONCERNÉES',v:String(D.groups.length),c:navy},
+    {l:'RECOUVREMENT',v:Math.round(D.tot.pct*100)+' %',c:navy}
+  ];
+  cards.forEach((c,i)=>{
+    const x=M+i*(bw+8);
+    doc.rect(x,doc.y,bw,bh,[0.965,0.973,0.985],line,0.5);
+    doc.text(c.l,x+8,doc.y+14,7,'F2',grey);
+    doc.text(pdfCut(c.v,8.5,bw-16,true),x+8,doc.y+30,12.5,'F2',c.c);
+  });
+  doc.y+=bh+20;
+  if(!D.groups.length){
+    /* Tous les élèves ont payé : le document le dit explicitement. */
+    doc.need(80);
+    doc.rect(M,doc.y,cw,62,[0.945,0.972,0.949],[0.72,0.85,0.75],0.7);
+    doc.rect(M,doc.y,4,62,green);
+    doc.text('TOUT EST SOLDÉ',M+16,doc.y+24,14,'F2',green);
+    doc.text('Aucun élève ne doit encore de l’argent : tous les montants dus ont été réglés.',M+16,doc.y+42,9.5,'F1',ink);
+    doc.y+=62;
+  }else{
+    doc.text('Détail par classe',M,doc.y,11.5,'F2',navy);
+    doc.y+=8;doc.hline(M,M+cw,doc.y,gold,1);doc.y+=12;
+    const bottom=doc.H-doc.M-20,rowH=15,headH=20,bandH=22;
+    const fixed=26+82+72+72+76+(withPhone?85:0);
+    const cols=[
+      {w:26,label:'N°',align:'right'},
+      {w:cw-fixed,label:'Noms et prénoms'},
+      {w:82,label:'Matricule'},
+      {w:72,label:'À payer',align:'right'},
+      {w:72,label:'Payé',align:'right'},
+      {w:76,label:'Reste',align:'right'}
+    ].concat(withPhone?[{w:85,label:'Téléphone parent'}]:[]);
+    for(const g of D.groups){
+      const meta=g.rows.length+' élève'+(g.rows.length>1?'s':'')+' · reste '+money(g.rest);
+      let i=0,part=0;
+      while(i<g.rows.length||part===0){
+        if(doc.y+bandH+headH+rowH>bottom)doc.newPage();
+        doc.rect(M,doc.y,cw,bandH,band);
+        doc.rect(M,doc.y,3,bandH,gold);
+        doc.text('Classe '+g.cls.name+(part?' (suite)':''),M+9,doc.y+15,11.5,'F2',navy);
+        doc.textRight(pdfCut(meta,7.6,cw-150,false),doc.W-M-5,doc.y+14,7.6,'F1',grey);
+        doc.y+=bandH+7;
+        doc.rect(M,doc.y,cw,headH,head);
+        let x=M;
+        cols.forEach(col=>{
+          if(col.align==='right')doc.textRight(col.label,x+col.w-4,doc.y+14,7.2,'F2',ink);
+          else doc.text(col.label,x+5,doc.y+14,7.2,'F2',ink);
+          x+=col.w;
+        });
+        doc.y+=headH;
+        let k=0;
+        while(i<g.rows.length&&doc.y+rowH<=bottom){
+          const r=g.rows[i++];
+          if(k%2===1)doc.rect(M,doc.y,cw,rowH,zeb);
+          x=M;
+          const vals=[String(i),r.st.name,r.st.mat||'—',money(r.q.fee),money(r.q.paid),money(r.q.rest)]
+            .concat(withPhone?[String(r.st.parentPhone||'—')]:[]);
+          vals.forEach((v,j)=>{
+            const col=cols[j];
+            const bold=(j===1)||(j===5);
+            const colr=j===5?red:ink;
+            const txt=pdfCut(String(v),8,col.w-8,bold);
+            if(col.align==='right')doc.textRight(txt,x+col.w-4,doc.y+10.2,8,bold?'F2':'F1',colr);
+            else doc.text(txt,x+5,doc.y+10.2,8,bold?'F2':'F1',colr);
+            x+=col.w;
+          });
+          doc.hline(M,M+cw,doc.y+rowH,line,0.35);
+          doc.y+=rowH;k++;
+        }
+        part++;
+        if(i>=g.rows.length)break;
+      }
+      doc.y+=6;
+      doc.textRight('Total '+g.cls.name+' : '+money(g.rest)+' à recouvrer sur '+g.rows.length+' élève'+(g.rows.length>1?'s':''),doc.W-M,doc.y+8,8,'F2',red);
+      doc.y+=24;
+    }
+    /* Total général */
+    doc.need(60);
+    doc.rect(M,doc.y,cw,46,band,gold,0.7);
+    doc.text('TOTAL GÉNÉRAL',M+12,doc.y+17,9,'F2',navy);
+    doc.text(D.n+' élève'+(D.n>1?'s':'')+' dans '+D.groups.length+' classe'+(D.groups.length>1?'s':''),M+12,doc.y+32,7.8,'F1',grey);
+    doc.textRight(money(D.rest),doc.W-M-12,doc.y+29,16,'F2',red);
+    doc.y+=46;
+  }
+  if(D.undef>0){
+    doc.need(26);
+    doc.y+=10;
+    doc.text(D.undef+' élève'+(D.undef>1?'s':'')+' sans montant défini ne figure'+(D.undef>1?'nt':'')+' pas dans cette liste.',M,doc.y,7.8,'F1',grey);
+  }
+  doc.need(70);
+  doc.y+=18;
+  doc.text('Fait à '+(DB.school.city||'')+', le '+new Date().toLocaleDateString('fr-FR'),M,doc.y,8.5,'F1',grey);
+  doc.textRight('L’Économe / The Bursar',doc.W-M,doc.y,9,'F2',ink);
+  doc.hline(doc.W-M-140,doc.W-M,doc.y+26,line,0.5);
+  doc.textRight(ME?ME.name:'',doc.W-M,doc.y+38,8,'F1',grey);
+  const tag=onlyClassId?('_'+String(classes[0].name).replace(/[^A-Za-z0-9]+/g,'-')):'';
+  const name='reste_a_payer'+tag+'_'+String(viewYear()).replace(/[^0-9]+/g,'-')+'.pdf';
+  return {fileName:name,bytes:doc.finish(),n:D.n,groups:D.groups.length,rest:D.rest,name:classes.length===1?classes[0].name:''};
+}
+function financeDuesPdf(onlyClassId){
+  const r=financeDuesDoc(onlyClassId);if(!r)return;
+  previewPdf(onlyClassId?('Reste à payer — classe '+r.name):'Reste à payer — élèves non soldés',r.fileName,r.bytes);
+}
 /* ---------- Reçu de paiement (PDF) ---------- */
 function receiptDoc(sid,pid){
   const f=financeStudent(sid);if(!f)return;
@@ -4083,6 +4238,8 @@ A['fin-report']=()=>{if(!canFinance())return;financeReportPdf(null)};
 A['pdf-download']=()=>{if(pdfPreview&&pdfPreview.bytes)downloadBytes(pdfPreview.name,pdfPreview.bytes,'application/pdf')};
 A['pdf-close']=()=>closeModal();
 A['fin-class-report']=el=>{if(!canFinance())return;financeReportPdf(el.dataset.id)};
+A['fin-dues']=()=>{if(!canFinance())return;financeDuesPdf(null)};
+A['fin-class-dues']=el=>{if(!canFinance())return;financeDuesPdf(el.dataset.id)};
 A['space']=el=>{
   if(!isAdmin()||isReadOnlySession())return;
   const target=el.dataset.s;
