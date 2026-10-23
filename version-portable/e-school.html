@@ -475,8 +475,10 @@ tr.row-focus td{background:#fff7d6!important;box-shadow:inset 0 0 0 999px rgba(2
   border-right:.7mm solid #1e3a8a;border-bottom:.7mm solid #1e3a8a;transform:rotate(38deg)}
 .hon .hn-m b{display:block;font-size:12.5pt;font-weight:700;color:#0a192f;line-height:1.1}
 .hon .hn-m i{display:block;font-size:9.5pt;font-style:italic;color:#64748b;line-height:1.15}
-/* signature du chef d'établissement à droite, date juste en dessous */
-.hon .hn-sign{display:block;padding:0;margin:0;text-align:center}
+/* signature du chef d'établissement a droite, date juste au-dessus.
+   padding-left : decale le bloc de 12 mm vers la droite (la moitie du
+   padding, puisque le texte reste centre) sans jamais sortir de la colonne. */
+.hon .hn-sign{display:block;padding:0 0 0 24mm;margin:0;text-align:center}
 .hon .hn-sign .hn-sg{max-width:none;margin:0;text-align:center}
 /* la date reprend exactement la police du libelle « Le Chef d'Etablissement » */
 .hon .hn-sign .hn-date{font-family:var(--hn-body);font-size:12pt;font-weight:700;font-style:normal;
@@ -1483,7 +1485,8 @@ function honourHtml(cls,sid,t){
           '<div class="hn-m">'+box(hi.enc)+'<span><b>Avec encouragements</b><i>With credits</i></span></div>'+
           '<div class="hn-m">'+box(hi.fel)+'<span><b>Avec félicitations</b><i>With distinctions</i></span></div>'+
         '</div>'+
-        /* La date est imprimee au-dessus du libelle ; aucun trait de saisie. */
+        /* Bloc date + libelle decale de 12 mm vers la droite ; la date est
+           imprimee au-dessus du libelle, sans aucun trait de saisie. */
         '<div class="hn-sign">'+
           '<div class="hn-date">'+esc(honDateLine(sc))+'</div>'+
           '<div class="hn-sg"><span class="r">Le Chef d’Établissement<i>Headmaster</i></span></div>'+
