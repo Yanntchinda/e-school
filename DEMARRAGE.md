@@ -19,10 +19,11 @@ compte administrateur.
 ### Mot de passe administrateur oublié
 
 Sur la page de connexion, choisissez l'espace **Administration** puis cliquez sur
-**« Mot de passe oublié ? »**. Indiquez l'identifiant de l'administrateur et le
-**nom de l'établissement** tel qu'il a été enregistré (il est affiché sur la page
-de connexion). Vous choisissez ensuite un nouveau mot de passe : classes,
-élèves, notes et finances sont conservés.
+**« Mot de passe oublié ? »**. Indiquez l'identifiant de l'administrateur (ou
+laissez-le vide s'il n'y a qu'un seul administrateur et que vous avez aussi
+oublié l'identifiant) et le **nom de l'établissement** tel qu'il a été enregistré
+(il est affiché sur la page de connexion). Vous choisissez ensuite un nouveau mot
+de passe : classes, élèves, notes et finances sont conservés.
 
 Cette récupération fonctionne **uniquement pour le compte administrateur**. Pour
 un enseignant, un surveillant général ou un économe, l'administrateur

@@ -2580,7 +2580,8 @@ function forgotHtml(){
     '<h1>Compte administrateur</h1>'+
     '<p>Récupération réservée à l’administrateur de l’établissement.</p>'+
     '<p class="forgot-note">Indiquez l’identifiant du compte administrateur et le nom de l’établissement tel qu’il a été enregistré à l’installation. Vous pourrez ensuite choisir un nouveau mot de passe, sans perdre vos classes, vos élèves, vos notes ni vos finances.</p>'+
-    '<label class="f">Identifiant de l’administrateur<input name="username" autocapitalize="none" autocomplete="username" required autofocus></label>'+
+    '<label class="f">Identifiant de l’administrateur<input name="username" autocapitalize="none" autocomplete="username" autofocus></label>'+
+    (DB.users.filter(x=>x.role==='admin').length===1?'<p class="small muted" style="margin:-6px 0 10px">Identifiant oublié ? Laissez ce champ vide : il n’y a qu’un seul administrateur.</p>':'')+
     '<label class="f">Nom de l’établissement<input name="school" autocomplete="off" placeholder="Ex. Complexe Scolaire Bilingue" required></label>'+
     '<div class="err" id="fe"></div>'+
     '<button class="btn primary" style="width:100%;justify-content:center;padding:11px 14px;font-size:15px">Vérifier</button>'+
@@ -5178,8 +5179,13 @@ document.addEventListener('submit',async e=>{
     /* Première étape : identité de l'administrateur. */
     const un=String(fd.username||'').trim().toLowerCase();
     if(!DB.users.length)return err('Aucun compte n’existe encore : créez d’abord le compte administrateur.');
-    const u=DB.users.find(x=>x.username===un);
-    if(!u)return err('Aucun compte ne porte cet identifiant. Vérifiez l’orthographe.');
+    const admins=DB.users.filter(x=>x.role==='admin');
+    /* Identifiant oublié : s'il n'y a qu'un administrateur, le champ peut rester vide. */
+    let u=un?DB.users.find(x=>x.username===un):(admins.length===1?admins[0]:null);
+    if(!u){
+      if(!un&&admins.length>1)return err('Plusieurs comptes administrateur existent : indiquez l’identifiant à récupérer.');
+      return err('Aucun compte ne porte cet identifiant. Vérifiez l’orthographe.');
+    }
     if(u.role!=='admin')return err('Ce compte n’est pas un compte administrateur : seul l’administrateur peut récupérer son mot de passe ici. Demandez-lui la réinitialisation de votre mot de passe (Paramètres → Personnel).');
     if(!String(fd.school||'').trim())return err('Indiquez le nom de l’établissement.');
     if(normTxt(fd.school)!==normTxt(DB.school.name))return err('Le nom de l’établissement ne correspond pas à celui enregistré (« '+(DB.school.name||'—')+' »). Corrigez la saisie et réessayez.');
