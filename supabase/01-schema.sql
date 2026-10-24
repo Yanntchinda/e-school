@@ -154,6 +154,24 @@ create table if not exists public.lessons (
 );
 
 -- ---------------------------------------------------------------------
+-- 8 bis. FINANCES (montant dû et versements, un enregistrement par élève)
+-- ---------------------------------------------------------------------
+create table if not exists public.finance (
+ id text primary key,                      -- identifiant de l'élève
+ school_id text not null references public.schools(id) on delete cascade,
+ fee numeric,                              -- montant à payer (null = non défini)
+ pays jsonb not null default '[]'::jsonb,  -- liste des versements
+ updated_at timestamptz not null default now()
+);
+create index if not exists idx_finance_school on public.finance (school_id);
+
+-- Colonnes ajoutées après coup (sans effet si elles existent déjà).
+alter table public.schools add column if not exists logo text;
+alter table public.archives add column if not exists kind text default 'session';
+alter table public.archives add column if not exists class_id text default '';
+alter table public.archives add column if not exists class_name text default '';
+
+-- ---------------------------------------------------------------------
 -- 9. ARCHIVES DE SESSIONS (années clôturées)
 -- ---------------------------------------------------------------------
 create table if not exists public.archives (
@@ -220,6 +238,16 @@ as $$
  'grades', coalesce((select jsonb_agg(jsonb_build_object('id',g.id,'student_id',g.student_id,'subject_id',g.subject_id,'seqs',to_jsonb(g.seqs))) from public.grades g where g.school_id = p_school), '[]'::jsonb),
  'remarks', coalesce((select jsonb_agg(to_jsonb(x)) from public.remarks x where x.school_id = p_school), '[]'::jsonb),
  'lessons', coalesce((select jsonb_agg(to_jsonb(x)) from public.lessons x where x.school_id = p_school), '[]'::jsonb),
+ 'finance', coalesce((select jsonb_agg(jsonb_build_object('id',f.id,'fee',f.fee,'pays',f.pays)) from public.finance f where f.school_id = p_school), '[]'::jsonb),
+ 'archived', coalesce((select jsonb_agg(jsonb_build_object(
+     'id',a.id,'at',a.year,'by',coalesce(a.payload->>'by',''),'year',a.year,
+     'class_id',a.class_id,'class_name',a.class_name,
+     'data',coalesce(a.payload->'data','{}'::jsonb),
+     'snapshot',coalesce(a.payload->'snapshot','{}'::jsonb)))
+   from public.archives a where a.school_id = p_school and coalesce(a.kind,'session') = 'student'), '[]'::jsonb),
+ 'sessions', coalesce((select jsonb_agg(jsonb_build_object(
+     'id',a.id,'year',a.year,'closed_at',a.created_at,'payload',a.payload))
+   from public.archives a where a.school_id = p_school and coalesce(a.kind,'session') = 'session'), '[]'::jsonb),
  'server_time', now()
  );
 $$;
@@ -252,7 +280,8 @@ begin
  city = coalesce(p_payload->'school'->>'city', s.city),
  year = coalesce(nullif(p_payload->'school'->>'year',''), s.year),
  principal = coalesce(p_payload->'school'->>'principal', s.principal),
- header = coalesce(p_payload->'school'->>'header', s.header)
+ header = coalesce(p_payload->'school'->>'header', s.header),
+ logo = coalesce(nullif(p_payload->'school'->>'logo',''), s.logo)
  where s.id = p_school;
  end if;
 
@@ -388,6 +417,39 @@ begin
  v_rows := v_rows + 1;
  end loop;
 
+ ---------------------------------------------------------------- finances
+ for r in select value from jsonb_array_elements(coalesce(p_payload->'finance','[]'::jsonb)) loop
+ insert into public.finance (id, school_id, fee, pays, updated_at)
+ values (r->>'id', p_school,
+   nullif(r->>'fee','')::numeric,
+   coalesce(r->'pays','[]'::jsonb), now())
+ on conflict (id) do update set
+   fee = excluded.fee,
+   pays = excluded.pays,
+   updated_at = now();
+ v_rows := v_rows + 1;
+ end loop;
+
+ ---------------------------------------------------------------- archives (élèves et sessions)
+ for r in select value from jsonb_array_elements(coalesce(p_payload->'archived','[]'::jsonb)) loop
+ insert into public.archives (id, school_id, year, payload, kind, class_id, class_name)
+ values (r->>'id', p_school, coalesce(r->>'year',''),
+   jsonb_build_object('by',r->>'by','data',coalesce(r->'data','{}'::jsonb),'snapshot',coalesce(r->'snapshot','{}'::jsonb)),
+   'student', coalesce(r->>'class_id',''), coalesce(r->>'class_name',''))
+ on conflict (id) do update set
+   year = excluded.year, payload = excluded.payload, kind = 'student',
+   class_id = excluded.class_id, class_name = excluded.class_name;
+ v_rows := v_rows + 1;
+ end loop;
+
+ for r in select value from jsonb_array_elements(coalesce(p_payload->'sessions','[]'::jsonb)) loop
+ insert into public.archives (id, school_id, year, payload, kind)
+ values (r->>'id', p_school, coalesce(r->>'year',''), coalesce(r->'payload','{}'::jsonb), 'session')
+ on conflict (id) do update set
+   year = excluded.year, payload = excluded.payload, kind = 'session';
+ v_rows := v_rows + 1;
+ end loop;
+
  ---------------------------------------------------------------- suppressions
  if p_payload ? 'deleted' then
  delete from public.lessons where school_id = p_school and id in (select jsonb_array_elements_text(coalesce(p_payload->'deleted'->'lessons','[]'::jsonb)));
@@ -397,6 +459,9 @@ begin
  delete from public.subjects where school_id = p_school and id in (select jsonb_array_elements_text(coalesce(p_payload->'deleted'->'subjects','[]'::jsonb)));
  delete from public.classes where school_id = p_school and id in (select jsonb_array_elements_text(coalesce(p_payload->'deleted'->'classes','[]'::jsonb)));
  delete from public.app_users where school_id = p_school and id in (select jsonb_array_elements_text(coalesce(p_payload->'deleted'->'users','[]'::jsonb)));
+ delete from public.finance where school_id = p_school and id in (select jsonb_array_elements_text(coalesce(p_payload->'deleted'->'finance','[]'::jsonb)));
+ delete from public.archives where school_id = p_school and id in (select jsonb_array_elements_text(coalesce(p_payload->'deleted'->'archived','[]'::jsonb)));
+ delete from public.archives where school_id = p_school and id in (select jsonb_array_elements_text(coalesce(p_payload->'deleted'->'sessions','[]'::jsonb)));
  end if;
 
  return jsonb_build_object('ok', true, 'rows', v_rows, 'at', now());

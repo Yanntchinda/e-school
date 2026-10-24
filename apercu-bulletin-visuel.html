@@ -2024,13 +2024,22 @@ function bulletinHtml(cls,sid,t){
 const CLOUD_KEY='mbi_cloud_v1';
 
 const Cloud={
-  cfg:{url:'',key:'',schoolId:''},
+  cfg:{mode:'',url:'',key:'',schoolId:''},
   client:null,online:false,busy:false,snap:null,pollT:null,ch:null,localAt:0,last:'',msg:'',
   _lib:null,
 
-  load(){try{const c=JSON.parse(localStorage.getItem(CLOUD_KEY)||'{}');this.cfg={url:c.url||'',key:c.key||'',schoolId:c.schoolId||''}}catch(e){}return this.cfg},
+  load(){
+    try{
+      const c=JSON.parse(localStorage.getItem(CLOUD_KEY)||'{}');
+      this.cfg={mode:c.mode||(c.key?'supabase':(c.url?'http':'')),url:c.url||'',key:c.key||'',schoolId:c.schoolId||''};
+    }catch(e){}
+    return this.cfg;
+  },
   store(){try{localStorage.setItem(CLOUD_KEY,JSON.stringify(this.cfg))}catch(e){}},
-  enabled(){return !!(this.cfg.url&&this.cfg.key&&this.cfg.schoolId)},
+  enabled(){
+    if(!this.cfg.url||!this.cfg.schoolId)return false;
+    return this.cfg.mode==='http'?true:!!this.cfg.key;
+  },
   newSchoolId(){const c='0123456789abcdef';let s='sch-';for(let i=0;i<24;i++)s+=c[Math.floor(Math.random()*16)];return s},
 
   libLoad(){
@@ -2058,6 +2067,7 @@ const Cloud={
 
   async connect(){
     if(!this.enabled()){this.setMsg('Synchronisation non configurée — mode local.');return false}
+    if(this.cfg.mode==='http')return await this.connectHttp();
     this.setMsg('Connexion à Supabase…');
     if(!await this.libLoad()){this.setMsg('Bibliothèque Supabase inaccessible (pas d’Internet ?). Mode local actif.');return false}
     try{
@@ -2079,11 +2089,57 @@ const Cloud={
 
   // -------- lecture / écriture locale sans repasser par le cloud --------
   saveLocal(){try{localStorage.setItem(KEY,JSON.stringify(DB))}catch(e){}},
+
+  /* -------- transport --------
+     'supabase' : fonctions SQL app_pull / app_push (service hébergé).
+     'http'     : deux routes POST /pull et /push sur votre propre serveur
+                  (server/e-school-server.py fournit SQLite clé en main).
+     L'application ne parle que ce petit contrat : n'importe quel serveur
+     (SQLite, PostgreSQL, MySQL…) peut le mettre en œuvre. */
+  async httpRpc(path,body){
+    const base=String(this.cfg.url||'').replace(/\/+$/,'');
+    const headers={'Content-Type':'application/json'};
+    if(this.cfg.key)headers['Authorization']='Bearer '+this.cfg.key;
+    const res=await fetch(base+path,{method:'POST',headers,body:JSON.stringify(body)});
+    const txt=await res.text();
+    let data=null;
+    try{data=txt?JSON.parse(txt):{}}catch(e){throw new Error('Réponse illisible du serveur ('+res.status+')')}
+    if(!res.ok)throw new Error((data&&data.error)||('HTTP '+res.status));
+    return data;
+  },
+  async send(payload){
+    if(this.cfg.mode==='http'){
+      await this.httpRpc('/push',{school:this.cfg.schoolId,payload});
+      return;
+    }
+    const {error}=await this.client.rpc('app_push',{p_school:this.cfg.schoolId,p_payload:payload});
+    if(error)throw new Error(error.message||'Écriture refusée');
+  },
+  async fetchAll(){
+    if(this.cfg.mode==='http')return await this.httpRpc('/pull',{school:this.cfg.schoolId});
+    const {data,error}=await this.client.rpc('app_pull',{p_school:this.cfg.schoolId});
+    if(error)throw new Error(error.message||'Lecture refusée');
+    return data;
+  },
+  async connectHttp(){
+    this.setMsg('Connexion à la base…');
+    try{
+      await this.httpRpc('/pull',{school:this.cfg.schoolId});
+      this.online=true;
+      this.setMsg('Connecté à la base ('+String(this.cfg.url).replace(/^https?:\/\//,'')+'). Synchronisation active.');
+      this.startPoll();
+      return true;
+    }catch(e){
+      this.online=false;
+      this.setMsg('Connexion impossible : '+(e.message||e)+' — vérifiez l’adresse du serveur et le jeton.');
+      return false;
+    }
+  },
   renderIfPossible(){try{if(typeof ME!=='undefined'&&ME)render()}catch(e){}},
 
   // -------- conversion de la base locale en lignes SQL --------
   rows(){
-    const o={users:[],classes:[],subjects:[],students:[],grades:[],remarks:[],lessons:[]};
+    const o={users:[],classes:[],subjects:[],students:[],grades:[],remarks:[],lessons:[],finance:[],archived:[],sessions:[]};
     (DB.users||[]).forEach(u=>o.users.push({id:u.id,username:u.username,name:u.name,phone:u.phone||'',role:u.role,salt:u.salt||'',hash:u.hash||''}));
     (DB.classes||[]).forEach(c=>{
       o.classes.push({id:c.id,name:c.name,preset_key:c.presetKey||'',ord:c.ord||0,lang:c.lang||'fr',pp_id:c.ppId||'',pp_name:c.ppName||'',pp_tel:c.ppTel||'',locks:c.locks||{}});
@@ -2106,8 +2162,29 @@ const Cloud={
         o.lessons.push({id:c.id+':'+sub,class_id:c.id,subject_id:sub,planned:Number(l.planned)||0,done:Number(l.done)||0,at:Number(l.at)||null});
       }
     });
+    /* Finances : un enregistrement par eleve (montant + versements). */
+    const fin=financeStore();
+    (DB.classes||[]).forEach(c=>(c.students||[]).forEach(s=>{
+      const pays=fin.pays[s.id];
+      const fee=Object.prototype.hasOwnProperty.call(fin.fees,s.id)?Number(fin.fees[s.id]):null;
+      if(fee===null&&(!pays||!pays.length))return;
+      o.finance.push({id:s.id,fee:pays?fee:(fee==null?null:fee),pays:Array.isArray(pays)?pays:[]});
+    }));
+    /* Eleves archives : conserves avec leurs notes et absences. */
+    (Array.isArray(DB.archivedStudents)?DB.archivedStudents:[]).forEach(r=>{
+      o.archived.push({id:r.id,at:r.at||'',by:r.by||'',year:r.year||'',class_id:r.classId||'',class_name:r.className||'',data:r.data||{},snapshot:r.snapshot||{}});
+    });
+    /* Sessions cloturees (annees precedentes). */
+    (Array.isArray(DB.sessions)?DB.sessions:[]).forEach(a=>{
+      o.sessions.push({id:a.id,year:a.year||'',closed_at:a.closedAt||'',payload:a});
+    });
     return o;
   },
+
+  /* Copie profonde : sans elle, this.snap partage les tableaux de DB
+     (versements, verrous…) et une modification faite en place passerait
+     inaperçue au calcul des différences. */
+  freeze(rows){try{return JSON.parse(JSON.stringify(rows))}catch(e){return rows}},
 
   diff(rows){
     const prev=this.snap||{};
@@ -2125,62 +2202,65 @@ const Cloud={
 
   // -------- envoi (delta uniquement) --------
   async push(force){
-    if(!this.client||!this.enabled())return false;
+    if(!this.enabled())return false;
+    if(this.cfg.mode!=='http'&&!this.client)return false;
     if(this.busy)return false;
     const rows=this.rows();
     const {payload,deleted,n}=this.diff(rows);
-    if(!n&&!force){this.snap=rows;return true}
+    if(!n&&!force){this.snap=this.freeze(rows);this.pending=false;return true}
     this.busy=true;this.setMsg('Envoi des modifications…');
+    this.pending=false;   // ce qui suit couvre l'état courant
+    let sent=false;
     try{
       const school={name:DB.school.name||'',city:DB.school.city||'',year:DB.school.year||'',principal:DB.school.principal||'',header:DB.school.header||null,logo:DB.school.logo||null};
       const head={school,deleted:{}};
-      ['users','classes','subjects','students','remarks','lessons'].forEach(t=>{if(payload[t])head[t]=payload[t]});
-      if(deleted.users)head.deleted.users=deleted.users;
-      if(deleted.classes)head.deleted.classes=deleted.classes;
-      if(deleted.subjects)head.deleted.subjects=deleted.subjects;
-      if(deleted.students)head.deleted.students=deleted.students;
-      if(deleted.remarks)head.deleted.remarks=deleted.remarks;
-      if(deleted.lessons)head.deleted.lessons=deleted.lessons;
-      let {error}=await this.client.rpc('app_push',{p_school:this.cfg.schoolId,p_payload:head});
-      if(error)throw new Error(error.message||'Écriture refusée');
+      ['users','classes','subjects','students','remarks','lessons','finance','archived','sessions'].forEach(t=>{if(payload[t])head[t]=payload[t]});
+      Object.keys(deleted).forEach(t=>{if(t!=='grades')head.deleted[t]=deleted[t]});
+      await this.send(head);
       // notes par lots de 600 pour ne pas dépasser la taille maximale d'une requête
       const grades=payload.grades||[];
       for(let i=0;i<grades.length;i+=600){
-        const chunk={grades:grades.slice(i,i+600)};
-        const res=await this.client.rpc('app_push',{p_school:this.cfg.schoolId,p_payload:chunk});
-        if(res.error)throw new Error(res.error.message||'Écriture des notes refusée');
+        await this.send({grades:grades.slice(i,i+600)});
       }
       if(deleted.grades&&deleted.grades.length){
-        const res=await this.client.rpc('app_push',{p_school:this.cfg.schoolId,p_payload:{deleted:{grades:deleted.grades}}});
-        if(res.error)throw new Error(res.error.message);
+        await this.send({deleted:{grades:deleted.grades}});
       }
-      this.snap=rows;this.last=new Date().toLocaleTimeString('fr-FR');
-      this.online=true;this.setMsg('Synchronisé — '+this.last+' ('+n+' élément'+(n>1?'s':'')+' envoyé'+(n>1?'s':'')+').');
+      this.snap=this.freeze(rows);this.last=new Date().toLocaleTimeString('fr-FR');
+      this.online=true;sent=true;
+      this.setMsg('Synchronisé — '+this.last+' ('+n+' élément'+(n>1?'s':'')+' envoyé'+(n>1?'s':'')+').');
       return true;
     }catch(e){
+      this.pending=true;  // à renvoyer plus tard
       this.setMsg('Erreur d’envoi : '+(e.message||e));
       return false;
-    }finally{this.busy=false}
+    }finally{
+      this.busy=false;
+      // Une saisie est arrivée pendant l'envoi : on la renvoie sans attendre.
+      if(sent&&this.pending){clearTimeout(this._t);this._t=setTimeout(()=>this.push(false),1200)}
+    }
   },
 
   schedule(){
     this.localAt=Date.now();
-    if(!this.client||!this.enabled())return;
+    if(!this.enabled())return;
+    if(this.cfg.mode!=='http'&&!this.client)return; // en mode serveur, pas de client Supabase
+    this.pending=true;                              // écriture locale pas encore envoyée
     clearTimeout(this._t);
     this._t=setTimeout(()=>{this.push(false)},2500);
   },
 
   // -------- récupération --------
   async pull(force){
-    if(!this.client||!this.enabled())return false;
+    if(!this.enabled())return false;
+    if(this.cfg.mode!=='http'&&!this.client)return false;
+    if(!force&&this.pending)return false;                  // une saisie attend encore son envoi
     if(!force&&Date.now()-this.localAt<2500)return false; // ne pas écraser une saisie en cours
     try{
-      const {data,error}=await this.client.rpc('app_pull',{p_school:this.cfg.schoolId});
-      if(error)throw new Error(error.message||'Lecture refusée');
+      const data=await this.fetchAll();
       const remoteClasses=(data&&Array.isArray(data.classes))?data.classes:[];
       if(!remoteClasses.length&&(DB.classes||[]).length){
         // Cloud vide : on y envoie les données locales
-        this.snap=this.rows();
+        this.snap=this.freeze(this.rows());
         await this.push(true);
         return true;
       }
@@ -2189,7 +2269,7 @@ const Cloud={
       this.apply(data);
       const after=this.rows();
       const changed=before!==JSON.stringify(after);
-      this.snap=after;
+      this.snap=this.freeze(after);
       this.last=new Date().toLocaleTimeString('fr-FR');
       this.online=true;
       this.setMsg('Données reçues du cloud — '+this.last+'.');
@@ -2265,6 +2345,32 @@ const Cloud={
       DB.classes=ordered;
       try{repairMatricules();upgradeLegacyMatricules()}catch(e){}
     }
+    /* Finances : montants et versements recus de la base. */
+    if(Array.isArray(d.finance)){
+      const fees={},pays={};
+      d.finance.forEach(r=>{
+        if(!r||!r.id)return;
+        if(r.fee!=null&&r.fee!=='')fees[r.id]=Number(r.fee);
+        if(Array.isArray(r.pays)&&r.pays.length)pays[r.id]=r.pays;
+      });
+      DB.finance={fees,pays,updatedAt:new Date().toISOString()};
+    }
+    /* Eleves archives (corbeille) recus de la base. */
+    if(Array.isArray(d.archived)){
+      DB.archivedStudents=d.archived.filter(r=>r&&r.id).map(r=>({
+        id:r.id,at:r.at||'',by:r.by||'',year:r.year||'',
+        classId:r.class_id||'',className:r.class_name||'',
+        data:r.data||{},snapshot:r.snapshot||{}
+      }));
+    }
+    /* Sessions cloturees. */
+    if(Array.isArray(d.sessions)){
+      DB.sessions=d.sessions.filter(s=>s&&s.id&&s.payload).map(s=>{
+        const a=Object.assign({},s.payload);
+        a.id=s.id;a.year=s.year||a.year||'';a.closedAt=s.closed_at||a.closedAt||'';
+        return a;
+      });
+    }
     return true;
   },
 
@@ -2274,6 +2380,7 @@ const Cloud={
   },
 
   startRealtime(){
+    if(this.cfg.mode==='http')return;
     if(!this.client||this.ch)return;
     try{
       this.ch=this.client.channel('mbi-sync')
@@ -3507,14 +3614,19 @@ function schoolHtml(){
    '<div class="row"><label class="f">Année scolaire<input data-sc="year" value="'+esc(sc.year)+'" placeholder="2025/2026"></label><label class="f">Nom du Principal (imprimé sous « Le Principal »)<input data-sc="principal" value="'+esc(sc.principal||'')+'"></label></div></div>'+
   '<div class="panel"><h3>En-tête des bulletins</h3><img src="'+headerSrc()+'" alt="En-tête actuel" style="max-width:100%;border:1px solid var(--line);border-radius:6px;display:block;margin-bottom:12px"><div class="toolbar"><label class="btn" style="cursor:pointer">Remplacer l’image…<input type="file" accept="image/*" data-file="header" class="hide"></label>'+(sc.header?'<button class="btn" data-act="header-reset">Rétablir l’en-tête d’origine</button>':'')+'</div><p class="small muted" style="margin:0">Image large (bandeau République du Cameroun / logo / établissement). Elle est réduite automatiquement.</p></div>'+
   '<div class="panel"><h3>Logo de l’établissement</h3><img src="'+esc(logoSrc(sc))+'" alt="Logo actuel" style="height:96px;max-width:220px;object-fit:contain;background:#fff;padding:6px;border:1px solid var(--line);border-radius:6px;display:block;margin-bottom:12px"><div class="toolbar"><label class="btn" style="cursor:pointer">Remplacer le logo…<input type="file" accept="image/*" data-file="logo" class="hide"></label>'+(sc.logo?'<button class="btn" data-act="logo-reset">Rétablir le logo d’origine</button>':'')+'</div><p class="small muted" style="margin:0">Logo carré ou ovale, fond blanc ou transparent. Il s’imprime à gauche et à droite du titre « Tableau d’honneur / Honour’s Roll ». Sans logo personnalisé, celui du bandeau d’origine est utilisé.</p></div>'+
-  '<div class="panel"><h3>Synchronisation Supabase (production)</h3>'+
-   '<p style="margin-top:0" class="small muted">Relie l’administrateur et tous les professeurs à une <b>même base de données</b> : les leçons, notes et appréciations saisies par chaque professeur remontent automatiquement chez l’administrateur. Sans configuration, l’application continue de fonctionner en local.</p>'+
-   '<div class="row"><label class="f">URL du projet Supabase<input id="sb-url" placeholder="https://xxxxxxx.supabase.co" value="'+esc(Cloud.cfg.url)+'" autocapitalize="none"></label>'+
-   '<label class="f">Clé « anon public »<input id="sb-key" type="password" placeholder="eyJhbGciOiJIUzI1NiIs…" value="'+esc(Cloud.cfg.key)+'" autocapitalize="none"></label></div>'+
-   '<label class="f">Code de l’école (identique sur tous les postes)<input id="sb-school" value="'+esc(Cloud.cfg.schoolId)+'" placeholder="Généré automatiquement" autocapitalize="none"></label>'+
-   '<div class="toolbar"><button class="btn primary" data-act="cloud-save">Enregistrer et connecter</button><button class="btn" data-act="cloud-pull">Recevoir du cloud</button><button class="btn" data-act="cloud-push">Envoyer mes données</button>'+(Cloud.enabled()?'<button class="btn danger" data-act="cloud-off">Déconnecter</button>':'')+'</div>'+
+  '<div class="panel"><h3>Base de données partagée</h3>'+
+   '<p style="margin-top:0" class="small muted">Relie l’administrateur et tous les professeurs à une <b>même base de données</b> : classes, élèves, notes, appréciations, leçons, <b>finances</b> et archives y sont enregistrés automatiquement, à chaque modification. Sans configuration, l’application continue de fonctionner en local, sur cet ordinateur.</p>'+
+   '<div class="row"><label class="f" style="flex:1 1 230px">Type de base<select id="sb-mode">'+
+     '<option value="" '+(Cloud.cfg.mode===''?'selected':'')+'>Aucune — mode local</option>'+
+     '<option value="http" '+(Cloud.cfg.mode==='http'?'selected':'')+'>Mon serveur e-school (SQLite, PostgreSQL…) ou tout serveur compatible</option>'+
+     '<option value="supabase" '+(Cloud.cfg.mode==='supabase'?'selected':'')+'>Supabase (service hébergé)</option>'+
+   '</select></label>'+
+   '<label class="f" style="flex:2 1 300px">Adresse du serveur<input id="sb-url" placeholder="http://192.168.1.10:8090" value="'+esc(Cloud.cfg.url)+'" autocapitalize="none"><span class="small muted">Pour Supabase : https://votre-projet.supabase.co</span></label></div>'+
+   '<div class="row"><label class="f" style="flex:1 1 230px">Jeton d’accès (facultatif)<input id="sb-key" type="password" placeholder="Laisser vide si aucun jeton" value="'+esc(Cloud.cfg.key)+'" autocapitalize="none"><span class="small muted">Supabase : la clé « anon public ».</span></label>'+
+   '<label class="f" style="flex:1 1 230px">Code de l’école (identique sur tous les postes)<input id="sb-school" value="'+esc(Cloud.cfg.schoolId)+'" placeholder="Généré automatiquement" autocapitalize="none"></label></div>'+
+   '<div class="toolbar"><button class="btn primary" data-act="cloud-save">Enregistrer et connecter</button><button class="btn" data-act="cloud-pull">Recevoir de la base</button><button class="btn" data-act="cloud-push">Envoyer mes données</button>'+(Cloud.enabled()?'<button class="btn danger" data-act="cloud-off">Déconnecter</button>':'')+'</div>'+
    '<div id="cloud-status" class="small muted" style="margin-top:6px">'+esc(Cloud.msg||'Mode local — aucune synchronisation configurée.')+'</div>'+
-   '<p class="small muted" style="margin-bottom:0">Les professeurs doivent saisir la <b>même</b> URL, la <b>même</b> clé et le <b>même</b> code d’école. Le script SQL à exécuter une fois dans Supabase se trouve dans <code>supabase/01-schema.sql</code>.</p></div>'+
+   '<p class="small muted" style="margin-bottom:0">Avec <b>mon serveur e-school</b> : lancez <code>python3 server/e-school-server.py</code> sur un poste du réseau, puis indiquez ici son adresse et le même code d’école partout. Avec <b>Supabase</b> : exécutez <code>supabase/01-schema.sql</code> une fois, puis collez l’URL et la clé anon. Dans les deux cas, les mêmes informations doivent être saisies sur chaque poste.</p></div>'+
   '<div class="panel"><h3>Sauvegarde et partage des notes</h3><p style="margin-top:0">Sans synchronisation Supabase, les données vivent dans le navigateur de cet ordinateur. Exportez une sauvegarde régulièrement et avant tout nettoyage du navigateur.</p>'+
    '<div class="toolbar"><button class="btn primary" data-act="backup">Exporter une sauvegarde complète</button><button class="btn" data-act="restore-start">Restaurer une sauvegarde…</button></div>'+
    '<p class="small muted"><b>Plusieurs ordinateurs :</b> envoyez la sauvegarde aux enseignants, qui la restaurent chez eux, saisissent leurs notes puis utilisent « Exporter mes notes » (onglet Notes). Importez ensuite chaque fichier ci-dessous pour fusionner les notes.</p>'+
@@ -4535,45 +4647,51 @@ A['cloud-retry']=async()=>{
   render();
   if(!ok)toast(Cloud.msg,'err');
 };
-A['cloud-force-setup']=()=>{Cloud.online=false;Cloud.client=null;Cloud.cfg={url:'',key:'',schoolId:''};Cloud.store();render()};
+A['cloud-force-setup']=()=>{Cloud.online=false;Cloud.client=null;Cloud.cfg={mode:'',url:'',key:'',schoolId:''};Cloud.store();render()};
 A['cloud-save']=async()=>{
+  const mode=($('#sb-mode')&&$('#sb-mode').value||'').trim();
   const url=($('#sb-url')&&$('#sb-url').value||'').trim().replace(/\/+$/,'');
   const key=($('#sb-key')&&$('#sb-key').value||'').trim();
   let sid=($('#sb-school')&&$('#sb-school').value||'').trim();
-  if(!url||!key)return toast('Renseignez l’URL du projet et la clé anon Supabase.','err');
-  if(!/^https?:\/\//.test(url))return toast('L’URL doit commencer par https://','err');
+  if(!mode){
+    Cloud.stop();Cloud.cfg={mode:'',url:'',key:'',schoolId:''};Cloud.store();Cloud.snap=null;
+    render();toast('Mode local : les données restent sur cet ordinateur.','ok');return;
+  }
+  if(!url)return toast('Renseignez l’adresse du serveur.','err');
+  if(!/^https?:\/\//.test(url))return toast('L’adresse doit commencer par http:// ou https://','err');
+  if(mode==='supabase'&&!key)return toast('Renseignez la clé « anon public » de Supabase.','err');
   if(!sid){sid=Cloud.newSchoolId()}
   Cloud.stop();
-  Cloud.cfg={url,key,schoolId:sid};Cloud.store();
-  toast('Connexion à Supabase…','');
+  Cloud.cfg={mode,url,key,schoolId:sid};Cloud.store();
+  toast('Connexion à la base…','');
   const ok=await Cloud.connect();
   if(ok){
     const hadRemote=await Cloud.pull(true);
     if(!hadRemote)await Cloud.push(true);
     render();
-    toast('Connecté à Supabase — synchronisation active.','ok');
+    toast('Connecté — synchronisation active.','ok');
   }else{
     render();
     toast('Connexion impossible : '+Cloud.msg,'err');
   }
 };
 A['cloud-push']=async()=>{
-  if(!Cloud.enabled())return toast('Configurez d’abord la synchronisation.','err');
-  if(!Cloud.client){const ok=await Cloud.connect();if(!ok)return toast(Cloud.msg,'err')}
+  if(!Cloud.enabled())return toast('Configurez d’abord la base de données.','err');
+  if(!Cloud.online){const ok=await Cloud.connect();if(!ok)return toast(Cloud.msg,'err')}
   const ok=await Cloud.push(true);
   render();
-  toast(ok?'Données envoyées vers Supabase.':'Échec : '+Cloud.msg,ok?'ok':'err');
+  toast(ok?'Données envoyées vers la base.':'Échec : '+Cloud.msg,ok?'ok':'err');
 };
 A['cloud-pull']=async()=>{
-  if(!Cloud.enabled())return toast('Configurez d’abord la synchronisation.','err');
-  if(!Cloud.client){const ok=await Cloud.connect();if(!ok)return toast(Cloud.msg,'err')}
+  if(!Cloud.enabled())return toast('Configurez d’abord la base de données.','err');
+  if(!Cloud.online){const ok=await Cloud.connect();if(!ok)return toast(Cloud.msg,'err')}
   const ok=await Cloud.pull(true);
   render();
-  toast(ok?'Données reçues du cloud.':'Aucune donnée reçue : '+Cloud.msg,ok?'ok':'err');
+  toast(ok?'Données reçues de la base.':'Aucune donnée reçue : '+Cloud.msg,ok?'ok':'err');
 };
 A['cloud-off']=()=>{
   if(!confirm('Désactiver la synchronisation sur cet ordinateur ? Les données locales sont conservées.'))return;
-  Cloud.stop();Cloud.cfg={url:'',key:'',schoolId:''};Cloud.store();Cloud.snap=null;
+  Cloud.stop();Cloud.cfg={mode:'',url:'',key:'',schoolId:''};Cloud.store();Cloud.snap=null;
   render();toast('Synchronisation désactivée. Mode local.','ok');
 };
 A['refresh-lessons']=async()=>{
