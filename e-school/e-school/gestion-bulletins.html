@@ -138,9 +138,7 @@ label.f textarea{resize:vertical;min-height:80px}
 .shell{display:grid;grid-template-columns:230px 1fr;min-height:calc(100vh - 52px)}
 .side{background:#fff;border-right:1px solid var(--line);padding:16px 10px;position:sticky;top:52px;height:calc(100vh - 52px);overflow:auto}
 .side h4{margin:16px 10px 6px;font-size:12px;color:var(--muted);font-weight:600;letter-spacing:.02em}
-.side .nav-h{display:flex;justify-content:space-between;align-items:center;gap:8px;width:calc(100% - 20px);margin:16px 10px 6px;padding:0;border:0;background:none;font:inherit;font-size:12px;color:var(--muted);font-weight:600;letter-spacing:.02em;cursor:pointer;text-align:left}
-.side .nav-h:hover{color:var(--ink)}
-.side .nav-h .chev{font-size:10px;line-height:1}
+.side .side-pick{width:calc(100% - 20px);margin:0 10px 4px;padding:7px 9px;font-size:13.5px}
 .side a.nav{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:7px 10px;border-radius:7px;color:var(--ink);text-decoration:none;font-weight:600;font-size:14px;cursor:pointer}
 .side a.nav:hover{background:#eef2f7}
 .side a.nav.on{background:var(--brand);color:#fff}
@@ -678,9 +676,7 @@ table.t td.stu-cell{white-space:nowrap}
   .shell{grid-template-columns:1fr}
   .side{position:static;height:auto;border-right:0;border-bottom:1px solid var(--line);display:flex;gap:6px;overflow:auto;padding:8px}
   .side h4{display:none}
-  .side .nav-h{display:none}
-  .side .nav-fold{display:flex;gap:6px;flex-wrap:wrap}
-  .side .nav-fold[hidden]{display:flex}
+  .side .side-pick{width:auto;margin:0;min-width:170px;font-size:12.5px;padding:5px 8px}
   .side a.nav{white-space:nowrap}
   main{padding:16px 12px 50px}
   .topbar{flex-wrap:wrap;gap:8px}
@@ -1002,7 +998,7 @@ function secQuestionHtml(sel,nameQ,nameOther){
   '</select></label>'+
   '<label class="f" data-secq-other style="'+(sel&&SEC_QUESTIONS.indexOf(sel)<0?'':'display:none')+'">Ma question<input name="'+nameOther+'" value="'+(sel&&SEC_QUESTIONS.indexOf(sel)<0?esc(sel):'')+'" placeholder="Ex. Quel est le nom de mon premier directeur ?"></label>';
 }
-const S={view:'dash',classId:null,classesOpen:undefined,tab:'eleves',trim:1,mine:true,sort:'name',sessionId:null,closeState:null,simulationState:null,loginRole:'staff',loginView:null,forgotUid:null,forgotOk:false,forgotTries:0,forgotHelp:false,loginUser:'',studentId:null,asAdmin:null};
+const S={view:'dash',classId:null,tab:'eleves',trim:1,mine:true,sort:'name',sessionId:null,closeState:null,simulationState:null,loginRole:'staff',loginView:null,forgotUid:null,forgotOk:false,forgotTries:0,forgotHelp:false,loginUser:'',studentId:null,asAdmin:null};
 const isAdmin=()=>ME&&ME.role==='admin';
 const isSurv=()=>ME&&ME.role==='surv';
 const isProf=()=>ME&&(ME.role==='prof'||ME.role==='teacher');
@@ -2676,7 +2672,6 @@ function forgotHtml(){
 }
 function survShell(){
   const cl=visibleClasses();
-  const nav=cl.map(c=>'<a class="nav '+(S.view==='discipline'&&S.classId===c.id?'on':'')+'" data-act="disc-class" data-id="'+c.id+'"><span>'+esc(c.name)+'</span><small>'+c.students.length+'</small></a>').join('');
   return '<header class="topbar"><div class="brand"><span class="dot">'+esc(schoolInitial())+'</span><span class="t">'+esc(viewSchool().name)+'</span></div>'+
     (isReadOnlySession()?'<span class="role">Consultation · '+esc(viewYear())+'</span>':'<span class="role">Session en cours · '+esc(viewYear())+'</span>')+
     '<div class="tri" role="group" aria-label="Trimestre">'+[1,2,3].map(t=>'<button data-act="trim" data-t="'+t+'" class="'+(S.trim===t?'on':'')+'">'+ordSup(t)+' trimestre</button>').join('')+'</div>'+
@@ -2684,43 +2679,36 @@ function survShell(){
     sbandHtml()+
     '<div class="shell"><nav class="side" aria-label="Navigation">'+
     '<a class="nav '+(S.view==='discipline'&&!S.classId?'on':'')+'" data-act="go" data-v="discipline">Discipline</a>'+
-    classesNav(nav)+
+    classesPicker(cl,'discipline',S.view==='discipline'?S.classId:null)+
     '<h4>Compte</h4><a class="nav '+(S.view==='account'?'on':'')+'" data-act="go" data-v="account">Mon compte</a></nav>'+
     '<main id="main">'+mainHtml()+'</main></div>';
 }
 function econShell(){
   const cl=DB.classes||[];
-  const nav=cl.map(c=>'<a class="nav '+(S.view==='fin-class'&&S.classId===c.id?'on':'')+'" data-act="fin-class" data-id="'+c.id+'"><span>'+esc(c.name)+'</span><small>'+c.students.length+'</small></a>').join('');
   return '<header class="topbar"><div class="brand"><span class="dot">'+esc(schoolInitial())+'</span><span class="t">'+esc(viewSchool().name)+'</span></div>'+
     '<span class="role">Économe · '+esc(DB.school.year)+'</span>'+
     '<div class="me"><span>'+esc(ME.name)+' <span class="role">Économe</span></span><button class="btn sm" data-act="logout">Quitter</button></div></header>'+
     '<div class="shell"><nav class="side" aria-label="Navigation">'+
     '<a class="nav '+(S.view==='fin'?'on':'')+'" data-act="go" data-v="fin">Tableau de bord financier</a>'+
-    classesNav(nav)+
+    classesPicker(cl,'fin-class',S.view==='fin-class'?S.classId:null)+
     '<h4>Compte</h4><a class="nav '+(S.view==='account'?'on':'')+'" data-act="go" data-v="account">Mon compte</a></nav>'+
     '<main id="main">'+mainHtml()+'</main></div>';
 }
-/* Liste des classes du menu : un clic sur « Classes » ouvre ou referme la
-   liste. Elle est ouverte d'office quand l'établissement a peu de classes et
-   dès qu'une classe, la discipline ou les finances d'une classe sont affichées ;
-   elle garde ensuite l'état choisi pendant la session. */
-function classesFoldOpen(){
-  if(S.classesOpen!==undefined)return !!S.classesOpen;
-  if(/^(class|discipline|fin-class)$/.test(S.view))return true;
-  return visibleClasses().length<=4;
-}
-function classesNav(nav){
-  if(!nav)return '<h4>Classes</h4><span class="small muted" style="padding:6px 10px;display:block">Aucune classe</span>';
-  const open=classesFoldOpen();
-  return '<button type="button" class="nav-h" data-act="nav-classes" aria-expanded="'+(open?'true':'false')+'" title="'+(open?'Refermer la liste des classes':'Dérouler la liste des classes')+'">'+
-    '<span>Classes</span><span class="chev" aria-hidden="true">'+(open?'▾':'▸')+'</span></button>'+
-    '<div class="nav-fold"'+(open?'':' hidden')+'>'+nav+'</div>';
+/* Liste des classes du menu : une liste déroulante comme celle de la fenêtre
+   « Nouvelle classe ». Choisir une classe l'ouvre directement. */
+function classesPicker(list,view,selectedId){
+  list=list||[];
+  if(!list.length)return '<h4>Classes</h4><span class="small muted" style="padding:6px 10px;display:block">Aucune classe</span>';
+  const cur=selectedId||null;
+  return '<h4>Classes</h4><select class="inp side-pick" data-classpick="'+view+'" aria-label="Choisir une classe">'+
+    '<option value="" disabled'+(cur?'':' selected')+'>Choisir une classe…</option>'+
+    list.map(c=>'<option value="'+c.id+'"'+(c.id===cur?' selected':'')+'>'+esc(c.name)+' ('+c.students.length+')</option>').join('')+
+    '</select>';
 }
 function shellHtml(){
   if(isSurv())return survShell();
   if(isEcon())return econShell();
   const cl=visibleClasses();
-  const nav=cl.map(c=>'<a class="nav '+(S.view==='class'&&S.classId===c.id?'on':'')+'" data-act="open-class" data-id="'+c.id+'"><span>'+esc(c.name)+'</span><small>'+c.students.length+'</small></a>').join('');
   return '<header class="topbar"><div class="brand"><span class="dot">'+esc(schoolInitial())+'</span><span class="t">'+esc(viewSchool().name)+'</span></div>'+
    (isReadOnlySession()?'<span class="role">Consultation · '+esc(viewYear())+'</span>':'<span class="role">Session en cours · '+esc(viewYear())+'</span>')+
    (isAdmin()&&!isReadOnlySession()?'<div class="spaces" role="group" aria-label="Espaces">'+
@@ -2736,7 +2724,7 @@ function shellHtml(){
    '<div class="shell"><nav class="side" aria-label="Navigation">'+
    '<a class="nav '+(S.view==='dash'?'on':'')+'" data-act="go" data-v="dash">Tableau de bord</a>'+
    '<a class="nav '+(S.view==='lessons'?'on':'')+'" data-act="go" data-v="lessons">Leçons</a>'+
-   classesNav(nav)+
+   classesPicker(cl,'class',/^(class|fin-class|discipline)$/.test(S.view)?S.classId:null)+
    (isAdmin()&&!isReadOnlySession()?'<a class="nav" data-act="new-class" style="color:var(--green-d)">+ Nouvelle classe</a>':'')+
    '<h4>Sessions</h4><a class="nav '+(S.view==='sessions'?'on':'')+'" data-act="go" data-v="sessions">Sessions</a>'+
    (isAdmin()&&!isReadOnlySession()?'<h4>Espaces</h4>'+
@@ -5133,8 +5121,7 @@ function receiptPdf(sid,pid){
 /* ---------- Actions (clics) ---------- */
 const A={};
 A.go=el=>{S.closeState=null;S.simulationState=null;S.focusStudent=null;S.view=el.dataset.v;S.classId=null;render()};
-A['nav-classes']=()=>{S.classesOpen=!classesFoldOpen();render()};
-A['open-class']=el=>{S.classesOpen=true;S.closeState=null;S.simulationState=null;S.focusStudent=null;S.view='class';S.classId=el.dataset.id;S.tab='eleves';render()};
+A['open-class']=el=>{S.closeState=null;S.simulationState=null;S.focusStudent=null;S.view='class';S.classId=el.dataset.id;S.tab='eleves';render()};
 A['session-view']=el=>{if(!archivedSessions().some(x=>x.id===el.dataset.id))return;S.sessionId=el.dataset.id;S.closeState=null;S.simulationState=null;S.view='dash';S.classId=null;S.tab='eleves';render()};
 A['session-current']=()=>{S.sessionId=null;S.closeState=null;S.simulationState=null;S.view='dash';S.classId=null;S.tab='eleves';render()};
 A['simulate-year']=()=>{if(!isAdmin()||isReadOnlySession())return;startSessionSimulation()};
@@ -5161,7 +5148,7 @@ A['login-role']=el=>{S.loginRole=el.dataset.r;S.loginView=null;S.forgotUid=null;
 A['forgot']=()=>{S.loginView='forgot';S.forgotUid=null;S.forgotOk=false;S.forgotTries=0;S.forgotHelp=false;S.loginRole='staff';render()};
 A['forgot-restart']=()=>{S.forgotUid=null;S.forgotOk=false;S.forgotTries=0;S.forgotHelp=false;render()};
 A['forgot-cancel']=()=>{S.loginView=null;S.forgotUid=null;S.forgotOk=false;S.forgotTries=0;S.forgotHelp=false;S.loginRole='staff';render()};
-A['disc-class']=el=>{S.classesOpen=true;S.view='discipline';S.classId=el.dataset.id;render()};
+A['disc-class']=el=>{S.view='discipline';S.classId=el.dataset.id;render()};
 A['sband-clear']=()=>{const i=document.querySelector('#sband-input');if(i){i.value='';i.focus()}sbandUpdate('')};
 A['sband-open']=el=>{
   const clsId=el.dataset.cls,sid=el.dataset.id;
@@ -5260,7 +5247,7 @@ A['imp-go']=()=>{
   cls.students.sort(cmpName);dirty();closeModal();render();
   toast(n+' élève'+(n>1?'s ajoutés':' ajouté')+' dans '+cls.name+(reused?' ('+reused+' matricule'+(reused>1?'s':'')+' repris du fichier).':' — matricules attribués automatiquement.'),'ok');
 };
-A['fin-class']=el=>{if(!canFinance())return;S.classesOpen=true;S.view='fin-class';S.classId=el.dataset.id;S.studentId=null;S.focusStudent=null;render()};
+A['fin-class']=el=>{if(!canFinance())return;S.view='fin-class';S.classId=el.dataset.id;S.studentId=null;S.focusStudent=null;render()};
 A['fin-student']=el=>{if(!canFinance())return;const found=financeStudent(el.dataset.id);if(!found)return toast('Élève introuvable.','err');S.view='fin-student';S.classId=found.cls.id;S.studentId=el.dataset.id;render()};
 A['fin-home']=()=>{if(!canFinance())return;S.view='fin';S.classId=null;S.studentId=null;render()};
 A['fee-edit']=el=>{if(!canFinance())return;feeForm(el.dataset.id)};
@@ -5870,6 +5857,16 @@ document.addEventListener('change',e=>{
   if(e.target.id==='q-class'){SEARCH.cls=e.target.value;renderSearchResults();return}
   if(e.target.id==='q-scope'){SEARCH.scope=e.target.value;renderSearchResults();return}
   if(e.target.dataset&&e.target.dataset.discsel){S.view='discipline';S.classId=e.target.value;render();return}
+  if(e.target.dataset&&e.target.dataset.classpick){
+    const id=e.target.value;if(!id)return;
+    const v=e.target.dataset.classpick;
+    if(v==='fin-class'&&!canFinance())return;
+    S.classId=id;S.focusStudent=null;S.closeState=null;
+    if(v==='discipline')S.view='discipline';
+    else if(v==='fin-class'){S.view='fin-class';S.studentId=null}
+    else{S.view='class';S.tab='eleves';S.studentId=null}
+    render();return;
+  }
   if(e.target.name==='preset'){const p=PRESETS.find(x=>x.key===e.target.value),n=$('#ncname');if(n&&p)n.value=p.key==='X'?'':p.label}});
 
 function handleFile(el){
