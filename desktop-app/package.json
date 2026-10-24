@@ -1,10 +1,10 @@
 {
   "name": "e-school-gestion-bulletins",
   "version": "1.0.0",
-  "description": "Application de gestion des bulletins scolaires - Ming's Bilingual Institute",
+  "description": "Application de gestion scolaire : eleves, notes, bulletins, personnel et finances",
   "main": "main.js",
   "author": {
-    "name": "Ming's Bilingual Institute"
+    "name": "e-School"
   },
   "license": "MIT",
   "scripts": {
@@ -31,6 +31,12 @@
           "arch": [
             "x64"
           ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
         }
       ],
       "icon": "app/icon.ico"
@@ -43,7 +49,8 @@
       "shortcutName": "e-School Bulletins",
       "installerIcon": "app/icon.ico",
       "uninstallerIcon": "app/icon.ico",
-      "deleteAppDataOnUninstall": false
+      "deleteAppDataOnUninstall": false,
+      "artifactName": "e-School-Bulletins-${version}-Setup.${ext}"
     },
     "mac": {
       "target": "dmg",
@@ -60,8 +67,10 @@
     },
     "asar": true,
     "compression": "maximum",
-    "artifactName": "e-School-Bulletins-${version}-Setup.${ext}",
-    "npmRebuild": false
+    "npmRebuild": false,
+    "portable": {
+      "artifactName": "e-School-Bulletins-${version}-Portable.${ext}"
+    }
   },
   "devDependencies": {
     "electron": "31.7.7",

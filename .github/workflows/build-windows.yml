@@ -90,14 +90,18 @@ jobs:
           tag_name: v1.0.0
           name: e-School 1.0.0 - Installateur Windows
           body: |
-            Installateur Windows de e-School - Gestion des bulletins.
+            Application Windows de e-School - Gestion des bulletins.
 
-            Telecharger le fichier Setup.exe ci-dessous, le double-cliquer et suivre
-            l'assistant. Une icone "e-School Bulletins" apparait sur le Bureau et dans
-            le menu Demarrer.
+            - **Setup.exe** : installateur classique. Le double-cliquer, suivre l'assistant ;
+              une icone "e-School Bulletins" apparait sur le Bureau et dans le menu Demarrer.
+            - **Portable.exe** : un seul fichier, sans installation. Le poser sur une cle USB
+              et le double-cliquer : le programme demarre directement.
 
             Windows affiche un avertissement (fichier non signe) : cliquer sur
             "Informations complementaires" puis "Executer quand meme".
+
+            Aucun compte de demonstration n'est fourni : la premiere ouverture demande
+            le nom de l'etablissement et la creation du compte administrateur.
 
             Le logiciel fonctionne sans connexion internet.
           files: desktop-app/dist/installers/*.exe

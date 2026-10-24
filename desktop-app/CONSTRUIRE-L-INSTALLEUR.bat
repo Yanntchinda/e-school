@@ -8,7 +8,7 @@ echo ==========================================================
 echo    e-School - Construction de l'installateur Windows
 echo ==========================================================
 echo.
-echo Ce script fabrique un fichier .exe installable.
+echo Ce script fabrique deux fichiers .exe : installateur et portable.
 echo Duree : 5 a 12 minutes la premiere fois.
 echo.
 
@@ -61,15 +61,15 @@ echo ==========================================================
 if not exist "dist\installers\*.exe" goto NOEXE
 
 echo.
-echo Votre installateur est pret :
+echo Vos fichiers .exe sont prets :
 echo.
 for %%f in ("dist\installers\*.exe") do echo    %%~nxf
 echo.
 echo Dossier :
 echo    %~dp0dist\installers
 echo.
-echo Il ne reste plus qu'a double-cliquer dessus pour installer
-echo e-School sur cet ordinateur.
+echo Double-cliquez sur le Setup pour installer, ou lancez le Portable
+echo sans rien installer (cle USB, poste partage).
 echo.
 start "" "%~dp0dist\installers"
 pause

@@ -141,7 +141,7 @@ Il faut Node.js (gratuit) et une connexion internet la premiere fois.
 | Installateur produit | 79 758 352 octets |
 | Acces public sans authentification | oui (HTTP 302 vers le fichier) |
 | `app/index.html` inclus | oui, 525 115 octets, derniere version |
-| Titre de la page dans l'app | `Ming's Bilingual Institute` |
+| Titre de la page dans l'app | `Gestion scolaire` (puis le nom reel de l'etablissement) |
 | Impression sans en-tete navigateur | oui (`@page margin: 0`) |
 | Emojis | 0 |
 | `main.js` | syntaxe valide |

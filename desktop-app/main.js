@@ -135,8 +135,9 @@ function buildMenu () {
               title: 'À propos',
               message: 'e-School - Gestion des bulletins',
               detail: 'Version ' + app.getVersion() +
-                '\nMing\'s Bilingual Institute' +
-                '\n\nDonnées enregistrées localement sur cet ordinateur.' +
+                '\nÉlèves, notes, bulletins, personnel et finances.' +
+                '\n\nDonnées enregistrées localement sur cet ordinateur,' +
+                '\nou sur la base partagée configurée dans les Paramètres.' +
                 '\nAucune connexion internet n\'est nécessaire.'
             });
           }
