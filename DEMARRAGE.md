@@ -6,7 +6,8 @@ compte administrateur.
 
 ## 1. Première ouverture
 
-1. Ouvrez `index.html` (ou l'application installée).
+1. Ouvrez `index.html` (ou l'application installée). Tous les champs sont
+   **vides** : rien n'est pré-rempli, aucune donnée d'exemple n'est proposée.
 2. Renseignez le **nom de l'établissement**, la **ville** et l'**année scolaire**.
 3. Créez le **compte administrateur** : nom complet, identifiant, mot de passe
    (saisi deux fois). C'est ce compte qui gère tout le reste.
@@ -67,6 +68,13 @@ l'écran **« Passage en production »** :
 
 Un bouton permet de télécharger une sauvegarde avant de choisir.
 
+## En-tête et logo des bulletins
+
+L'établissement importe lui-même le **bandeau** et le **logo** depuis
+**Paramètres** ; aucune image n'est fournie par le logiciel. Sans en-tête, les
+bulletins s'impriment sans bandeau ; sans logo, le tableau d'honneur s'imprime
+sans image. Les deux peuvent être retirés à tout moment.
+
 ## Ce qui a été retiré
 
 - Comptes de démonstration (`admin`, professeurs, surveillant, économe) et
@@ -76,6 +84,9 @@ Un bouton permet de télécharger une sauvegarde avant de choisir.
   « Réinitialiser les données de démo », « Simuler » les leçons et
   « Saisir à la place des professeurs ».
 - Portraits d'exemple livrés avec le logiciel.
+- Valeurs pré-remplies de la page d'accueil (« Ming's Bilingual Institute »,
+  « Douala », « 2026/2027 »), l'image d'en-tête et le logo de démonstration, la
+  pastille « M » du bandeau et le long texte d'introduction.
 
 Seul l'outil de **préparation de la session suivante** (fin d'année) est
 conservé : il travaille sur vos vraies données et crée la session suivante.
