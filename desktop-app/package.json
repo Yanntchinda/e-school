@@ -1,0 +1,82 @@
+{
+  "name": "e-school-gestion-bulletins",
+  "version": "1.0.0",
+  "description": "Application de gestion scolaire : eleves, notes, bulletins, personnel et finances",
+  "main": "main.js",
+  "author": {
+    "name": "e-School"
+  },
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "build:win": "electron-builder --win",
+    "build:mac": "electron-builder --mac",
+    "build:linux": "electron-builder --linux",
+    "build:all": "electron-builder -mw"
+  },
+  "build": {
+    "appId": "com.eschool.bulletins",
+    "productName": "e-School Gestion Bulletins",
+    "directories": {
+      "output": "dist/installers"
+    },
+    "files": [
+      "main.js",
+      "app/**/*"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "app/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "e-School Bulletins",
+      "installerIcon": "app/icon.ico",
+      "uninstallerIcon": "app/icon.ico",
+      "deleteAppDataOnUninstall": false,
+      "artifactName": "e-School-Bulletins-${version}-Setup.${ext}"
+    },
+    "mac": {
+      "target": "dmg",
+      "icon": "app/icon.png",
+      "category": "public.app-category.education"
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "icon": "app/icon.png",
+      "category": "Education"
+    },
+    "asar": true,
+    "compression": "maximum",
+    "npmRebuild": false,
+    "portable": {
+      "artifactName": "e-School-Bulletins-${version}-Portable.${ext}"
+    }
+  },
+  "devDependencies": {
+    "electron": "31.7.7",
+    "electron-builder": "25.1.8"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

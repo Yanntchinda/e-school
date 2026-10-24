@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+
+# Base de donnees locale du serveur autonome
+server/ecole.db
+server/*.db
+server/*.db-journal
+server/*.db-wal
+server/*.db-shm
