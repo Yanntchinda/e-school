@@ -377,6 +377,13 @@ tr.row-focus td{background:#fff7d6!important;box-shadow:inset 0 0 0 999px rgba(2
 .role-switch button{flex:1;border:0;background:transparent;color:#e7eefb;font-size:12.5px;font-weight:600;padding:8px 6px;border-radius:9px;cursor:pointer;line-height:1.15}
 .role-switch button.on{background:#fff;color:var(--brand-d);box-shadow:0 2px 8px rgba(0,0,0,.16)}
 .role-switch-3 button{font-size:11.5px;padding:8px 3px;white-space:nowrap}
+.role-switch-4{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.role-switch-4 button{font-size:12px;padding:9px 4px;border:1px solid transparent}
+.role-switch-4 button:not(.on):hover{background:rgba(255,255,255,.10)}
+.auth-help{text-align:center;margin:12px 0 0;font-size:13px}
+.auth-help a,.auth-box a{color:#fff;text-decoration:underline;text-underline-offset:2px}
+.auth-help a:hover,.auth-box a:hover{opacity:.85}
+.forgot-note{background:rgba(6,18,36,.35);border:1px solid rgba(255,255,255,.24);border-radius:10px;padding:10px 12px;margin:0 0 12px;font-size:12.5px;line-height:1.45;color:rgba(255,255,255,.86)}
 .spaces{display:flex;background:rgba(255,255,255,.1);border-radius:8px;padding:3px;gap:2px}
 .spaces button{border:0;background:transparent;color:#cfd9e6;padding:5px 10px;border-radius:6px;cursor:pointer;font-weight:600;font-size:12.5px;white-space:nowrap}
 .spaces button.on{background:var(--green);color:#fff}
@@ -957,7 +964,7 @@ function verifyPw(pw,salt,stored){
   return sha256Hex(input)===stored||legacyHashPw(pw,salt)===stored;
 }
 let ME=null;
-const S={view:'dash',classId:null,tab:'eleves',trim:1,mine:true,sort:'name',sessionId:null,closeState:null,simulationState:null,loginRole:'staff',studentId:null,asAdmin:null};
+const S={view:'dash',classId:null,tab:'eleves',trim:1,mine:true,sort:'name',sessionId:null,closeState:null,simulationState:null,loginRole:'staff',loginView:null,forgotUid:null,studentId:null,asAdmin:null};
 const isAdmin=()=>ME&&ME.role==='admin';
 const isSurv=()=>ME&&ME.role==='surv';
 const isProf=()=>ME&&(ME.role==='prof'||ME.role==='teacher');
@@ -2439,7 +2446,7 @@ function renderCore(){
      seule fois, avant toute autre chose. */
   if(DB.demoMode){app.innerHTML=productionHtml();return}
   if(!DB.users.length){app.innerHTML=setupHtml();return}
-  if(!ME){app.innerHTML=loginHtml();return}
+  if(!ME){app.innerHTML=S.loginView==='forgot'?forgotHtml():loginHtml();return}
   /* Le surveillant general n'accede qu'a la discipline et a son compte */
   if(isSurv()&&S.view!=='discipline'&&S.view!=='account'){S.view='discipline';S.classId=null}
   if(isEcon()&&['fin','fin-class','fin-student','account'].indexOf(S.view)<0){S.view='fin';S.classId=null;S.studentId=null}
@@ -2516,16 +2523,17 @@ function setupHtml(){
   '<p class="small" style="margin:10px 0 0"><a href="#" data-act="restore-start">Restaurer une sauvegarde existante</a></p></form></div>';
 }
 function loginHtml(){
-  const mode=S.loginRole==='surv'?'surv':(S.loginRole==='econ'?'econ':'staff');
-  const surv=mode==='surv',econ=mode==='econ';
-  const kind=econ?'login-econ':(surv?'login-surv':'login');
-  const kicker=econ?'Espace économe':(surv?'Espace surveillant général':'Espace sécurisé');
-  const title=econ?'Économe':(surv?'Surveillant général':'Connexion');
-  const lead=econ?'Frais scolaires, versements et reçus de paiement':(surv?'Absences, retards et consignes de chaque élève':'');
-  const foot=econ?'Gestion des finances et des reçus de paiement':(surv?'Saisie de la discipline':'Gestion des bulletins et des sessions');
+  const mode=['surv','econ','prof'].indexOf(S.loginRole)>=0?S.loginRole:'staff';
+  const surv=mode==='surv',econ=mode==='econ',prof=mode==='prof';
+  const kind=prof?'login-prof':(econ?'login-econ':(surv?'login-surv':'login'));
+  const kicker=prof?'Espace enseignant':(econ?'Espace économe':(surv?'Espace surveillant général':'Espace administrateur'));
+  const title=prof?'Enseignant':(econ?'Économe':(surv?'Surveillant général':'Administration'));
+  const lead=prof?'Notes et bulletins de vos classes':(econ?'Frais scolaires, versements et reçus de paiement':(surv?'Absences, retards et consignes de chaque élève':'Gestion complète de l’établissement'));
+  const foot=prof?'Saisie des notes et des bulletins':(econ?'Gestion des finances et des reçus de paiement':(surv?'Saisie de la discipline':'Gestion des bulletins et des sessions'));
   return '<div class="auth"><div style="position:relative;z-index:2;width:min(462px,100%)">'+
-  '<div class="role-switch role-switch-3" role="group" aria-label="Type de compte">'+
+  '<div class="role-switch role-switch-4" role="group" aria-label="Type de compte">'+
     '<button type="button" data-act="login-role" data-r="staff" class="'+(mode==='staff'?'on':'')+'">Administration</button>'+
+    '<button type="button" data-act="login-role" data-r="prof" class="'+(prof?'on':'')+'">Enseignant</button>'+
     '<button type="button" data-act="login-role" data-r="surv" class="'+(surv?'on':'')+'">Surveillant général</button>'+
     '<button type="button" data-act="login-role" data-r="econ" class="'+(econ?'on':'')+'">Économe</button>'+
   '</div>'+
@@ -2538,10 +2546,45 @@ function loginHtml(){
   '<div class="pw-row"><button type="button" class="btn sm" data-act="toggle-pw">Afficher le mot de passe</button>'+
     '<button type="button" class="btn sm" data-act="form-reset">Tout effacer</button></div>'+
   '<div class="err" id="fe"></div><button class="btn primary" style="width:100%;justify-content:center;padding:11px 14px;font-size:15px">Se connecter</button>'+
+  (mode==='staff'?'<p class="auth-help"><a href="#" data-act="forgot">Mot de passe oublié ?</a></p>':'')+
   '<div class="auth-sep"></div>'+
   '</form>'+
   '<div class="auth-foot">Accès réservé au personnel de <b>'+esc(DB.school.name)+'</b> · '+foot+'</div>'+
   '</div></div>';
+}
+/* Récupération du mot de passe : réservée au compte administrateur.
+   L'application fonctionne sans internet : la vérification se fait sur cet
+   ordinateur (identifiant administrateur + nom de l'établissement), puis
+   l'administrateur choisit lui-même un nouveau mot de passe. Aucune donnée
+   (classes, élèves, notes, finances) n'est touchée. */
+function forgotHtml(){
+  const wrap=(inner)=>'<div class="auth"><div style="position:relative;z-index:2;width:min(462px,100%)">'+inner+'</div></div>';
+  const back='<p class="auth-help"><a href="#" data-act="forgot-cancel">Revenir à la connexion</a></p>';
+  const u=S.forgotUid&&DB.users.find(x=>x.id===S.forgotUid);
+  if(u){
+    return wrap('<form class="auth-box" data-form="forgot-reset" style="width:100%">'+
+      '<div class="auth-kicker">Récupération · administrateur</div>'+
+      '<h1>Nouveau mot de passe</h1>'+
+      '<p>'+esc(u.name||'')+' · identifiant « '+esc(u.username)+' »</p>'+
+      '<p class="forgot-note">Choisissez un mot de passe dont vous vous souviendrez. Il remplace l’ancien ; vos données restent intactes.</p>'+
+      '<label class="f">Nouveau mot de passe<input name="pw" type="text" data-visible="1" minlength="4" autocomplete="new-password" required autofocus></label>'+
+      '<label class="f">Confirmer le nouveau mot de passe<input name="pw2" type="text" data-visible="1" minlength="4" autocomplete="new-password" required></label>'+
+      '<div class="pw-row"><button type="button" class="btn sm" data-act="toggle-pw">Masquer les mots de passe</button>'+
+      '<button type="button" class="btn sm" data-act="form-reset">Tout effacer</button></div>'+
+      '<div class="err" id="fe"></div>'+
+      '<button class="btn primary" style="width:100%;justify-content:center;padding:11px 14px;font-size:15px">Enregistrer le nouveau mot de passe</button>'+
+      back+'</form>');
+  }
+  return wrap('<form class="auth-box" data-form="forgot" style="width:100%">'+
+    '<div class="auth-kicker">Mot de passe oublié</div>'+
+    '<h1>Compte administrateur</h1>'+
+    '<p>Récupération réservée à l’administrateur de l’établissement.</p>'+
+    '<p class="forgot-note">Indiquez l’identifiant du compte administrateur et le nom de l’établissement tel qu’il a été enregistré à l’installation. Vous pourrez ensuite choisir un nouveau mot de passe, sans perdre vos classes, vos élèves, vos notes ni vos finances.</p>'+
+    '<label class="f">Identifiant de l’administrateur<input name="username" autocapitalize="none" autocomplete="username" required autofocus></label>'+
+    '<label class="f">Nom de l’établissement<input name="school" autocomplete="off" placeholder="Ex. Complexe Scolaire Bilingue" required></label>'+
+    '<div class="err" id="fe"></div>'+
+    '<button class="btn primary" style="width:100%;justify-content:center;padding:11px 14px;font-size:15px">Vérifier</button>'+
+    back+'</form>');
 }
 function survShell(){
   const cl=visibleClasses();
@@ -4679,7 +4722,9 @@ A['confirm-close-year']=()=>{
 };
 A.tab=el=>{S.tab=el.dataset.k;render()};
 A.trim=el=>{S.trim=+el.dataset.t;render()};
-A['login-role']=el=>{S.loginRole=el.dataset.r;render()};
+A['login-role']=el=>{S.loginRole=el.dataset.r;S.loginView=null;S.forgotUid=null;render()};
+A['forgot']=()=>{S.loginView='forgot';S.forgotUid=null;S.loginRole='staff';render()};
+A['forgot-cancel']=()=>{S.loginView=null;S.forgotUid=null;S.loginRole='staff';render()};
 A['disc-class']=el=>{S.view='discipline';S.classId=el.dataset.id;render()};
 A['sband-clear']=()=>{const i=document.querySelector('#sband-input');if(i){i.value='';i.focus()}sbandUpdate('')};
 A['sband-open']=el=>{
@@ -4708,7 +4753,7 @@ A['disc-clear']=el=>{
     dirty();render();toast('Ligne effacée.','ok');
   },true);
 };
-A.logout=()=>{try{sessionStorage.removeItem(SKEY)}catch(e){}ME=null;S.asAdmin=null;S.sessionId=null;S.closeState=null;S.simulationState=null;S.view='dash';render()};
+A.logout=()=>{try{sessionStorage.removeItem(SKEY)}catch(e){}ME=null;S.asAdmin=null;S.sessionId=null;S.closeState=null;S.simulationState=null;S.view='dash';S.loginView=null;S.forgotUid=null;S.loginRole='staff';render()};
 A.mclose=closeModal;
 A['confirm-ok']=()=>{const f=confirmCb;confirmCb=null;closeModal();if(f)f()};
 A['new-class']=()=>{
@@ -5129,7 +5174,30 @@ document.addEventListener('submit',async e=>{
     const u={id:uid(),name:fd.name.trim(),username:un,phone:'',role:'admin',salt,hash:await hashPw(fd.pw,salt)};
     DB.users.push(u);delete DB.demoMode;dirty();saveNow();ME=u;try{sessionStorage.setItem(SKEY,u.id)}catch(x){}render();
     toast('Bienvenue ! Créez votre première classe ou importez votre liste d’élèves.','ok');
-  }else if(kind==='login'||kind==='login-surv'||kind==='login-econ'){
+  }else if(kind==='forgot'){
+    /* Première étape : identité de l'administrateur. */
+    const un=String(fd.username||'').trim().toLowerCase();
+    if(!DB.users.length)return err('Aucun compte n’existe encore : créez d’abord le compte administrateur.');
+    const u=DB.users.find(x=>x.username===un);
+    if(!u)return err('Aucun compte ne porte cet identifiant. Vérifiez l’orthographe.');
+    if(u.role!=='admin')return err('Ce compte n’est pas un compte administrateur : seul l’administrateur peut récupérer son mot de passe ici. Demandez-lui la réinitialisation de votre mot de passe (Paramètres → Personnel).');
+    if(!String(fd.school||'').trim())return err('Indiquez le nom de l’établissement.');
+    if(normTxt(fd.school)!==normTxt(DB.school.name))return err('Le nom de l’établissement ne correspond pas à celui enregistré (« '+(DB.school.name||'—')+' »). Corrigez la saisie et réessayez.');
+    S.forgotUid=u.id;render();
+    toast('Identité vérifiée : choisissez maintenant un nouveau mot de passe.','ok');
+  }else if(kind==='forgot-reset'){
+    /* Deuxième étape : nouveau mot de passe, sans toucher aux données. */
+    const u=S.forgotUid&&DB.users.find(x=>x.id===S.forgotUid);
+    if(!u)return err('La vérification a expiré : recommencez la récupération.');
+    if(u.role!=='admin')return err('Seul un compte administrateur peut être récupéré ici.');
+    if(String(fd.pw||'').length<4)return err('Le mot de passe doit contenir au moins 4 caractères.');
+    if(fd.pw!==fd.pw2)return err('Les deux mots de passe ne sont pas identiques. Corrigez le second champ.');
+    u.salt=uid();u.hash=await hashPw(fd.pw,u.salt);
+    try{DB.recoveryLog=Array.isArray(DB.recoveryLog)?DB.recoveryLog:[];DB.recoveryLog.push({at:new Date().toISOString(),user:u.username,type:'mdp-admin-reinitialise'});}catch(e){}
+    S.forgotUid=null;S.loginView=null;S.loginRole='staff';
+    dirty();saveNow();render();
+    toast('Nouveau mot de passe enregistré pour « '+u.username+' ». Connectez-vous avec celui-ci.','ok');
+  }else if(kind==='login'||kind==='login-surv'||kind==='login-econ'||kind==='login-prof'){
     const u=DB.users.find(x=>x.username===fd.username.trim().toLowerCase());
     if(!u||!verifyPw(fd.pw,u.salt,u.hash))return err('Identifiant ou mot de passe incorrect.');
     /* Un seul formulaire pour tous les espaces : le compte ouvre toujours son
@@ -5137,8 +5205,8 @@ document.addEventListener('submit',async e=>{
        sont qu'une aide visuelle, ils ne bloquent jamais la connexion. */
     ME=u;try{sessionStorage.setItem(SKEY,u.id)}catch(x){}S.asAdmin=null;S.sessionId=null;S.closeState=null;S.simulationState=null;
     S.view=(u.role==='surv')?'discipline':(u.role==='econ'?'fin':'dash');S.classId=null;S.studentId=null;render();
-    const asked=kind==='login-surv'?'surveillance':(kind==='login-econ'?'économe':'administration');
-    const own=u.role==='surv'?'surveillance':(u.role==='econ'?'économe':'administration');
+    const asked=kind==='login-surv'?'surveillance':(kind==='login-econ'?'économe':(kind==='login-prof'?'enseignant':'administration'));
+    const own=u.role==='surv'?'surveillance':(u.role==='econ'?'économe':(u.role==='admin'?'administration':'enseignant'));
     if(asked!==own)toast('Compte '+own+' : ouverture de l’espace correspondant.','ok');
   }else if(kind==='pw'){
     if(!isAdmin())return err('Seul l’administrateur peut changer son mot de passe. Contactez-le pour toute modification.');

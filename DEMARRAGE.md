@@ -14,22 +14,36 @@ compte administrateur.
 4. Vous arrivez sur un espace vide : créez votre première classe, puis importez
    la liste des élèves (voir `IMPORT-ELEVES.md`).
 
-> Conservez l'identifiant et le mot de passe de l'administrateur. Aucun mot de
-> passe de secours n'est prévu : en cas d'oubli, restaurez une sauvegarde ou
-> contactez la personne qui a installé le logiciel.
+> Conservez l'identifiant et le mot de passe de l'administrateur.
+
+### Mot de passe administrateur oublié
+
+Sur la page de connexion, choisissez l'espace **Administration** puis cliquez sur
+**« Mot de passe oublié ? »**. Indiquez l'identifiant de l'administrateur et le
+**nom de l'établissement** tel qu'il a été enregistré (il est affiché sur la page
+de connexion). Vous choisissez ensuite un nouveau mot de passe : classes,
+élèves, notes et finances sont conservés.
+
+Cette récupération fonctionne **uniquement pour le compte administrateur**. Pour
+un enseignant, un surveillant général ou un économe, l'administrateur
+réinitialise le mot de passe dans **Paramètres → Personnel** (bouton « Modifier »
+du compte). La date de chaque récupération est conservée dans la base.
 
 ## 2. Créer les autres comptes
 
 Dans **Paramètres → Personnel**, ajoutez un compte par personne :
 
-| Rôle | Ce que la personne peut faire |
-|---|---|
-| Enseignant | saisir les notes de ses matières, voir ses classes |
-| Surveillant général | saisir les absences, retards et consignes |
-| Économe | montants dus, versements, reçus |
+| Rôle | Ce que la personne peut faire | Espace de connexion |
+|---|---|---|
+| Enseignant | saisir les notes de ses matières, voir ses classes | **Enseignant** |
+| Surveillant général | saisir les absences, retards et consignes | **Surveillant général** |
+| Économe | montants dus, versements, reçus | **Économe** |
 
 Chaque compte a son propre identifiant et son mot de passe. Les enseignants
-sont ensuite affectés aux matières dans les paramètres de chaque classe.
+sont ensuite affectés aux matières dans les paramètres de chaque classe. La page
+de connexion propose quatre espaces : Administration, Enseignant, Surveillant
+général et Économe ; chaque compte ouvre automatiquement l'espace qui lui
+correspond.
 
 ## 3. Enregistrer les données
 

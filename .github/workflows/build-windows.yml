@@ -103,6 +103,10 @@ jobs:
             Aucun compte de demonstration n'est fourni : la premiere ouverture demande
             le nom de l'etablissement et la creation du compte administrateur.
 
+            Quatre espaces de connexion : Administration, Enseignant, Surveillant general
+            et Econome. Mot de passe administrateur oublie : lien "Mot de passe oublie ?"
+            sur l'espace Administration (aucune donnee perdue).
+
             Le logiciel fonctionne sans connexion internet.
           files: desktop-app/dist/installers/*.exe
           draft: false
