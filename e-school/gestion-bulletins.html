@@ -3356,7 +3356,7 @@ function studentsTab(cls){
      '<span id="stu-count" class="stu-count">'+list.length+(list.length>1?' élèves':' élève')+'</span>'+
      '<span class="grow"></span><span class="small muted">Pour chercher dans toutes les classes, utilisez la barre en haut de l’écran.</span></div>';
   h+='<div class="tw"><table class="t"><thead><tr><th style="width:56px">N°</th><th style="width:58px">Photo</th><th>Noms et prénoms</th><th>Matricule</th><th>Date de naissance</th><th>Lieu de naissance</th><th>Sexe</th><th>Contact du parent</th>'+(can?'<th></th>':'')+'</tr></thead><tbody>'+
-   list.map((s,i)=>{const photo=studentPhotoSrc(cls,s);return '<tr data-st="'+s.id+'" data-q="'+esc(normTxt(s.name+' '+(s.mat||'')+' '+(s.parent||'')+' '+(s.parentPhone||'')))+'" class="'+(S.focusStudent===s.id?'row-focus':'')+'"><td>'+(i+1)+'</td><td>'+(photo?'<img src="'+photo+'" alt="" style="width:32px;height:40px;object-fit:cover;border-radius:3px;vertical-align:middle">':'<span class="muted">—</span>')+'</td><td class="stu-cell">'+tagBadge(s)+' <b>'+esc(s.name)+'</b></td><td class="mono">'+esc(s.mat||'')+'</td><td>'+(s.dob?esc(s.dob):'<span class="muted">—</span>')+'</td><td>'+(s.pob?esc(s.pob):'<span class="muted">—</span>')+'</td><td>'+(s.sex==='M'?'Masculin':s.sex==='F'?'Féminin':'<span class="muted">—</span>')+'</td><td>'+parentCellHtml(s)+'</td>'+
+   list.map((s,i)=>{const photo=studentPhotoSrc(cls,s);return '<tr data-st="'+s.id+'" data-q="'+esc(normTxt(s.name+' '+(s.mat||'')+' '+(s.parent||'')+' '+(s.parentPhone||'')))+'" class="'+(S.focusStudent===s.id?'row-focus':'')+'"><td>'+(i+1)+'</td><td>'+(photo?'<img src="'+photo+'" alt="" style="width:32px;height:40px;object-fit:cover;border-radius:3px;vertical-align:middle">':'<span class="muted">—</span>')+'</td><td class="stu-cell">'+tagBadge(s)+' <b>'+esc(s.name)+'</b>'+(s.serie?' <span class="badge" title="Série">Série '+esc(s.serie)+'</span>':'')+'</td><td class="mono">'+esc(s.mat||'')+'</td><td>'+(s.dob?esc(s.dob):'<span class="muted">—</span>')+'</td><td>'+(s.pob?esc(s.pob):'<span class="muted">—</span>')+'</td><td>'+(s.sex==='M'?'Masculin':s.sex==='F'?'Féminin':'<span class="muted">—</span>')+'</td><td>'+parentCellHtml(s)+'</td>'+
    (can?'<td class="right nowrap"><button class="btn sm" data-act="edit-student" data-id="'+s.id+'">Modifier</button> <button class="btn sm danger" data-act="del-student" data-id="'+s.id+'">Retirer</button></td>':'')+'</tr>'}).join('')+'</tbody></table></div>';
   return h;
 }
@@ -5187,7 +5187,8 @@ function studentForm(s){
   const photoPreview=s?studentPhotoSrc(curClass(),s):'';
   openModal('<form data-form="student" data-id="'+(s?s.id:'')+'"><h2>'+(s?'Modifier l\'élève':'Ajouter un élève')+'</h2><label class="f">Noms et prénoms<input name="name" value="'+esc(s?s.name:'')+'" required autofocus></label>'+
    '<div class="row"><label class="f">Sexe<select name="sex"><option value="">Non précisé</option><option value="M" '+(s&&s.sex==='M'?'selected':'')+'>Masculin</option><option value="F" '+(s&&s.sex==='F'?'selected':'')+'>Féminin</option></select></label><label class="f">Matricule (attribué automatiquement)<input name="mat" value="'+esc(matVal)+'" readonly style="background:#f2f5f9;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;letter-spacing:.03em"><span class="small muted">Unique dans tout l’établissement, définitif : il suit l’élève s’il change de classe ou d’année.</span></label></div>'+
-   '<div class="row"><label class="f">Date de naissance<input name="dob" type="date" value="'+esc(dobVal)+'"></label><label class="f">Lieu de naissance<input name="pob" value="'+esc(pobVal)+'" placeholder="Ex. Douala"></label></div>'+
+   '<div class="row"><label class="f">Date de naissance<input name="dob" type="date" value="'+esc(dobVal)+'"></label><label class="f">Lieu de naissance<input name="pob" value="'+esc(pobVal)+'" placeholder="Ex. Douala"></label>'+
+     '<label class="f" style="flex:0 1 130px">Série<select name="serie"><option value="">Non précisée</option>'+['A','C','D'].map(v=>'<option value="'+v+'" '+(s&&s.serie===v?'selected':'')+'>'+v+'</option>').join('')+'</select><span class="small muted">A, C ou D (facultatif).</span></label></div>'+
    '<div class="form-sec">Contact du parent / tuteur</div>'+
    '<div class="row"><label class="f" style="flex:1 1 210px">Nom et prénoms du parent ou tuteur<input name="parent" value="'+esc(par.name)+'" placeholder="Ex. MBALLA Jean" autocomplete="off"></label>'+
      '<label class="f" style="flex:0 1 150px">Lien de parenté<select name="parentLink"><option value="">Non précisé</option>'+linkOpts+'</select></label></div>'+
@@ -5777,14 +5778,15 @@ document.addEventListener('submit',async e=>{
     const parentLink=(fd.parentLink||'').trim();
     const parentPhone=(fd.parentPhone||'').replace(/\s+/g,' ').trim();
     const parentEmail=(fd.parentEmail||'').trim();
+    const serie=['A','C','D'].includes(String(fd.serie||'').toUpperCase())?String(fd.serie).toUpperCase():'';
     if(parentPhone&&parentPhone.replace(/\D/g,'').length<6)return err('Numéro de téléphone du parent invalide : indiquez au moins 6 chiffres.');
     if(parentEmail&&!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(parentEmail))return err('Adresse e-mail du parent invalide (exemple : parent@exemple.cm).');
     if(parentLink&&!PARENT_LINKS.includes(parentLink))return err('Lien de parenté inconnu.');
     const photoInput=f.querySelector('input[data-file="photo"]');let photo='';
     if(photoInput&&photoInput.files&&photoInput.files[0]){try{photo=await compactStudentPhoto(photoInput.files[0])}catch(ex){return err(ex.message||'Photo illisible.')}}
-    if(id){const s=cls.students.find(x=>x.id===id);s.name=name;s.sex=fd.sex;s.mat=mat;s.dob=fd.dob||'';s.pob=(fd.pob||'').trim();
+    if(id){const s=cls.students.find(x=>x.id===id);s.name=name;s.sex=fd.sex;s.serie=serie;s.mat=mat;s.dob=fd.dob||'';s.pob=(fd.pob||'').trim();
       s.parent=parent;s.parentLink=parentLink;s.parentPhone=parentPhone;s.parentEmail=parentEmail;
-      if(photo)s.photo=photo}else cls.students.push({id:uid(),name,sex:fd.sex,mat:mat,dob:fd.dob||'',pob:(fd.pob||'').trim(),parent:parent,parentLink:parentLink,parentPhone:parentPhone,parentEmail:parentEmail,photo:photo||'',sessionTag:'N'});
+      if(photo)s.photo=photo}else cls.students.push({id:uid(),name,sex:fd.sex,serie:serie,mat:mat,dob:fd.dob||'',pob:(fd.pob||'').trim(),parent:parent,parentLink:parentLink,parentPhone:parentPhone,parentEmail:parentEmail,photo:photo||'',sessionTag:'N'});
     cls.students.sort(cmpName);dirty();closeModal();render();
   }else if(kind==='group'){
     const cls=curClass(),g=fd.g.trim().toLocaleUpperCase('fr');if(!g)return;
