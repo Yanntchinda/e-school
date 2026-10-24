@@ -3302,7 +3302,7 @@ function classSummary(cls,t){
 function dashHtml(){
   const cl=visibleClasses(),t=S.trim;
   let h='<div class="page-h"><div><h1>Tableau de bord</h1><p>'+ordSup(t)+' trimestre · année scolaire '+esc(viewYear())+'</p></div>'+
-    (isAdmin()&&!isReadOnlySession()?'<button class="btn" data-act="student-archive" title="Élèves retirés d’une classe : les restaurer ou les supprimer définitivement">Élèves archivés ('+archivedStudents().length+')</button>':'')+'</div>';
+    (isAdmin()&&!isReadOnlySession()?'<div class="toolbar" style="margin:0"><button class="btn primary" data-act="import-students" title="Classeur .xlsx : une feuille par classe, ou liste simple">Importer un classeur Excel</button><button class="btn" data-act="student-archive" title="Élèves retirés d’une classe : les restaurer ou les supprimer définitivement">Élèves archivés ('+archivedStudents().length+')</button></div>':'')+'</div>';
   if(isReadOnlySession())h+='<div class="notice info">Session archivée en consultation seulement. <button class="btn sm" data-act="session-current">Revenir à la session en cours</button></div>';
   if(memOnly)h+='<div class="notice">Ce navigateur n’autorise pas l’enregistrement local : les données seront perdues à la fermeture. Exportez une sauvegarde depuis Paramètres.</div>';
   if(isAdmin()&&!isReadOnlySession()&&ME&&!ME.secQ)
@@ -3791,6 +3791,7 @@ function accountHtml(){
 const IMPORT_COLS=[
   {key:'name',        label:'NOM ET PRÉNOMS',           ex:'MBALLA Jean Pierre'},
   {key:'sex',         label:'SEXE',                     ex:'M'},
+  {key:'serie',       label:'SÉRIE (A, C, D)',           ex:'A'},
   {key:'dob',         label:'DATE DE NAISSANCE',        ex:'12/03/2013'},
   {key:'pob',         label:'LIEU DE NAISSANCE',        ex:'Douala'},
   {key:'parent',      label:'NOM DU PARENT / TUTEUR',   ex:'MBALLA Étienne'},
@@ -3800,13 +3801,14 @@ const IMPORT_COLS=[
   {key:'mat',         label:'MATRICULE (laisser vide)', ex:'attribué par le logiciel'}
 ];
 const IMPORT_ALIASES={
-  name:['NOM ET PRENOM','NOMS ET PRENOMS','NOM ET PRENOMS','NOM PRENOM','NOM PRENOMS','NOM','NOMS','NOM COMPLET','ELEVE','ELEVES','NAME','NOM DE L ELEVE'],
+  name:['NOM ET PRENOM','NOMS ET PRENOMS','NOM ET PRENOMS','NOMS ET PENOMS','NOM ET PENOM','NOM PRENOM','NOM PRENOMS','NOM','NOMS','NOM COMPLET','ELEVE','ELEVES','NAME','NOM DE L ELEVE'],
   sex:['SEXE','GENRE','SEX','M F','M OU F'],
+  serie:['SERIE','SERIE OPTION','OPTION','SECTION','FILIERE','SERIES'],
   dob:['DATE DE NAISSANCE','DATE NAISSANCE','NAISSANCE','NE LE','DOB'],
   pob:['LIEU DE NAISSANCE','LIEU NAISSANCE','NE A','POB'],
   parent:['NOM DU PARENT TUTEUR','NOM DU PARENT OU TUTEUR','NOM ET PRENOMS DU PARENT','NOM DU PARENT','NOM DU TUTEUR','PARENT','TUTEUR','PERE','MERE'],
   parentLink:['LIEN DE PARENTE','PARENTE','LIEN','RELATION'],
-  parentPhone:['TELEPHONE DU PARENT','TEL DU PARENT','NUMERO DU PARENT','TELEPHONE','TEL','NUMERO','NUMERO DE TELEPHONE','CONTACT'],
+  parentPhone:['TELEPHONE DU PARENT','TEL DU PARENT','NUMERO DU PARENT','TELEPHONE','TEL','NUMERO','NUMERO DE TELEPHONE','CONTACT','CONTACT DU PARENT','TELEPHONE PARENT','TEL PARENT'],
   parentEmail:['E MAIL DU PARENT','EMAIL DU PARENT','E MAIL','EMAIL','MAIL','COURRIEL'],
   mat:['MATRICULE LAISSER VIDE','MATRICULE','MAT']
 };
@@ -3843,10 +3845,37 @@ function importDate(v){
   }
   return '';
 }
+/* Une case vide dans le fichier Excel peut contenir « - », « — », « N/A »… :
+   on la traite comme une vraie case vide. */
+function importClean(v){
+  const t=String(v==null?'':v).replace(/\s+/g,' ').trim();
+  if(!t)return '';
+  if(/^(-|—|–|\?|N\/?A|ND|NEANT|SANS)$/i.test(t))return '';
+  return t;
+}
+/* Série : « ALL » et « ESP » comptent comme A, puis C et D. */
+function importSerie(v){
+  const k=headKey(importClean(v));
+  if(!k)return '';
+  if(k==='A'||k==='ALL'||k==='ESP')return 'A';
+  if(/\b(A|ALL|ALLEMAND|ESP|ESPAGNOL|LITTERAIRE)\b/.test(k))return 'A';
+  if(k==='C'||/\bC\b/.test(k))return 'C';
+  if(k==='D'||/\bD\b/.test(k))return 'D';
+  return '';
+}
+/* Suffixe gardé dans le nom de la classe quand le fichier le précise
+   (« 3ème ALL » → « 3e ALL »). */
+function importSerieLabel(text){
+  const k=headKey(text);
+  if(/\bALL\b/.test(k))return 'ALL';
+  if(/\bESP\b/.test(k))return 'ESP';
+  return '';
+}
 function importPhone(v){
-  let p=String(v==null?'':v).trim().replace(/\.0$/,'');
+  let p=String(importClean(v)).trim().replace(/\.0$/,'');
   if(!p)return '';
   p=p.replace(/[^\d+\s\/\-().]/g,'').trim();
+  if(!/\d/.test(p))return '';
   return p;
 }
 function importEmail(v){
@@ -3901,6 +3930,287 @@ function importSheetRows(text){
     });
   }catch(e){return null}
 }
+/* ---------- Classeur Excel .xlsx (ZIP + XML), sans bibliothèque ----------
+   L'application lit elle-même le fichier : aucune bibliothèque à installer,
+   aucun accès réseau. Un classeur peut contenir plusieurs feuilles, et chaque
+   feuille un niveau de classe (« 6è », « 5è », …). La ligne d'en-tête n'est pas
+   forcément la première (titre « Classe : 6ème » au-dessus, par exemple) : elle
+   est repérée par ses intitulés (N°, NOMS ET PRÉNOMS, SEXE, DATE DE NAISSANCE,
+   SERIE, CONTACT…). */
+const XLSX_REL_NS='http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+function xmlDoc(text){
+  const doc=new DOMParser().parseFromString(String(text==null?'':text),'application/xml');
+  if(doc.getElementsByTagName('parsererror').length)throw new Error('partie XML illisible');
+  return doc;
+}
+/* Décompression « deflate » des fichiers .xlsx, en JavaScript pur : elle
+   fonctionne partout (navigateur, application Windows), même sans les API
+   modernes de flux. */
+function inflateRaw(data){
+  let ip=0,bitbuf=0,bitcnt=0;
+  const out=[];
+  function bits(n){
+    while(bitcnt<n){bitbuf|=(data[ip++]||0)<<bitcnt;bitcnt+=8}
+    const v=bitbuf&((1<<n)-1);bitbuf>>>=n;bitcnt-=n;return v;
+  }
+  function buildTree(lengths){
+    let maxLen=0;lengths.forEach(l=>{if(l>maxLen)maxLen=l});
+    if(!maxLen)return{map:new Map(),maxLen:0};
+    const blCount=new Array(maxLen+1).fill(0);
+    lengths.forEach(l=>{if(l)blCount[l]++});
+    const nextCode=new Array(maxLen+1).fill(0);
+    let code=0;
+    for(let b=1;b<=maxLen;b++){code=(code+blCount[b-1])<<1;nextCode[b]=code}
+    const map=new Map();
+    lengths.forEach((l,sym)=>{if(l){map.set(l+':'+nextCode[l],sym);nextCode[l]++}});
+    return {map,maxLen};
+  }
+  function decode(tree){
+    let code=0;
+    for(let len=1;len<=tree.maxLen;len++){
+      code=(code<<1)|bits(1);
+      const sym=tree.map.get(len+':'+code);
+      if(sym!==undefined)return sym;
+    }
+    throw new Error('flux compressé illisible');
+  }
+  const LBASE=[3,4,5,6,7,8,9,10,11,13,15,17,19,23,27,31,35,43,51,59,67,83,99,115,131,163,195,227,258];
+  const LEXTRA=[0,0,0,0,0,0,0,0,1,1,1,1,2,2,2,2,3,3,3,3,4,4,4,4,5,5,5,5,0];
+  const DBASE=[1,2,3,4,5,7,9,13,17,25,33,49,65,97,129,193,257,385,513,769,1025,1537,2049,3073,4097,6145,8193,12289,16385,24577];
+  const DEXTRA=[0,0,0,0,1,1,2,2,3,3,4,4,5,5,6,6,7,7,8,8,9,9,10,10,11,11,12,12,13,13];
+  function block(lit,dist){
+    for(;;){
+      const sym=decode(lit);
+      if(sym<256){out.push(sym);continue}
+      if(sym===256)return;
+      const li=sym-257;
+      const len=LBASE[li]+bits(LEXTRA[li]);
+      const ds=decode(dist);
+      const d=DBASE[ds]+bits(DEXTRA[ds]);
+      const start=out.length-d;
+      for(let i=0;i<len;i++)out.push(out[start+i]);
+    }
+  }
+  let final=false;
+  while(!final){
+    final=!!bits(1);
+    const type=bits(2);
+    if(type===0){
+      bitbuf=0;bitcnt=0;
+      const len=(data[ip]||0)|((data[ip+1]||0)<<8);ip+=4;
+      for(let i=0;i<len;i++)out.push(data[ip++]);
+    }else if(type===1){
+      const litLens=new Array(288);
+      for(let i=0;i<144;i++)litLens[i]=8;
+      for(let i=144;i<256;i++)litLens[i]=9;
+      for(let i=256;i<280;i++)litLens[i]=7;
+      for(let i=280;i<288;i++)litLens[i]=8;
+      block(buildTree(litLens),buildTree(new Array(30).fill(5)));
+    }else if(type===2){
+      const hlit=bits(5)+257,hdist=bits(5)+1,hclen=bits(4)+4;
+      const order=[16,17,18,0,8,7,9,6,10,5,11,4,12,3,13,2,14,1,15];
+      const clen=new Array(19).fill(0);
+      for(let i=0;i<hclen;i++)clen[order[i]]=bits(3);
+      const clTree=buildTree(clen);
+      const lens=[];
+      while(lens.length<hlit+hdist){
+        const sym=decode(clTree);
+        if(sym<16)lens.push(sym);
+        else if(sym===16){const prev=lens[lens.length-1];let rep=bits(2)+3;while(rep--)lens.push(prev)}
+        else if(sym===17){let rep=bits(3)+3;while(rep--)lens.push(0)}
+        else{let rep=bits(7)+11;while(rep--)lens.push(0)}
+      }
+      block(buildTree(lens.slice(0,hlit)),buildTree(lens.slice(hlit)));
+    }else throw new Error('compression inconnue');
+  }
+  return Uint8Array.from(out);
+}
+function zipIndex(buf){
+  const dv=new DataView(buf.buffer,buf.byteOffset,buf.byteLength);
+  let eocd=-1;
+  for(let i=buf.length-22;i>=Math.max(0,buf.length-70000);i--){
+    if(dv.getUint32(i,true)===0x06054b50){eocd=i;break}
+  }
+  if(eocd<0)throw new Error('fichier ZIP invalide');
+  const count=dv.getUint16(eocd+10,true),cdOff=dv.getUint32(eocd+16,true);
+  const entries=new Map();let p=cdOff;
+  for(let i=0;i<count;i++){
+    if(p+46>buf.length||dv.getUint32(p,true)!==0x02014b50)break;
+    const method=dv.getUint16(p+10,true),compSize=dv.getUint32(p+20,true);
+    const nameLen=dv.getUint16(p+28,true),extraLen=dv.getUint16(p+30,true),cmtLen=dv.getUint16(p+32,true);
+    const off=dv.getUint32(p+42,true);
+    const name=new TextDecoder('utf-8').decode(buf.subarray(p+46,p+46+nameLen));
+    entries.set(name,{method,compSize,off});
+    p+=46+nameLen+extraLen+cmtLen;
+  }
+  if(!entries.size)throw new Error('fichier ZIP vide');
+  return entries;
+}
+async function zipRead(buf,entries,name){
+  const e=entries.get(name);if(!e)return null;
+  const dv=new DataView(buf.buffer,buf.byteOffset,buf.byteLength);
+  if(dv.getUint32(e.off,true)!==0x04034b50)return null;
+  const nameLen=dv.getUint16(e.off+26,true),extraLen=dv.getUint16(e.off+28,true);
+  const start=e.off+30+nameLen+extraLen;
+  const raw=buf.subarray(start,start+e.compSize);
+  if(e.method===0)return raw;
+  if(e.method===8)return inflateRaw(raw);
+  throw new Error('compression non gérée');
+}
+/* Une feuille → lignes de cellules (les colonnes vides sont conservées). */
+function xlsxRows(xml,shared){
+  const doc=xmlDoc(xml);
+  const rowsEl=[...doc.getElementsByTagName('row')];
+  return rowsEl.map(rEl=>{
+    const line=[];
+    [...rEl.getElementsByTagName('c')].forEach(c=>{
+      const ref=c.getAttribute('r')||'';
+      let col=line.length;
+      const m=ref.match(/^([A-Z]+)/i);
+      if(m){col=0;for(const ch of m[1].toUpperCase())col=col*26+(ch.charCodeAt(0)-64);col--}
+      const t=c.getAttribute('t')||'';
+      let val='';
+      if(t==='inlineStr')val=[...c.getElementsByTagName('t')].map(x=>x.textContent).join('');
+      else{
+        const v=c.getElementsByTagName('v')[0];
+        const raw=v?v.textContent:'';
+        if(t==='s')val=shared[Number(raw)]!=null?shared[Number(raw)]:'';
+        else if(t==='b')val=(raw==='1'?'TRUE':'');
+        else val=raw;
+      }
+      while(line.length<col)line.push('');
+      line[col]=val;
+    });
+    return line;
+  });
+}
+/* Lit toutes les feuilles d'un classeur .xlsx. */
+async function xlsxSheets(buf){
+  const entries=zipIndex(buf);
+  const dec=new TextDecoder('utf-8');
+  const readText=async n=>{const b=await zipRead(buf,entries,n);return b?dec.decode(b):null};
+  const shared=[];
+  const ssTxt=await readText('xl/sharedStrings.xml');
+  if(ssTxt){xmlDoc(ssTxt).querySelectorAll('si').forEach(si=>{
+    shared.push([...si.getElementsByTagName('t')].map(t=>t.textContent).join(''));
+  })}
+  const wbTxt=await readText('xl/workbook.xml');
+  if(!wbTxt)throw new Error('classeur Excel illisible (workbook.xml absent)');
+  const wb=xmlDoc(wbTxt);
+  const rels={};
+  const relTxt=await readText('xl/_rels/workbook.xml.rels');
+  if(relTxt)[...xmlDoc(relTxt).getElementsByTagName('Relationship')].forEach(r=>{rels[r.getAttribute('Id')]=r.getAttribute('Target')||''});
+  const out=[];
+  for(const sh of [...wb.getElementsByTagName('sheet')]){
+    const name=sh.getAttribute('name')||'Feuille';
+    const rid=sh.getAttributeNS(XLSX_REL_NS,'id')||sh.getAttribute('r:id')||'';
+    let target=String(rels[rid]||'').replace(/^\/+/,'');
+    if(!target)continue;
+    if(!/^xl\//.test(target))target='xl/'+target;
+    const xml=await readText(target);
+    if(!xml)continue;
+    out.push({name,rows:xlsxRows(xml,shared)});
+  }
+  return out;
+}
+/* Repère la ligne d'en-tête, même si un titre occupe les premières lignes. */
+function importHeaderIndex(rows){
+  const lim=Math.min(rows.length,15);
+  for(let i=0;i<lim;i++){
+    const keys=(rows[i]||[]).map(headKey);
+    const hasName=keys.some(k=>/^(NOM|NOMS|NOM ET PRENOM|NOM ET PRENOMS|NOMS ET PRENOMS|NOMS ET PENOMS|NOM COMPLET|ELEVE|ELEVES|NAME)$/.test(k));
+    const score=keys.filter(k=>/(NOM|SEX|NAISSANCE|CONTACT|TELEPHONE|TEL|SERIE|MATRICULE|EMAIL|MAIL)/.test(k)).length;
+    if(hasName&&score>=2)return i;
+  }
+  return -1;
+}
+function importLevel(text){
+  const k=headKey(text);
+  if(/^6/.test(k)||/SIXIEME/.test(k))return '6e';
+  if(/^5/.test(k)||/CINQUIEME/.test(k))return '5e';
+  if(/^4/.test(k)||/QUATRIEME/.test(k))return '4e';
+  if(/^3/.test(k)||/TROISIEME/.test(k))return '3e';
+  if(/^2/.test(k)||/SECONDE/.test(k))return '2nde';
+  if(/^1/.test(k)||/PREMIERE/.test(k))return '1ère';
+  if(/^T/.test(k)||/TERMINALE/.test(k))return 'Tle';
+  return '';
+}
+function importPresetFor(level,serie){
+  if(['6e','5e','4e','3e'].indexOf(level)>=0)return level;
+  if(level==='2nde')return serie==='C'?'2C':'2A';
+  if(level==='1ère')return serie==='D'?'1D':'1A';
+  if(level==='Tle')return serie==='D'?'TD':'TA';
+  return 'X';
+}
+/* Une feuille → une classe : nom, modèle de bulletin, élèves. */
+function importReadSheet(sh){
+  const rows=(sh.rows||[]).filter(r=>r&&r.some(c=>String(c==null?'':c).trim()!==''));
+  const hi=importHeaderIndex(rows);
+  if(hi<0)return null;
+  const students=importParseRows(rows.slice(hi));
+  if(!students.length)return null;
+  const titleText=rows.slice(0,hi+1).map(r=>r.join(' ')).join(' ');
+  const level=importLevel(sh.name)||importLevel(titleText);
+  const counts={};
+  students.forEach(st=>{if(st.serie)counts[st.serie]=(counts[st.serie]||0)+1});
+  const serie=Object.keys(counts).sort((a,b)=>counts[b]-counts[a])[0]||importSerie(titleText)||'';
+  const suffix=importSerieLabel(titleText);
+  const base=level||String(sh.name||'').replace(/^classe\s*[:\-]?\s*/i,'').trim()||'Classe';
+  const name=(base+(suffix?' '+suffix:'')).replace(/\s+/g,' ').trim();
+  return {sheet:sh.name,name,preset:importPresetFor(level,serie),level,serie,students};
+}
+let IMPPLAN=[];
+function importWorkbook(sheets){
+  const plans=(sheets||[]).map(importReadSheet).filter(Boolean);
+  if(!plans.length){
+    return toast('Aucun élève reconnu : chaque feuille doit contenir une ligne d’en-tête (N°, NOMS ET PRÉNOMS, SEXE…) suivie des élèves.','err');
+  }
+  const cur=curClass();
+  if(plans.length===1&&cur){plans[0].name=cur.name;plans[0].preset=cur.presetKey||plans[0].preset}
+  IMPPLAN=plans;
+  const total=plans.reduce((a,x)=>a+x.students.length,0);
+  const cols=plans.map((p,i)=>{
+    const exists=DB.classes.find(c=>headKey(c.name)===headKey(p.name));
+    return '<tr><td><input type="checkbox" name="on-'+i+'" value="1" checked style="width:auto"></td>'+
+      '<td><input name="name-'+i+'" value="'+esc(p.name)+'" class="inp" style="min-width:118px" aria-label="Nom de la classe"></td>'+
+      '<td><select name="preset-'+i+'" aria-label="Modèle de bulletin">'+PRESETS.map(pr=>'<option value="'+pr.key+'"'+(pr.key===p.preset?' selected':'')+'>'+esc(pr.label)+'</option>').join('')+'</select></td>'+
+      '<td class="num">'+p.students.length+'</td>'+
+      '<td class="small muted">'+(exists?'ajoutés à « '+esc(exists.name)+' »':'nouvelle classe')+'</td></tr>';
+  }).join('');
+  openModal('<form data-form="import-plan"><h2>Importer un classeur Excel</h2>'+
+    '<p class="small muted" style="margin-top:0">Chaque feuille devient une classe. Vérifiez les noms et le modèle de bulletin, décochez ce que vous ne voulez pas importer. Les élèves déjà présents sont ignorés et les matricules sont attribués automatiquement.</p>'+
+    '<div class="tw" style="max-height:340px;overflow:auto"><table class="t"><thead><tr><th style="width:30px"></th><th>Classe</th><th>Modèle de bulletin</th><th class="num">Élèves</th><th>Destination</th></tr></thead><tbody>'+cols+'</tbody></table></div>'+
+    '<p class="small" style="margin:10px 0 0">Total : <b>'+total+'</b> élève'+(total>1?'s':'')+' sur '+plans.length+' feuille'+(plans.length>1?'s':'')+'.</p>'+
+    '<div class="err" id="fe"></div>'+
+    '<div class="acts"><button type="button" class="btn" data-act="mclose">Annuler</button>'+
+    '<button class="btn primary">Importer</button></div></form>','wide');
+}
+/* Ajoute une feuille dans la classe choisie (ou dans la classe existante du
+   même nom) et renvoie le décompte. */
+function importApplyPlan(plan,name,presetKey){
+  const clean=String(name||plan.name).replace(/\s+/g,' ').trim()||plan.name;
+  let cls=DB.classes.find(c=>headKey(c.name)===headKey(clean));
+  let created=false;
+  if(!cls){
+    const key=PRESETS.some(p=>p.key===presetKey)?presetKey:'X';
+    cls=newClass(key,clean);DB.classes.push(cls);created=true;
+  }
+  const have=new Set(cls.students.map(s=>headKey(s.name)));
+  let n=0,dup=0;
+  for(const x of plan.students){
+    if(have.has(headKey(x.name))){dup++;continue}
+    have.add(headKey(x.name));
+    let mat=String(x.mat||'').replace(/\s+/g,'').toUpperCase();
+    if(mat&&matTaken(mat))mat='';
+    if(!mat)mat=genMat();
+    cls.students.push({id:uid(),name:x.name,sex:x.sex||'',serie:x.serie||'',mat,dob:x.dob||'',pob:x.pob||'',
+      parent:x.parent||'',parentLink:x.parentLink||'',parentPhone:x.parentPhone||'',parentEmail:x.parentEmail||'',
+      photo:'',sessionTag:'N'});
+    n++;
+  }
+  cls.students.sort(cmpName);
+  return {n,dup,created,cls};
+}
 /* Mode sans en-tête : une ligne = un élève, le nom d'abord, le sexe s'il est
    présent dans la ligne (« M », « F », « Fille »…). */
 function importPlainNames(rows){
@@ -3954,13 +4264,14 @@ function importParseRows(rows){
     out.push({
       name,
       sex:importSex(pick(cells,'sex')),
-      dob:importDate(pick(cells,'dob')),
-      pob:String(pick(cells,'pob')).replace(/\s+/g,' ').trim(),
-      parent:String(pick(cells,'parent')).replace(/\s+/g,' ').trim(),
+      serie:importSerie(pick(cells,'serie')),
+      dob:importDate(importClean(pick(cells,'dob'))),
+      pob:importClean(pick(cells,'pob')),
+      parent:importClean(pick(cells,'parent')),
       parentLink:importLink(pick(cells,'parentLink')),
       parentPhone:importPhone(pick(cells,'parentPhone')),
       parentEmail:importEmail(pick(cells,'parentEmail')),
-      mat:String(pick(cells,'mat')).replace(/\s+/g,'').toUpperCase()
+      mat:String(importClean(pick(cells,'mat'))).replace(/\s+/g,'').toUpperCase()
     });
   }
   return out;
@@ -3981,16 +4292,15 @@ function importPreview(input){
   if(!IMP.length){box.innerHTML='<p class="small muted">Aucun élève reconnu. Vérifiez que la première colonne contient bien les noms.</p>';}
   else{
     box.innerHTML='<p class="small"><b>'+ok+'</b> élève'+(ok>1?'s':'')+' à ajouter'+(dup?' · <span class="badge warn">'+dup+' déjà présent'+(dup>1?'s':'')+' (ignoré'+(dup>1?'s':'')+')</span>':'')+' · les matricules seront attribués automatiquement.</p>'+
-      '<div class="tw" style="max-height:260px;overflow:auto"><table class="t"><thead><tr><th style="width:34px">#</th><th>Nom et prénoms</th><th style="width:44px">Sexe</th><th style="width:92px">Naissance</th><th>Parent / tuteur</th><th style="width:120px">Téléphone</th></tr></thead><tbody>'+
-      IMP.map((x,i)=>'<tr'+(x.dup?' class="muted" style="text-decoration:line-through"':'')+'><td>'+(i+1)+'</td><td>'+esc(x.name)+'</td><td>'+(x.sex||'')+'</td><td>'+(x.dob?esc(x.dob.split('-').reverse().join('/')):'')+'</td><td>'+esc(x.parent||'')+(x.parentLink?' <span class="small muted">('+esc(x.parentLink)+')</span>':'')+'</td><td>'+esc(x.parentPhone||'')+'</td></tr>').join('')+
+      '<div class="tw" style="max-height:260px;overflow:auto"><table class="t"><thead><tr><th style="width:34px">#</th><th>Nom et prénoms</th><th style="width:44px">Sexe</th><th style="width:52px">Série</th><th style="width:92px">Naissance</th><th>Parent / tuteur</th><th style="width:120px">Téléphone</th></tr></thead><tbody>'+
+      IMP.map((x,i)=>'<tr'+(x.dup?' class="muted" style="text-decoration:line-through"':'')+'><td>'+(i+1)+'</td><td>'+esc(x.name)+'</td><td>'+(x.sex||'')+'</td><td>'+(x.serie||'')+'</td><td>'+(x.dob?esc(x.dob.split('-').reverse().join('/')):'')+'</td><td>'+esc(x.parent||'')+(x.parentLink?' <span class="small muted">('+esc(x.parentLink)+')</span>':'')+'</td><td>'+esc(x.parentPhone||'')+'</td></tr>').join('')+
       '</tbody></table></div>';
   }
   const go=$('#imp-go');
   if(go){go.disabled=!ok;go.textContent=ok?'Importer '+ok+' élève'+(ok>1?'s':''):'Importer'}
 }
-/* Lecture d'un fichier choisi dans la fenêtre d'import : .xls du modèle,
-   .csv / .txt d'Excel, ou collage. Un .xlsx doit d'abord être enregistré en
-   CSV (message explicite plutôt qu'un import vide). */
+/* Lecture d'un fichier choisi dans la fenêtre d'import : classeur .xlsx
+   (toutes les feuilles), .xls du modèle, .csv / .txt d'Excel, ou collage. */
 function importFile(file){
   if(!file)return;
   const rd=new FileReader();
@@ -3998,8 +4308,13 @@ function importFile(file){
   rd.onload=()=>{
     let bytes;
     try{bytes=new Uint8Array(rd.result)}catch(e){return toast('Fichier illisible.','err')}
-    if(bytes.length>1&&bytes[0]===0x50&&bytes[1]===0x4B)
-      return toast('Ce fichier est un .xlsx. Ouvrez-le dans Excel puis « Enregistrer sous » → CSV UTF-8, ou utilisez le modèle .xls fourni.','err');
+    if(bytes.length>1&&bytes[0]===0x50&&bytes[1]===0x4B){
+      /* Fichier .xlsx : chaque feuille peut contenir une classe complète. */
+      toast('Lecture du classeur Excel…');
+      xlsxSheets(bytes).then(sheets=>importWorkbook(sheets))
+        .catch(err=>toast('Classeur .xlsx illisible : '+(err&&err.message?err.message:'fichier endommagé')+'. Vous pouvez aussi l’enregistrer en .xls ou CSV.','err'));
+      return;
+    }
     const text=new TextDecoder('utf-8').decode(bytes);
     if(/^\s*(<\?xml|<Workbook)/i.test(text.slice(0,600))){
       const rows=importSheetRows(text);
@@ -4016,7 +4331,7 @@ function importModelXls(){
   const esc0=v=>String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   const cell=(v,style)=>'<Cell'+(style?' ss:StyleID="'+style+'"':'')+'><Data ss:Type="String">'+esc0(v)+'</Data></Cell>';
   const line=(cells,style)=>'<Row>'+cells.map(c=>Array.isArray(c)?cell(c[0],c[1]):cell(c,style)).join('')+'</Row>';
-  const widths=IMPORT_COLS.map(c=>'<Column ss:AutoFitWidth="0" ss:Width="'+({name:230,sex:60,dob:105,pob:130,parent:200,parentLink:100,parentPhone:120,parentEmail:190,mat:150}[c.key]||120)+'"/>').join('');
+  const widths=IMPORT_COLS.map(c=>'<Column ss:AutoFitWidth="0" ss:Width="'+({name:230,sex:60,serie:80,dob:105,pob:130,parent:200,parentLink:100,parentPhone:120,parentEmail:190,mat:150}[c.key]||120)+'"/>').join('');
   const sheet=(name,cols,rows)=>'<Worksheet ss:Name="'+esc0(name)+'"><Table>'+cols+rows+'</Table></Worksheet>';
   const xls='<?xml version="1.0" encoding="UTF-8"?>\n<?mso-application progid="Excel.Sheet"?>\n'+
     '<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">'+
@@ -4891,13 +5206,14 @@ A['import-students']=()=>{
   IMP=[];
   const cols=IMPORT_COLS.map(c=>esc(c.label)).join(' · ');
   openModal('<h2>Importer la liste des élèves</h2>'+
-   '<p class="small muted" style="margin-top:0">Téléchargez le modèle, remplissez-le dans Excel, puis importez-le. Vous pouvez aussi coller directement la liste depuis Excel ou choisir un fichier CSV. <b>Le matricule est toujours attribué par le logiciel</b> : ne le saisissez pas.</p>'+
+   '<p class="small muted" style="margin-top:0">Téléchargez le modèle, remplissez-le dans Excel, puis importez-le. Vous pouvez aussi ouvrir <b>votre propre classeur .xlsx</b> (toutes les feuilles d’un coup), coller une liste depuis Excel ou choisir un fichier CSV. <b>Le matricule est toujours attribué par le logiciel</b> : ne le saisissez pas.</p>'+
+   '<p class="small muted" style="margin:6px 0 0">Colonnes reconnues dans un fichier existant : N°, NOMS ET PRÉNOMS, SEXE, SÉRIE (ALL/ESP = A, C, D), DATE DE NAISSANCE, LIEU DE NAISSANCE, CONTACT (téléphone du parent). La colonne SÉRIE est facultative.</p>'+
    '<div class="toolbar"><button class="btn primary" data-act="import-model-xls">Télécharger le modèle Excel (.xls)</button><button class="btn" data-act="import-model-csv">Modèle CSV</button></div>'+
    '<p class="small muted" style="margin:6px 0 0">Colonnes du modèle : '+cols+'. Seul le nom est obligatoire ; les autres colonnes peuvent rester vides.</p>'+
    '<div class="form-sec">Coller depuis Excel</div>'+
    '<textarea class="inp" id="imp-text" rows="7" placeholder="NOM ET PRÉNOMS;SEXE;DATE DE NAISSANCE;LIEU DE NAISSANCE;PARENT;LIEN;TÉLÉPHONE;E-MAIL&#10;AWE WANG DANIEL;M;12/03/2013;Douala;AWE WANG Paul;Père;6 99 00 11 22;parent@exemple.cm&#10;DJOUMEUGEU TEDJENAN INESSE;F;05/07/2013;Yaoundé;;;6 77 12 34 56;"></textarea>'+
-   '<div class="toolbar" style="margin-top:8px"><label class="btn sm" style="cursor:pointer">Ouvrir un fichier .xls, .csv ou .txt<input type="file" accept=".xls,.csv,.txt,.tsv,application/vnd.ms-excel,text/csv,text/plain" data-file="imp" class="hide"></label>'+
-   '<span class="small muted">Un fichier .xlsx doit d’abord être enregistré en CSV UTF-8.</span></div>'+
+   '<div class="toolbar" style="margin-top:8px"><label class="btn sm" style="cursor:pointer">Ouvrir un fichier .xlsx, .xls, .csv ou .txt<input type="file" accept=".xlsx,.xls,.csv,.txt,.tsv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv,text/plain" data-file="imp" class="hide"></label>'+
+   '<span class="small muted">Un classeur <b>.xlsx</b> est lu directement : chaque feuille peut contenir une classe (« 6è », « 5è »…), avec sa propre liste.</span></div>'+
    '<div id="imp-prev"><p class="small muted">Rien à importer pour le moment.</p></div>'+
    '<div class="acts"><button class="btn" data-act="mclose">Annuler</button><button class="btn primary" id="imp-go" data-act="imp-go" disabled>Importer</button></div>','wide');
 };
@@ -4912,7 +5228,7 @@ A['imp-go']=()=>{
     let mat=String(x.mat||'').replace(/\s+/g,'').toUpperCase();
     if(mat&&matTaken(mat))mat='';
     if(mat)reused++;else mat=genMat();
-    cls.students.push({id:uid(),name:x.name,sex:x.sex||'',mat,dob:x.dob||'',pob:x.pob||'',
+    cls.students.push({id:uid(),name:x.name,sex:x.sex||'',serie:x.serie||'',mat,dob:x.dob||'',pob:x.pob||'',
       parent:x.parent||'',parentLink:x.parentLink||'',parentPhone:x.parentPhone||'',parentEmail:x.parentEmail||'',
       photo:'',sessionTag:'N'});
     n++;
@@ -5348,6 +5664,21 @@ document.addEventListener('submit',async e=>{
     if(normTxt(fd.confirm).replace(/[^a-z]/g,'')!=='reinitialiser')return err('Recopiez exactement REINITIALISER dans le champ de confirmation.');
     S.forgotUid=pick.id;S.forgotOk=true;S.forgotTries=0;S.forgotHelp=false;render();
     toast('Compte « '+pick.username+' » : choisissez maintenant un nouveau mot de passe.','ok');
+  }else if(kind==='import-plan'){
+    if(!isAdmin())return err('Seul l’administrateur peut créer des classes par import.');
+    if(!IMPPLAN.length)return err('Aucune feuille à importer.');
+    let added=0,dup=0,created=0,classes=0,firstId=null;
+    IMPPLAN.forEach((plan,i)=>{
+      if(!fd['on-'+i])return;
+      const r=importApplyPlan(plan,fd['name-'+i],fd['preset-'+i]);
+      added+=r.n;dup+=r.dup;if(r.created)created++;classes++;
+      if(!firstId)firstId=r.cls.id;
+    });
+    if(!classes)return err('Cochez au moins une feuille à importer.');
+    dirty();saveNow();closeModal();
+    if(classes===1&&firstId){S.view='class';S.classId=firstId;S.tab='eleves'}
+    IMPPLAN=[];render();
+    toast(added+' élève'+(added>1?'s':'')+' importé'+(added>1?'s':'')+(created?' · '+created+' classe'+(created>1?'s':'')+' créée'+(created>1?'s':''):'')+(dup?' · '+dup+' déjà présent'+(dup>1?'s':'')+' ignoré'+(dup>1?'s':''):'')+'.','ok');
   }else if(kind==='wipe'){
     if(!isAdmin())return err('Seul l’administrateur peut effacer les données.');
     if(fd.remote&&Cloud.enabled()&&Cloud.online){

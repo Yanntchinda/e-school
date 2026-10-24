@@ -1,8 +1,9 @@
 # Importer une liste d'élèves
 
 Deux boutons dans l'application suffisent : **« Télécharger le modèle »** puis
-**« Importer »**. Les matricules sont toujours créés par le logiciel — vous ne
-les saisissez jamais.
+**« Importer »**. Vous pouvez aussi ouvrir **votre propre fichier Excel
+(.xlsx)** : une feuille par classe, et tout est importé d'un coup. Les
+matricules sont toujours créés par le logiciel — vous ne les saisissez jamais.
 
 ## Où ça se trouve
 
@@ -12,6 +13,9 @@ les saisissez jamais.
    élèves ».)*
 3. Cliquez sur **Télécharger le modèle Excel (.xls)**, remplissez-le dans
    Excel, puis rapportez-le avec **Ouvrir un fichier**.
+
+Le bouton **« Importer un classeur Excel »** du tableau de bord ouvre la même
+fenêtre : c'est le chemin le plus rapide pour une année complète.
 
 ## Les colonnes du modèle
 
@@ -27,8 +31,40 @@ les saisissez jamais.
 | 8 | `E-MAIL DU PARENT` | non | `parent@exemple.cm` |
 | 9 | `MATRICULE (laisser vide)` | non | **à laisser vide** : le logiciel l'attribue |
 
+La colonne **`SÉRIE`** (`A`, `C`, `D`) est reconnue en plus, à la place que vous
+voulez : `ALL` et `ESP` sont ramenés à `A`. La série est enregistrée sur la
+fiche de l'élève ; elle sert au choix du modèle de bulletin.
+
 Seul le nom est indispensable. Une colonne vide n'empêche rien : un élève sans
 contact est accepté, il pourra être complété plus tard dans sa fiche.
+
+## Votre propre classeur .xlsx
+
+L'application lit directement le fichier tel qu'Excel l'enregistre : pas besoin
+de le convertir en CSV.
+
+- **Une feuille = une classe.** Toutes les feuilles sont lues d'un coup ; une
+  feuille vide ou sans élève est ignorée.
+- **Un titre au-dessus des en-têtes ne gêne pas** : `Classe : 6ème`,
+  `CLASSE :2nde`… La feuille est nommée d'après sa ligne de titre ou son
+  onglet, et vous pouvez corriger le nom avant de valider.
+- **L'ordre des colonnes est libre.** Les en-têtes sont reconnus même avec des
+  variantes d'orthographe ou de casse : `N°`, `NOMS ET PENOMS`,
+  `NOMS ET PRÉNOMS`, `SEXE`, `SERIE`/`SÉRIE`, `Date de naissance`,
+  `Lieu de naissance`, `contact`/`téléphone`.
+- **`contact` = téléphone du parent.** Une valeur `-`, `N/A` ou `Néant` devient
+  un champ vide, jamais un faux numéro.
+- **Séries** : `A` (avec `ALL` ou `ESP`), `C`, `D`. Si la feuille n'a pas de
+  colonne de série, aucune série n'est inventée ; `ALL` ou `ESP` peut rester
+  dans le nom de la classe (`3e ALL`).
+- **Modèle de bulletin** déduit du niveau : `6e`, `5e`, `4e`, `3e` ; `2nde` →
+  `2A` (ou `2C`), `1ère` → `1A` (ou `1D`), `Tle` → `TA` (ou `TD`). Vous pouvez
+  en changer dans la fenêtre d'import.
+- **Rien n'est enregistré avant votre validation.** La fenêtre affiche chaque
+  feuille avec son nom, son modèle, le nombre d'élèves et la destination
+  (« nouvelle classe » ou « ajoutés à … »). Décochez ce que vous ne voulez pas.
+- **Réimporter le même classeur** ne crée ni doublon d'élève ni doublon de
+  classe.
 
 ## Le fichier fourni
 
@@ -43,16 +79,16 @@ Les deux se retrouvent aussi dans l'application, bouton par bouton.
 ## Bon à savoir
 
 - **Aperçu avant import** : chaque nom reconnu est affiché avec son sexe, sa
-  date de naissance, son parent et son téléphone. Rien n'est enregistré avant
-  votre confirmation.
+  série, sa date de naissance, son parent et son téléphone. Rien n'est
+  enregistré avant votre confirmation.
 - **Doublons ignorés** : un élève déjà présent dans la classe (même nom) est
   barré et n'est pas ajouté. Réimporter le même fichier ne crée pas de doublon.
 - **Matricules** : attribués à l'import, tous différents, au format
   `MBI-<année>-<6 caractères>`. Si votre fichier contient déjà un matricule
   libre et valide (cas d'un transfert), il est repris tel quel.
-- **Fichier .xlsx** : Excel enregistre par défaut dans ce format, que
-  l'application ne peut pas lire. Enregistrez plutôt en **CSV UTF-8** ou
-  gardez le format **.xls** du modèle ; un message vous le rappelle.
+- **Fichiers acceptés** : `.xlsx` (lu directement), `.xls` du modèle, `.csv`
+  et `.txt` en UTF-8. Un `.xls` enregistré par un autre logiciel peut être
+  illisible : repartez du modèle ou enregistrez en `.xlsx`.
 - Vous pouvez aussi **coller** la liste directement depuis Excel (un élève par
   ligne). Une liste de noms seuls fonctionne : `NOM Prénom` puis `M`/`F`.
 
