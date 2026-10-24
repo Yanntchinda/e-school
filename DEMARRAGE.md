@@ -10,7 +10,10 @@ compte administrateur.
    **vides** : rien n'est pré-rempli, aucune donnée d'exemple n'est proposée.
 2. Renseignez le **nom de l'établissement**, la **ville** et l'**année scolaire**.
 3. Créez le **compte administrateur** : nom complet, identifiant, mot de passe
-   (saisi deux fois). C'est ce compte qui gère tout le reste.
+   (saisi deux fois), puis une **question secrète** et sa **réponse**. C'est ce
+   compte qui gère tout le reste, et la question secrète est le seul moyen de
+   récupérer son mot de passe s'il est oublié : choisissez-en une dont la
+   réponse ne changera jamais.
 4. Vous arrivez sur un espace vide : créez votre première classe, puis importez
    la liste des élèves (voir `IMPORT-ELEVES.md`).
 
@@ -18,29 +21,31 @@ compte administrateur.
 
 ### Mot de passe administrateur oublié
 
-Sur la page de connexion, choisissez l'espace **Administration** puis cliquez sur
-**« Mot de passe oublié ? »**. Indiquez l'identifiant de l'administrateur (ou
-laissez-le vide s'il n'y a qu'un seul administrateur et que vous avez aussi
-oublié l'identifiant) et le **nom de l'établissement** tel qu'il a été enregistré
-(il est affiché sur la page de connexion). Vous choisissez ensuite un nouveau mot
-de passe : classes, élèves, notes et finances sont conservés.
+La récupération se fait avec la **question secrète** choisie à l'installation.
 
-Le nom de l'établissement est **rappelé sur l'écran de récupération**, il suffit
-de le recopier ; les accents, les majuscules et la ponctuation n'ont pas
-d'importance, et un nom partiel (« Complexe Scolaire » pour « Complexe Scolaire
-Bilingue ») ou la **ville** sont acceptés.
+1. Page de connexion → espace **Administration** → **« Mot de passe oublié ? »**.
+2. Identifiant de l'administrateur (laissez vide s'il n'y a qu'un seul
+   administrateur et que vous l'avez aussi oublié).
+3. La **question secrète** s'affiche : donnez la réponse. Les accents, les
+   majuscules et la ponctuation n'ont pas d'importance.
+4. Choisissez un **nouveau mot de passe** : classes, élèves, notes et finances
+   sont conservés, rien n'est effacé.
 
-**Vous avez tout oublié (identifiant et nom exact) ?** Sur ce même écran,
-cliquez sur **« Je ne connais plus ces informations »**, recopiez le mot
-`REINITIALISER` puis choisissez un nouveau mot de passe. Seul le mot de passe du
-compte administrateur change : classes, élèves, notes, finances et autres
-comptes restent intacts. L'identifiant est ensuite rappelé en clair et déjà
-inscrit sur la page de connexion.
+Cinq réponses fausses sont possibles ; au-delà, un **dernier recours** est
+proposé sur le même écran (recopier `REINITIALISER`), pour éviter de perdre
+l'accès à l'établissement. Définissez alors une nouvelle question secrète.
 
-Cette récupération fonctionne **uniquement pour le compte administrateur**. Pour
-un enseignant, un surveillant général ou un économe, l'administrateur
-réinitialise le mot de passe dans **Paramètres → Personnel** (bouton « Modifier »
-du compte). La date de chaque récupération est conservée dans la base.
+La question secrète se change à tout moment dans **Mon compte → Question
+secrète** (le mot de passe actuel est demandé). Une installation faite avant
+cette version n'a pas encore de question : l'application le signale sur le
+tableau de bord et la récupération passe provisoirement par le nom de
+l'établissement, jusqu'à ce que la question soit définie.
+
+> Cette récupération est **réservée au compte administrateur**. Pour un
+> enseignant, un surveillant général ou un économe, l'administrateur
+> réinitialise le mot de passe dans **Paramètres → Personnel** (bouton
+> « Modifier » du compte). La date de chaque récupération est conservée dans la
+> base.
 
 ## 2. Créer les autres comptes
 

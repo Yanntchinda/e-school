@@ -48,10 +48,12 @@ Les donnees sont conservees meme si vous desinstallez le programme.
 Sauvegarde : menu **Fichier → Exporter une sauvegarde** (Ctrl+S).
 
 Mot de passe administrateur oublie : page de connexion -> espace **Administration**
--> **Mot de passe oublie ?** -> nom de l'etablissement (rappele a l'ecran) ->
-nouveau mot de passe. Vos donnees restent en place. Tout oublie (identifiant et
-nom) : lien **Je ne connais plus ces informations**, recopier `REINITIALISER`,
-choisir un nouveau mot de passe. Cette recuperation est reservee au compte
+-> **Mot de passe oublie ?** -> repondre a la **question secrete** choisie a
+l'installation -> nouveau mot de passe. Vos donnees restent en place. Apres 5
+reponses fausses, un dernier recours est propose (recopier `REINITIALISER`).
+La question se change dans **Mon compte -> Question secrete**. Une installation
+plus ancienne (sans question secrete) est signalee sur le tableau de bord : la
+reste passe par le nom de l'etablissement. Recuperation reservee au compte
 administrateur ; pour les autres comptes, l'administrateur modifie le mot de
 passe dans Parametres -> Personnel.
 

@@ -964,7 +964,28 @@ function verifyPw(pw,salt,stored){
   return sha256Hex(input)===stored||legacyHashPw(pw,salt)===stored;
 }
 let ME=null;
-const S={view:'dash',classId:null,tab:'eleves',trim:1,mine:true,sort:'name',sessionId:null,closeState:null,simulationState:null,loginRole:'staff',loginView:null,forgotUid:null,forgotHelp:false,loginUser:'',studentId:null,asAdmin:null};
+/* Questions secrètes proposées à l'installation du compte administrateur.
+   La réponse n'est jamais enregistrée en clair : seule son empreinte est
+   conservée, comme pour le mot de passe. */
+const SEC_QUESTIONS=[
+  'Quel est le prénom de votre mère ?',
+  'Quel est le nom de votre village ou de votre ville d’origine ?',
+  'Quel était le nom de votre premier établissement ?',
+  'Quel est le prénom de votre premier enfant ?',
+  'Quel est le nom de votre meilleur ami d’enfance ?',
+  'Quel est votre plat préféré ?'
+];
+/* Réponse secrète : accents, majuscules et espaces multiples ignorés. */
+const normAns=v=>String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
+function secQuestionHtml(sel,nameQ,nameOther){
+  return '<label class="f">Question secrète<select name="'+nameQ+'" data-secq>'+
+    '<option value="">— Choisissez une question —</option>'+
+    SEC_QUESTIONS.map(q=>'<option value="'+esc(q)+'"'+(sel===q?' selected':'')+'>'+esc(q)+'</option>').join('')+
+    '<option value="__other"'+(sel&&SEC_QUESTIONS.indexOf(sel)<0?' selected':'')+'>Autre question (je l’écris moi-même)</option>'+
+  '</select></label>'+
+  '<label class="f" data-secq-other style="'+(sel&&SEC_QUESTIONS.indexOf(sel)<0?'':'display:none')+'">Ma question<input name="'+nameOther+'" value="'+(sel&&SEC_QUESTIONS.indexOf(sel)<0?esc(sel):'')+'" placeholder="Ex. Quel est le nom de mon premier directeur ?"></label>';
+}
+const S={view:'dash',classId:null,tab:'eleves',trim:1,mine:true,sort:'name',sessionId:null,closeState:null,simulationState:null,loginRole:'staff',loginView:null,forgotUid:null,forgotOk:false,forgotTries:0,forgotHelp:false,loginUser:'',studentId:null,asAdmin:null};
 const isAdmin=()=>ME&&ME.role==='admin';
 const isSurv=()=>ME&&ME.role==='surv';
 const isProf=()=>ME&&(ME.role==='prof'||ME.role==='teacher');
@@ -2518,6 +2539,10 @@ function setupHtml(){
   '<label class="f">Confirmer le mot de passe<input name="pw2" type="text" data-visible="1" minlength="4" autocomplete="new-password" required></label>'+
   '<div class="pw-row"><button type="button" class="btn sm" data-act="toggle-pw">Masquer les mots de passe</button>'+
     '<button type="button" class="btn sm" data-act="form-reset">Tout effacer</button></div>'+
+  '<div class="form-sec">Récupération du mot de passe</div>'+
+  '<p class="small muted" style="margin:0 0 8px">Ces deux champs servent uniquement si vous oubliez votre mot de passe. La réponse n’est pas enregistrée en clair et les accents ou majuscules n’ont pas d’importance.</p>'+
+  secQuestionHtml('','secQ','secQother')+
+  '<label class="f">Réponse secrète<input name="secA" type="text" autocomplete="off" placeholder="Votre réponse" required></label>'+
   '<div class="err" id="fe"></div><button class="btn primary" style="width:100%;justify-content:center">Créer le compte et commencer</button>'+
   '<p class="small muted" style="margin:14px 0 0">Les données sont enregistrées sur cet ordinateur ; la base partagée se configure ensuite dans Paramètres. Pensez à exporter régulièrement une sauvegarde.</p>'+
   '<p class="small" style="margin:10px 0 0"><a href="#" data-act="restore-start">Restaurer une sauvegarde existante</a></p></form></div>';
@@ -2562,11 +2587,13 @@ function forgotHtml(){
   const back='<p class="auth-help"><a href="#" data-act="forgot-cancel">Revenir à la connexion</a></p>';
   const u=S.forgotUid&&DB.users.find(x=>x.id===S.forgotUid);
   const admins=DB.users.filter(x=>x.role==='admin');
-  if(u){
-    return wrap('<form class="auth-box" data-form="forgot-reset" style="width:100%">'+
-      '<div class="auth-kicker">Récupération · administrateur</div>'+
+  const auth='<div class="auth-kicker">Récupération · administrateur</div>';
+
+  /* 3e étape : nouveau mot de passe */
+  if(u&&S.forgotOk){
+    return wrap('<form class="auth-box" data-form="forgot-reset" style="width:100%">'+auth+
       '<h1>Nouveau mot de passe</h1>'+
-      '<p class="forgot-note">Votre identifiant de connexion est <b>« '+esc(u.username)+' »</b>'+(u.name?' ('+esc(u.name)+')':'')+'.<br>Choisissez un mot de passe dont vous vous souviendrez : il remplace l’ancien, vos classes, élèves, notes et finances restent intactes.</p>'+
+      '<p class="forgot-note">Identité confirmée. Votre identifiant de connexion est <b>« '+esc(u.username)+' »</b>'+(u.name?' ('+esc(u.name)+')':'')+'.<br>Choisissez un mot de passe dont vous vous souviendrez : il remplace l’ancien, et vos classes, élèves, notes et finances restent intactes.</p>'+
       '<label class="f">Nouveau mot de passe<input name="pw" type="text" data-visible="1" minlength="4" autocomplete="new-password" required autofocus></label>'+
       '<label class="f">Confirmer le nouveau mot de passe<input name="pw2" type="text" data-visible="1" minlength="4" autocomplete="new-password" required></label>'+
       '<div class="pw-row"><button type="button" class="btn sm" data-act="toggle-pw">Masquer les mots de passe</button>'+
@@ -2575,34 +2602,63 @@ function forgotHtml(){
       '<button class="btn primary" style="width:100%;justify-content:center;padding:11px 14px;font-size:15px">Enregistrer le nouveau mot de passe</button>'+
       back+'</form>');
   }
-  /* Le nom de l'établissement est rappelé ici : l'écran de connexion, qui
-     l'affichait en grand, n'est plus visible une fois la récupération ouverte. */
+
+  /* Compte installé avant les questions secrètes : vérification par le nom
+     de l'établissement (l'administrateur définira sa question dans « Mon compte »). */
+  if(u&&!u.secQ){
+    return wrap('<form class="auth-box" data-form="forgot" style="width:100%">'+auth+
+      '<h1>Vérification</h1>'+
+      '<p>Compte « '+esc(u.username)+' »'+(u.name?' · '+esc(u.name):'')+'</p>'+
+      '<p class="forgot-note">Aucune question secrète n’a encore été définie pour ce compte. Recopiez le nom de l’établissement enregistré : <b>'+esc(DB.school.name||DB.school.city||'—')+'</b>'+(DB.school.city&&DB.school.name?' · '+esc(DB.school.city):'')+'.<br>Une fois connecté, définissez une question secrète dans « Mon compte » : la prochaine récupération sera plus sûre.</p>'+
+      '<label class="f">Nom de l’établissement (ou la ville)<input name="school" autocomplete="off" required autofocus></label>'+
+      '<div class="err" id="fe"></div>'+
+      '<button class="btn primary" style="width:100%;justify-content:center;padding:11px 14px;font-size:15px">Vérifier</button>'+
+      '<p class="auth-help"><a href="#" data-act="forgot-restart">Ce n’est pas mon compte</a></p>'+
+      '</form>');
+  }
+
+  /* 2e étape : question secrète (compte administrateur avec question) */
+  if(u){
+    const tries=Number(S.forgotTries)||0;
+    const left=5-tries;
+    const lastResort=tries>=5
+      ? '<form class="auth-box" data-form="forgot-force" style="width:100%;margin-top:14px">'+
+          '<div class="auth-kicker">Réponse oubliée</div>'+
+          '<h2 style="margin:0 0 6px;font-size:19px;color:#fff;font-weight:700">Dernier recours</h2>'+
+          '<p>Après 5 réponses incorrectes, vous pouvez réinitialiser le mot de passe depuis cet ordinateur. <b>Vos classes, élèves, notes et finances ne sont pas touchées.</b> Définissez ensuite une nouvelle question secrète dans « Mon compte ».</p>'+
+          (admins.length>1?'<label class="f">Compte administrateur<select name="admin">'+admins.map(a=>'<option value="'+esc(a.id)+'"'+(a.id===u.id?' selected':'')+'>'+esc(a.username)+(a.name?' — '+esc(a.name):'')+'</option>').join('')+'</select></label>':'')+
+          '<label class="f">Recopiez REINITIALISER pour confirmer<input name="confirm" autocapitalize="characters" autocomplete="off" placeholder="REINITIALISER" required></label>'+
+          '<div class="err" id="fe2"></div>'+
+          '<button class="btn primary" style="width:100%;justify-content:center">Réinitialiser le mot de passe</button>'+
+        '</form>'
+      : '';
+    return wrap('<form class="auth-box" data-form="forgot-answer" style="width:100%">'+auth+
+      '<h1>Question secrète</h1>'+
+      '<p>Compte « '+esc(u.username)+' »'+(u.name?' · '+esc(u.name):'')+'</p>'+
+      '<p class="forgot-note">Question : <b>'+esc(u.secQ)+'</b><br>Répondez comme lors de l’installation : les accents, les majuscules et la ponctuation n’ont pas d’importance.</p>'+
+      '<label class="f">Votre réponse<input name="secA" type="text" autocomplete="off" placeholder="Réponse secrète" required autofocus></label>'+
+      '<div class="err" id="fe"></div>'+
+      '<button class="btn primary" style="width:100%;justify-content:center;padding:11px 14px;font-size:15px">Vérifier la réponse</button>'+
+      (left>0?'<p class="small muted" style="text-align:center;margin:10px 0 0">'+left+' tentative'+(left>1?'s':'')+' restante'+(left>1?'s':'')+'.</p>':'')+
+      '<p class="auth-help"><a href="#" data-act="forgot-restart">Ce n’est pas mon compte</a></p></form>'+lastResort);
+  }
+
+  /* 1re étape : identifier l'administrateur */
+  const legacy=admins.length&&admins.every(x=>!x.secQ);
   const hint=String((DB.school||{}).name||'').trim()
     ? '<p class="forgot-note">Établissement enregistré sur cet ordinateur : <b>'+esc(DB.school.name)+'</b>'+(DB.school.city?' · '+esc(DB.school.city):'')+'.</p>'
-    : '<p class="forgot-note">Aucun nom d’établissement n’a été enregistré : utilisez le lien ci-dessous.</p>';
-  const force=S.forgotHelp
-    ? '<form class="auth-box" data-form="forgot-force" style="width:100%;margin-top:14px">'+
-        '<div class="auth-kicker">Sans ces informations</div>'+
-        '<h2 style="margin:0 0 6px;font-size:19px;color:#fff;font-weight:700">Réinitialiser le mot de passe</h2>'+
-        '<p>Le mot de passe du compte administrateur sera remplacé. <b>Vos classes, élèves, notes et finances ne sont pas touchées.</b></p>'+
-        (admins.length>1?'<label class="f">Compte administrateur<select name="admin">'+admins.map(a=>'<option value="'+esc(a.id)+'">'+esc(a.username)+(a.name?' — '+esc(a.name):'')+'</option>').join('')+'</select></label>':'')+
-        '<label class="f">Recopiez REINITIALISER pour confirmer<input name="confirm" autocapitalize="characters" autocomplete="off" placeholder="REINITIALISER" required></label>'+
-        '<div class="err" id="fe2"></div>'+
-        '<button class="btn primary" style="width:100%;justify-content:center">Réinitialiser le mot de passe</button>'+
-        '<p class="auth-help"><a href="#" data-act="forgot-help">Revenir à la vérification</a></p>'+
-      '</form>'
-    : '<p class="auth-help"><a href="#" data-act="forgot-help">Je ne connais plus ces informations</a></p>';
-  return wrap('<form class="auth-box" data-form="forgot" style="width:100%">'+
+    : '';
+  return wrap('<form class="auth-box" data-form="forgot-start" style="width:100%">'+
     '<div class="auth-kicker">Mot de passe oublié</div>'+
     '<h1>Compte administrateur</h1>'+
     '<p>Récupération réservée à l’administrateur de l’établissement.</p>'+
     hint+
-    '<label class="f">Identifiant de l’administrateur<input name="username" autocapitalize="none" autocomplete="username" autofocus></label>'+
+    '<label class="f">Identifiant de l’administrateur<input name="username" autocapitalize="none" autocomplete="username" '+(admins.length===1?'':'autofocus')+'></label>'+
     (admins.length===1?'<p class="small muted" style="margin:-6px 0 10px">Identifiant oublié ? Laissez ce champ vide : il n’y a qu’un seul administrateur.</p>':'')+
-    '<label class="f">Nom de l’établissement (ou la ville)<input name="school" autocomplete="off" placeholder="Recopiez le nom affiché ci-dessus" required></label>'+
     '<div class="err" id="fe"></div>'+
-    '<button class="btn primary" style="width:100%;justify-content:center;padding:11px 14px;font-size:15px">Vérifier</button>'+
-    back+'</form>'+force);
+    '<button class="btn primary" style="width:100%;justify-content:center;padding:11px 14px;font-size:15px">Continuer</button>'+
+    (legacy?'<p class="small muted" style="text-align:center;margin:10px 0 0">Aucune question secrète n’a encore été définie sur cet ordinateur : la vérification se fera avec le nom de l’établissement.</p>':'')+
+    back+'</form>');
 }
 function survShell(){
   const cl=visibleClasses();
@@ -3241,6 +3297,8 @@ function dashHtml(){
     (isAdmin()&&!isReadOnlySession()?'<button class="btn" data-act="student-archive" title="Élèves retirés d’une classe : les restaurer ou les supprimer définitivement">Élèves archivés ('+archivedStudents().length+')</button>':'')+'</div>';
   if(isReadOnlySession())h+='<div class="notice info">Session archivée en consultation seulement. <button class="btn sm" data-act="session-current">Revenir à la session en cours</button></div>';
   if(memOnly)h+='<div class="notice">Ce navigateur n’autorise pas l’enregistrement local : les données seront perdues à la fermeture. Exportez une sauvegarde depuis Paramètres.</div>';
+  if(isAdmin()&&!isReadOnlySession()&&ME&&!ME.secQ)
+    h+='<div class="notice"><b>Définissez votre question secrète.</b> Elle permet de récupérer votre mot de passe si vous l’oubliez. <button class="btn sm" data-act="go" data-v="account">La définir maintenant</button></div>';
   if(!cl.length){
     return h+'<div class="panel empty"><h3>'+(isAdmin()?'Commencez par créer une classe':'Aucune classe ne vous est encore attribuée')+'</h3><p>'+(isAdmin()?'Choisissez un modèle (6e, 5e, 4e, 3e, 2nde, 1ère, Tle…), puis importez la liste des élèves.':'L’administrateur doit vous affecter à une matière ou comme professeur principal.')+'</p>'+(isAdmin()?'<button class="btn primary" data-act="new-class">Nouvelle classe</button>':'')+'</div>';
   }
@@ -3699,8 +3757,21 @@ function accountHtml(){
       '<p style="margin-top:0">Le changement de mot de passe est réservé à l’administrateur de l’établissement. '+
       'Votre identifiant reste <b>« '+esc(ME.username)+' »</b> : demandez-lui la modification si nécessaire.</p></div>';
   }
+  const secPanel='<form class="panel" data-form="secrecy" style="max-width:620px;margin-top:14px">'+
+    '<h3>Question secrète (récupération du mot de passe)</h3>'+
+    (ME.secQ
+      ? '<p style="margin-top:0">Question actuelle : <b>'+esc(ME.secQ)+'</b>'+(ME.secAt?' <span class="small muted">(définie le '+esc(new Date(ME.secAt).toLocaleDateString('fr-FR'))+')</span>':'')+'.</p>'
+      : '<div class="notice" style="margin:0 0 10px">Aucune question secrète : si vous oubliez votre mot de passe, la récupération passera par le nom de l’établissement. Définissez-la maintenant.</div>')+
+    '<p class="small muted" style="margin-top:0">Elle sert sur la page de connexion, lien <b>Mot de passe oublié ?</b>. La réponse n’est jamais enregistrée en clair ; les accents et majuscules n’ont pas d’importance.</p>'+
+    '<label class="f">Mot de passe actuel (pour confirmer)<input name="old" type="password" required></label>'+
+    secQuestionHtml(ME.secQ||'','secQ','secQother')+
+    '<label class="f">Réponse secrète<input name="secA" type="text" autocomplete="off" placeholder="'+(ME.secQ?'Nouvelle réponse':'Votre réponse')+'" required></label>'+
+    '<div class="err" id="fe"></div>'+
+    '<button class="btn primary">'+(ME.secQ?'Remplacer la question secrète':'Enregistrer la question secrète')+'</button>'+
+    '</form>';
   return head+
-  '<form class="panel" data-form="pw" style="max-width:460px"><h3>Changer mon mot de passe</h3><label class="f">Mot de passe actuel<input name="old" type="password" required></label><label class="f">Nouveau mot de passe<input name="new" type="password" minlength="4" required></label><div class="pw-row"><button type="button" class="btn sm" data-act="toggle-pw">Afficher les mots de passe</button></div><div class="err" id="fe"></div><button class="btn primary">Enregistrer</button></form>';
+  '<form class="panel" data-form="pw" style="max-width:460px"><h3>Changer mon mot de passe</h3><label class="f">Mot de passe actuel<input name="old" type="password" required></label><label class="f">Nouveau mot de passe<input name="new" type="password" minlength="4" required></label><div class="pw-row"><button type="button" class="btn sm" data-act="toggle-pw">Afficher les mots de passe</button></div><div class="err" id="fe"></div><button class="btn primary">Enregistrer</button></form>'+
+  secPanel;
 }
 
 /* ---------- Import des élèves ----------
@@ -4741,9 +4812,9 @@ A['confirm-close-year']=()=>{
 A.tab=el=>{S.tab=el.dataset.k;render()};
 A.trim=el=>{S.trim=+el.dataset.t;render()};
 A['login-role']=el=>{S.loginRole=el.dataset.r;S.loginView=null;S.forgotUid=null;render()};
-A['forgot']=()=>{S.loginView='forgot';S.forgotUid=null;S.forgotHelp=false;S.loginRole='staff';render()};
-A['forgot-help']=()=>{S.forgotHelp=!S.forgotHelp;render()};
-A['forgot-cancel']=()=>{S.loginView=null;S.forgotUid=null;S.forgotHelp=false;S.loginRole='staff';render()};
+A['forgot']=()=>{S.loginView='forgot';S.forgotUid=null;S.forgotOk=false;S.forgotTries=0;S.forgotHelp=false;S.loginRole='staff';render()};
+A['forgot-restart']=()=>{S.forgotUid=null;S.forgotOk=false;S.forgotTries=0;S.forgotHelp=false;render()};
+A['forgot-cancel']=()=>{S.loginView=null;S.forgotUid=null;S.forgotOk=false;S.forgotTries=0;S.forgotHelp=false;S.loginRole='staff';render()};
 A['disc-class']=el=>{S.view='discipline';S.classId=el.dataset.id;render()};
 A['sband-clear']=()=>{const i=document.querySelector('#sband-input');if(i){i.value='';i.focus()}sbandUpdate('')};
 A['sband-open']=el=>{
@@ -4772,7 +4843,7 @@ A['disc-clear']=el=>{
     dirty();render();toast('Ligne effacée.','ok');
   },true);
 };
-A.logout=()=>{try{sessionStorage.removeItem(SKEY)}catch(e){}ME=null;S.asAdmin=null;S.sessionId=null;S.closeState=null;S.simulationState=null;S.view='dash';S.loginView=null;S.forgotUid=null;S.forgotHelp=false;S.loginUser='';S.loginRole='staff';render()};
+A.logout=()=>{try{sessionStorage.removeItem(SKEY)}catch(e){}ME=null;S.asAdmin=null;S.sessionId=null;S.closeState=null;S.simulationState=null;S.view='dash';S.loginView=null;S.forgotUid=null;S.forgotOk=false;S.forgotTries=0;S.forgotHelp=false;S.loginUser='';S.loginRole='staff';render()};
 A.mclose=closeModal;
 A['confirm-ok']=()=>{const f=confirmCb;confirmCb=null;closeModal();if(f)f()};
 A['new-class']=()=>{
@@ -5187,56 +5258,103 @@ document.addEventListener('submit',async e=>{
     if(DB.users.some(x=>x.username===un))return err('Cet identifiant est déjà utilisé.');
     if(String(fd.pw).length<4)return err('Le mot de passe doit contenir au moins 4 caractères.');
     if(fd.pw!==fd.pw2)return err('Les deux mots de passe ne sont pas identiques.');
+    /* Question secrète : obligatoire, elle permet de récupérer le mot de passe. */
+    const secQ=String(fd.secQ==='__other'?(fd.secQother||''):(fd.secQ||'')).trim();
+    if(!secQ)return err('Choisissez une question secrète (ou écrivez la vôtre) : elle sert à récupérer votre mot de passe.');
+    if(secQ.length<6)return err('La question secrète doit contenir au moins 6 caractères.');
+    const secA=normAns(fd.secA);
+    if(secA.length<2)return err('Écrivez une réponse secrète (2 caractères minimum) : elle sera demandée en cas d’oubli.');
     const salt=uid();
     DB.school.name=String(fd.school||'').trim()||DB.school.name;
     DB.school.city=String(fd.city||'').trim();
     DB.school.year=String(fd.year||'').trim()||schoolYear();
-    const u={id:uid(),name:fd.name.trim(),username:un,phone:'',role:'admin',salt,hash:await hashPw(fd.pw,salt)};
+    const secSalt=uid();
+    const u={id:uid(),name:fd.name.trim(),username:un,phone:'',role:'admin',salt,hash:await hashPw(fd.pw,salt),
+      secQ:secQ,secSalt:secSalt,secHash:await hashPw(secA,secSalt),secAt:new Date().toISOString()};
     DB.users.push(u);delete DB.demoMode;dirty();saveNow();ME=u;try{sessionStorage.setItem(SKEY,u.id)}catch(x){}render();
-    toast('Bienvenue ! Créez votre première classe ou importez votre liste d’élèves.','ok');
-  }else if(kind==='forgot'){
-    /* Première étape : identité de l'administrateur. */
-    const un=String(fd.username||'').trim().toLowerCase();
+    toast('Bienvenue ! Votre question secrète est enregistrée : elle permettra de récupérer votre mot de passe.','ok');
+  }else if(kind==='forgot-start'){
+    /* 1re étape : retrouver le compte administrateur. */
     if(!DB.users.length)return err('Aucun compte n’existe encore : créez d’abord le compte administrateur.');
+    const un=String(fd.username||'').trim().toLowerCase();
     const admins=DB.users.filter(x=>x.role==='admin');
-    /* Identifiant oublié : s'il n'y a qu'un administrateur, le champ peut rester vide. */
-    let u=un?DB.users.find(x=>x.username===un):(admins.length===1?admins[0]:null);
+    const u=un?DB.users.find(x=>x.username===un):(admins.length===1?admins[0]:null);
     if(!u){
       if(!un&&admins.length>1)return err('Plusieurs comptes administrateur existent : indiquez l’identifiant à récupérer.');
+      if(!un&&!admins.length)return err('Aucun compte administrateur sur cet ordinateur.');
       return err('Aucun compte ne porte cet identifiant. Vérifiez l’orthographe.');
     }
     if(u.role!=='admin')return err('Ce compte n’est pas un compte administrateur : seul l’administrateur peut récupérer son mot de passe ici. Demandez-lui la réinitialisation de votre mot de passe (Paramètres → Personnel).');
+    S.forgotUid=u.id;S.forgotOk=false;S.forgotTries=0;S.forgotHelp=false;render();
+  }else if(kind==='forgot-answer'){
+    /* 2e étape : la réponse à la question secrète. */
+    const u=S.forgotUid&&DB.users.find(x=>x.id===S.forgotUid);
+    if(!u)return err('La vérification a expiré : recommencez la récupération.');
+    if(u.role!=='admin')return err('Seul un compte administrateur peut être récupéré ici.');
+    if(!u.secQ||!u.secHash)return err('Aucune question secrète n’est définie pour ce compte.');
+    if(normAns(fd.secA).length<1)return err('Écrivez votre réponse secrète.');
+    const bonne=await hashPw(normAns(fd.secA),u.secSalt);
+    if(bonne!==u.secHash){
+      S.forgotTries=(Number(S.forgotTries)||0)+1;
+      render();
+      const rest=5-S.forgotTries;
+      const msg=rest>0
+        ? 'Réponse incorrecte. Il vous reste '+rest+' tentative'+(rest>1?'s':'')+'. Les accents, majuscules et espaces n’ont pas d’importance.'
+        : 'Réponse incorrecte. Les 5 tentatives sont utilisées : le dernier recours est proposé ci-dessous.';
+      const box=document.querySelector('form[data-form="forgot-answer"] #fe');
+      if(box)box.textContent=msg;else toast(msg,'err');
+      return;
+    }
+    S.forgotOk=true;S.forgotTries=0;render();
+    toast('Réponse exacte : choisissez maintenant un nouveau mot de passe.','ok');
+  }else if(kind==='forgot'){
+    /* Comptes installés sans question secrète : vérification par le nom de l'établissement. */
+    const u=S.forgotUid&&DB.users.find(x=>x.id===S.forgotUid);
+    if(!u)return err('La vérification a expiré : recommencez la récupération.');
+    if(u.role!=='admin')return err('Seul un compte administrateur peut être récupéré ici.');
+    if(u.secQ)return err('Ce compte utilise une question secrète : répondez à la question.');
     const said=normTxt(fd.school);
     if(!said)return err('Indiquez le nom de l’établissement.');
     const key=v=>normTxt(v).replace(/[^a-z0-9]+/g,' ').trim();
     const known=[DB.school.name,DB.school.city].filter(v=>String(v||'').trim()).map(key);
     const typed=key(fd.school);
-    /* Comparaison tolérante : accents, majuscules, ponctuation, nom partiel
-       (« Complexe Scolaire » suffit pour « Complexe Scolaire Bilingue »). */
     const okName=!known.length||known.some(k=>k===typed)||known.some(k=>typed.length>=5&&(k.indexOf(typed)>=0||typed.indexOf(k)>=0));
-    if(!okName)return err('Ce nom ne correspond pas à celui enregistré (« '+(DB.school.name||DB.school.city||'—')+' »). Recopiez-le tel qu’il est affiché, ou utilisez le lien « Je ne connais plus ces informations ».');
-    S.forgotUid=u.id;render();
+    if(!okName)return err('Ce nom ne correspond pas à celui enregistré (« '+(DB.school.name||DB.school.city||'—')+' »). Recopiez-le tel qu’il est affiché.');
+    S.forgotOk=true;render();
     toast('Identité vérifiée : choisissez maintenant un nouveau mot de passe.','ok');
   }else if(kind==='forgot-force'){
-    /* Dernier recours : la personne devant l'ordinateur confirme en recopiant
-       un mot. Seul le mot de passe change, aucune donnée n'est effacée. */
+    /* Dernier recours : après 5 réponses fausses, sur cet ordinateur. */
     if(!DB.users.length)return err('Aucun compte n’existe encore : créez d’abord le compte administrateur.');
     const admins=DB.users.filter(x=>x.role==='admin');
     if(!admins.length)return err('Aucun compte administrateur sur cet ordinateur.');
     const pick=fd.admin&&admins.find(a=>a.id===fd.admin)||admins[0];
     if(normTxt(fd.confirm).replace(/[^a-z]/g,'')!=='reinitialiser')return err('Recopiez exactement REINITIALISER dans le champ de confirmation.');
-    S.forgotUid=pick.id;S.forgotHelp=false;render();
+    S.forgotUid=pick.id;S.forgotOk=true;S.forgotTries=0;S.forgotHelp=false;render();
     toast('Compte « '+pick.username+' » : choisissez maintenant un nouveau mot de passe.','ok');
+  }else if(kind==='secrecy'){
+    /* Définir ou changer la question secrète (administrateur connecté). */
+    if(!isAdmin())return err('Réservé à l’administrateur.');
+    if(!verifyPw(fd.old,ME.salt,ME.hash))return err('Le mot de passe actuel est incorrect.');
+    const q=String(fd.secQ==='__other'?(fd.secQother||''):(fd.secQ||'')).trim();
+    if(!q)return err('Choisissez une question secrète (ou écrivez la vôtre).');
+    if(q.length<6)return err('La question secrète doit contenir au moins 6 caractères.');
+    const a=normAns(fd.secA);
+    if(a.length<2)return err('Écrivez une réponse secrète (2 caractères minimum).');
+    ME.secQ=q;ME.secSalt=uid();ME.secHash=await hashPw(a,ME.secSalt);ME.secAt=new Date().toISOString();
+    try{DB.recoveryLog=Array.isArray(DB.recoveryLog)?DB.recoveryLog:[];DB.recoveryLog.push({at:new Date().toISOString(),user:ME.username,type:'question-secrete-definie'});}catch(e){}
+    dirty();saveNow();render();
+    toast('Question secrète enregistrée : elle servira si vous oubliez votre mot de passe.','ok');
   }else if(kind==='forgot-reset'){
-    /* Deuxième étape : nouveau mot de passe, sans toucher aux données. */
+    /* 3e étape : nouveau mot de passe, après vérification. */
     const u=S.forgotUid&&DB.users.find(x=>x.id===S.forgotUid);
     if(!u)return err('La vérification a expiré : recommencez la récupération.');
+    if(!S.forgotOk)return err('Répondez d’abord à la question secrète.');
     if(u.role!=='admin')return err('Seul un compte administrateur peut être récupéré ici.');
     if(String(fd.pw||'').length<4)return err('Le mot de passe doit contenir au moins 4 caractères.');
     if(fd.pw!==fd.pw2)return err('Les deux mots de passe ne sont pas identiques. Corrigez le second champ.');
     u.salt=uid();u.hash=await hashPw(fd.pw,u.salt);
     try{DB.recoveryLog=Array.isArray(DB.recoveryLog)?DB.recoveryLog:[];DB.recoveryLog.push({at:new Date().toISOString(),user:u.username,type:'mdp-admin-reinitialise'});}catch(e){}
-    S.forgotUid=null;S.loginView=null;S.forgotHelp=false;S.loginUser=u.username;S.loginRole='staff';
+    S.forgotUid=null;S.forgotOk=false;S.forgotTries=0;S.forgotHelp=false;S.loginView=null;S.forgotLegacy=false;S.loginUser=u.username;S.loginRole='staff';
     dirty();saveNow();render();
     toast('Nouveau mot de passe enregistré. Identifiant de connexion : « '+u.username+' ».','ok');
   }else if(kind==='login'||kind==='login-surv'||kind==='login-econ'||kind==='login-prof'){
@@ -5338,6 +5456,7 @@ A['form-reset']=el=>{
   f.reset();
   f.querySelectorAll('input[name="pw"],input[name="pw2"],input[name="old"],input[name="new"]').forEach(i=>{i.type=i.dataset.visible?'text':'password'});
   const fe=$('#fe',f.closest('.modal')||document);if(fe)fe.textContent='';
+  const other=f.querySelector('[data-secq-other]');if(other){other.style.display='none';const i=other.querySelector('input');if(i)i.value=''}
   const first=f.querySelector('input:not([type=hidden])');if(first)first.focus();
 };
 document.addEventListener('keydown',e=>{
@@ -5355,6 +5474,12 @@ document.addEventListener('click',e=>{
   if(box&&box.classList.contains('on')){box.className='sband-res';box.innerHTML=''}
 });
 document.addEventListener('change',e=>{
+  if(e.target.matches&&e.target.matches('[data-secq]')){
+    const box=e.target.closest('form');const other=box&&box.querySelector('[data-secq-other]');
+    if(other)other.style.display=(e.target.value==='__other')?'':'none';
+    if(other&&e.target.value==='__other'){const inp=other.querySelector('input');if(inp)inp.focus()}
+    return;
+  }
   if(e.target.id==='q-class'){SEARCH.cls=e.target.value;renderSearchResults();return}
   if(e.target.id==='q-scope'){SEARCH.scope=e.target.value;renderSearchResults();return}
   if(e.target.dataset&&e.target.dataset.discsel){S.view='discipline';S.classId=e.target.value;render();return}

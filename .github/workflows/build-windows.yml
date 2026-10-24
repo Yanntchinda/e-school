@@ -104,8 +104,10 @@ jobs:
             le nom de l'etablissement et la creation du compte administrateur.
 
             Quatre espaces de connexion : Administration, Enseignant, Surveillant general
-            et Econome. Mot de passe administrateur oublie : lien "Mot de passe oublie ?"
-            sur l'espace Administration (aucune donnee perdue).
+            et Econome.
+
+            Mot de passe administrateur oublie : question secrete choisie a
+            l'installation, puis nouveau mot de passe (aucune donnee perdue).
 
             Le logiciel fonctionne sans connexion internet.
           files: desktop-app/dist/installers/*.exe
