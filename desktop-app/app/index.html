@@ -2017,7 +2017,7 @@ function bulletinHtml(cls,sid,t){
    '</section>';
 }
 
-// ===================== Synchronisation Supabase (production) =====================
+// ===================== Synchronisation (Supabase ou serveur e-school) =====================
 // Le stockage local reste la source de vérité hors ligne.
 // Dès qu'une URL + clé anon + code école sont renseignés, les données sont
 // partagées entre l'administrateur et tous les professeurs.
@@ -2410,7 +2410,7 @@ function renderCore(){
   const app=$('#app');
   if(!DB.users.length && typeof Cloud!=='undefined' && Cloud.enabled() && !Cloud.online){
     app.innerHTML='<div class="auth"><div class="auth-box"><h1>Synchronisation en cours…</h1>'+
-      '<p>Connexion à la base partagée Supabase. Si ce message persiste, vérifiez l’URL, la clé et le code d’école dans <b>Paramètres</b>.</p>'+
+      '<p>Connexion à la base partagée. Si ce message persiste, vérifiez l’adresse, le jeton et le code d’école dans <b>Paramètres</b>.</p>'+
       '<p class="small muted">'+esc(Cloud.msg||'')+'</p>'+
       '<div class="toolbar" style="justify-content:center"><button class="btn primary" data-act="cloud-retry">Réessayer</button>'+
       '<button class="btn" data-act="cloud-force-setup">Créer un établissement</button></div></div></div>';
@@ -3162,7 +3162,7 @@ function lessonsHtml(){
       h+='<div class="notice"><b>'+unassigned.subs+' matière(s) sans enseignant affecté</b> — elles apparaissent sous « Non attribué ». Affectez un professeur dans <b>Paramètres de la classe</b> pour que leur progression soit suivie.</div>';
     }
     h+='<div class="toolbar"><button class="btn" data-act="refresh-lessons">Rafraîchir les statistiques</button>'+
-      (Cloud.enabled()?'<span class="small muted">Synchronisation Supabase active — les données des professeurs arrivent automatiquement.</span>':'<span class="small muted">Mode local : seules les saisies faites sur cet ordinateur sont visibles. Configurez Supabase dans Paramètres pour voir tous les professeurs.</span>')+
+      (Cloud.enabled()?'<span class="small muted">Base partagée active — les données des professeurs arrivent automatiquement.</span>':'<span class="small muted">Mode local : seules les saisies faites sur cet ordinateur sont visibles. Configurez Supabase dans Paramètres pour voir tous les professeurs.</span>')+
       '</div>';
   }
   for(const cls of myClasses){
@@ -3627,7 +3627,7 @@ function schoolHtml(){
    '<div class="toolbar"><button class="btn primary" data-act="cloud-save">Enregistrer et connecter</button><button class="btn" data-act="cloud-pull">Recevoir de la base</button><button class="btn" data-act="cloud-push">Envoyer mes données</button>'+(Cloud.enabled()?'<button class="btn danger" data-act="cloud-off">Déconnecter</button>':'')+'</div>'+
    '<div id="cloud-status" class="small muted" style="margin-top:6px">'+esc(Cloud.msg||'Mode local — aucune synchronisation configurée.')+'</div>'+
    '<p class="small muted" style="margin-bottom:0">Avec <b>mon serveur e-school</b> : lancez <code>python3 server/e-school-server.py</code> sur un poste du réseau, puis indiquez ici son adresse et le même code d’école partout. Avec <b>Supabase</b> : exécutez <code>supabase/01-schema.sql</code> une fois, puis collez l’URL et la clé anon. Dans les deux cas, les mêmes informations doivent être saisies sur chaque poste.</p></div>'+
-  '<div class="panel"><h3>Sauvegarde et partage des notes</h3><p style="margin-top:0">Sans synchronisation Supabase, les données vivent dans le navigateur de cet ordinateur. Exportez une sauvegarde régulièrement et avant tout nettoyage du navigateur.</p>'+
+  '<div class="panel"><h3>Sauvegarde et partage des notes</h3><p style="margin-top:0">Sans base partagée, les données vivent dans le navigateur de cet ordinateur. Exportez une sauvegarde régulièrement et avant tout nettoyage du navigateur.</p>'+
    '<div class="toolbar"><button class="btn primary" data-act="backup">Exporter une sauvegarde complète</button><button class="btn" data-act="restore-start">Restaurer une sauvegarde…</button></div>'+
    '<p class="small muted"><b>Plusieurs ordinateurs :</b> envoyez la sauvegarde aux enseignants, qui la restaurent chez eux, saisissent leurs notes puis utilisent « Exporter mes notes » (onglet Notes). Importez ensuite chaque fichier ci-dessous pour fusionner les notes.</p>'+
    '<div class="toolbar"><button class="btn" data-act="merge-start">Importer un fichier de notes d’enseignant…</button></div></div>'+
