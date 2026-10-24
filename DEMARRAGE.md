@@ -84,21 +84,23 @@ comptes et réglages. Il se réimporte sur le même poste ou sur un autre.
 Faites-le régulièrement, et **avant** chaque opération importante
 (réinitialisation, changement d'ordinateur, fin d'année).
 
-## 5. Si vous arrivez d'une ancienne version de démonstration
+## 5. Repartir de zéro
 
-Une installation créée par une version précédente affiche une seule fois
-l'écran **« Passage en production »** :
+Le logiciel ne crée **aucune donnée de démonstration**, et il n'affiche aucun
+écran de « passage en production » : une installation neuve s'ouvre directement
+sur la création du compte administrateur.
 
-- **Effacer et configurer mon établissement** (recommandé) : supprime les
-  comptes de test, les élèves fictifs, leurs notes et leurs finances. Le nom,
-  la ville, l'année, l'en-tête et le logo sont conservés. Si une base partagée
-  est connectée, elle est vidée en même temps pour que les données de test ne
-  reviennent pas.
-- **Conserver mes données** : si vous avez déjà saisi vos vraies informations.
-  Le mode démonstration est simplement désactivé ; supprimez ensuite les
-  comptes de test un par un dans **Paramètres → Personnel**.
+Pour repartir d'une installation vide (ordinateur récupéré, données d'essai,
+changement d'établissement), connectez-vous en administrateur puis allez dans
+**Paramètres → Réinitialisation → Tout effacer** :
 
-Un bouton permet de télécharger une sauvegarde avant de choisir.
+- les classes, élèves, notes, finances, archives et comptes sont supprimés ;
+- le **nom de l'établissement, la ville, l'année, l'en-tête et le logo** sont
+  conservés ; vous recréez ensuite votre compte administrateur ;
+- si une **base partagée** est connectée, une case à cocher permet de la vider
+  en même temps, sinon les données reviendraient à la prochaine synchro.
+
+Exportez une sauvegarde avant si vous voulez pouvoir revenir en arrière.
 
 ## En-tête et logo des bulletins
 

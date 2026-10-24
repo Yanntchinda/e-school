@@ -884,6 +884,16 @@ function schoolYear(){const d=new Date(),y=d.getFullYear();return d.getMonth()>=
 function nextSchoolYear(y){const m=String(y||'').match(/(\d{4})\s*\/\s*(\d{4})/);return m?(+m[1]+1)+'/'+(+m[2]+1):schoolYear()}
 function blankDB(){return{v:1,school:{name:'',city:'',year:'',principal:'',header:null,logo:null},users:[],classes:[],sessions:[],archivedStudents:[],finance:{fees:{},pays:{},updatedAt:''}}}
 let memOnly=false;
+/* Ancien drapeau « mode démonstration » des versions précédentes : il n'a plus
+   aucune signification en production. S'il traîne dans les données (ancienne
+   installation, sauvegarde restaurée, base partagée), il est effacé
+   silencieusement : l'application s'ouvre normalement, sans écran spécial. */
+let legacyDemoCleared=false;
+function stripLegacyFlags(d){
+  if(!d||typeof d!=='object')return d;
+  ['demoMode','demo','isDemo','demoData'].forEach(k=>{if(k in d){delete d[k];legacyDemoCleared=true}});
+  return d;
+}
 function loadDB(){
   try{const r=localStorage.getItem(KEY);if(r){const d=JSON.parse(r);if(d&&d.school&&Array.isArray(d.users)&&Array.isArray(d.classes)){
     // RÉPARATION AUTOMATIQUE : corrige l'état incohérent après activation interrompue
@@ -891,6 +901,7 @@ function loadDB(){
     if(!Array.isArray(d.archivedStudents))d.archivedStudents=[];
     if(!d.finance||typeof d.finance!=='object')d.finance={fees:{},pays:{},updatedAt:''};
     else{if(!d.finance.fees||typeof d.finance.fees!=='object')d.finance.fees={};if(!d.finance.pays||typeof d.finance.pays!=='object')d.finance.pays={};}
+    stripLegacyFlags(d);
     if(Array.isArray(d.sessions)){
       // Supprime les doublons d'archives
       const seenYears=new Set();
@@ -2137,9 +2148,9 @@ const Cloud={
     const {error}=await this.client.rpc('app_push',{p_school:this.cfg.schoolId,p_payload:payload});
     if(error)throw new Error(error.message||'Écriture refusée');
   },
-  /* Efface dans la base partagée toutes les données de cette école. Sert au
-     passage en production : les comptes de test et les élèves fictifs ne
-     doivent pas revenir à la prochaine récupération. */
+  /* Efface dans la base partagée toutes les données de cette école. Utilisé
+     par « Tout effacer » pour que les données supprimées ici ne reviennent pas
+     à la prochaine synchronisation. */
   async clearRemote(){
     if(!this.enabled())return false;
     if(this.cfg.mode!=='http'&&!this.client)return false;
@@ -2463,9 +2474,6 @@ function renderCore(){
       '<button class="btn" data-act="cloud-force-setup">Créer un établissement</button></div></div></div>';
     return;
   }
-  /* Installation issue de la version de démonstration : un seul choix, une
-     seule fois, avant toute autre chose. */
-  if(DB.demoMode){app.innerHTML=productionHtml();return}
   if(!DB.users.length){app.innerHTML=setupHtml();return}
   if(!ME){app.innerHTML=S.loginView==='forgot'?forgotHtml():loginHtml();return}
   /* Le surveillant general n'accede qu'a la discipline et a son compte */
@@ -5128,7 +5136,16 @@ A.backup=()=>{
 };
 A['restore-start']=()=>{openModal('<h2>Restaurer une sauvegarde</h2><p>Choisissez un fichier de sauvegarde (.json). '+(DB.users.length?'<b>Toutes les données actuelles seront remplacées.</b>':'')+'</p><input type="file" accept=".json,application/json" data-file="restore" class="inp"><div class="err" id="fe"></div><div class="acts"><button class="btn" data-act="mclose">Annuler</button></div>')};
 A['merge-start']=()=>{openModal('<h2>Importer un fichier de notes</h2><p>Choisissez un fichier « notes_… .json » exporté par un enseignant. Les notes saisies sont ajoutées à la classe et à la matière correspondantes ; les cases vides du fichier ne remplacent rien.</p><input type="file" accept=".json,application/json" data-file="merge" class="inp"><div class="err" id="fe"></div><div class="acts"><button class="btn" data-act="mclose">Annuler</button></div>')};
-A.wipe=()=>askConfirm('Tout effacer ?','Classes, élèves, notes et comptes seront supprimés de cet ordinateur. Cette action est définitive : exportez d’abord une sauvegarde si nécessaire.','Tout effacer',()=>{try{localStorage.removeItem(KEY);sessionStorage.removeItem(SKEY)}catch(e){}DB=blankDB();ME=null;S.sessionId=null;S.closeState=null;S.simulationState=null;calcCache={};S.view='dash';render()},true);
+A.wipe=()=>{
+  openModal('<form data-form="wipe"><h2>Tout effacer</h2>'+
+    '<p>Classes, élèves, notes, finances, archives et comptes seront supprimés de cet ordinateur. '+
+    'Le nom de l’établissement, la ville, l’année, l’en-tête et le logo sont conservés : vous recréez ensuite votre compte administrateur.</p>'+
+    '<div class="notice" style="margin:0 0 12px">Action définitive. Exportez d’abord une sauvegarde si vous voulez pouvoir revenir en arrière.</div>'+
+    (Cloud.enabled()?'<label class="f" style="flex-direction:row;align-items:flex-start;gap:8px;margin:0 0 12px"><input type="checkbox" name="remote" value="1" checked style="width:auto;margin-top:3px"><span>Vider aussi la base partagée ('+esc(Cloud.cfg.schoolId)+')<br><span class="small muted">Sinon les données reviendront à la prochaine synchronisation.</span></span></label>':'')+
+    '<div class="err" id="fe"></div>'+
+    '<div class="acts"><button type="button" class="btn" data-act="mclose">Annuler</button>'+
+    '<button class="btn primary">Tout effacer</button></div></form>');
+};
 
 const READ_ONLY_ACTIONS=new Set(['export-missing-notes','print-missing-notes','export-class-council','print-class-council','go','open-class','tab','trim','logout','session-view','session-current','sessions-cancel-close','simulation-cancel','preview','prev-b','print-all','print-one','print-results','export-csv','export-my-notes','pack-dl','honour-prev','honour-print','honour-dl','mclose','noop']);
 document.addEventListener('click',e=>{
@@ -5271,7 +5288,7 @@ document.addEventListener('submit',async e=>{
     const secSalt=uid();
     const u={id:uid(),name:fd.name.trim(),username:un,phone:'',role:'admin',salt,hash:await hashPw(fd.pw,salt),
       secQ:secQ,secSalt:secSalt,secHash:await hashPw(secA,secSalt),secAt:new Date().toISOString()};
-    DB.users.push(u);delete DB.demoMode;dirty();saveNow();ME=u;try{sessionStorage.setItem(SKEY,u.id)}catch(x){}render();
+    DB.users.push(u);dirty();saveNow();ME=u;try{sessionStorage.setItem(SKEY,u.id)}catch(x){}render();
     toast('Bienvenue ! Votre question secrète est enregistrée : elle permettra de récupérer votre mot de passe.','ok');
   }else if(kind==='forgot-start'){
     /* 1re étape : retrouver le compte administrateur. */
@@ -5331,6 +5348,20 @@ document.addEventListener('submit',async e=>{
     if(normTxt(fd.confirm).replace(/[^a-z]/g,'')!=='reinitialiser')return err('Recopiez exactement REINITIALISER dans le champ de confirmation.');
     S.forgotUid=pick.id;S.forgotOk=true;S.forgotTries=0;S.forgotHelp=false;render();
     toast('Compte « '+pick.username+' » : choisissez maintenant un nouveau mot de passe.','ok');
+  }else if(kind==='wipe'){
+    if(!isAdmin())return err('Seul l’administrateur peut effacer les données.');
+    if(fd.remote&&Cloud.enabled()&&Cloud.online){
+      if(!await Cloud.clearRemote())return err('Base partagée non vidée : vérifiez la connexion, puis réessayez. Rien n’a été effacé sur cet ordinateur.');
+      Cloud.cfg.lastPush='';
+    }
+    /* On garde l'identité de l'établissement : seul le contenu est effacé. */
+    const school=JSON.parse(JSON.stringify(DB.school||{}));
+    try{localStorage.removeItem(KEY);sessionStorage.removeItem(SKEY)}catch(e){}
+    DB=blankDB();
+    if(school&&school.name)DB.school=Object.assign(DB.school,school);
+    ME=null;S.sessionId=null;S.closeState=null;S.simulationState=null;S.asAdmin=null;S.forgotUid=null;S.forgotOk=false;calcCache={};S.view='dash';
+    closeModal();render();
+    toast('Données effacées : créez maintenant votre compte administrateur.','ok');
   }else if(kind==='secrecy'){
     /* Définir ou changer la question secrète (administrateur connecté). */
     if(!isAdmin())return err('Réservé à l’administrateur.');
@@ -5512,7 +5543,7 @@ function handleFile(el){
       if(!d||!d.school||!Array.isArray(d.users)||!Array.isArray(d.classes)||!d.users.some(u=>u.role==='admin'))return bad('Ce fichier n’est pas une sauvegarde complète de cette application.');
       const rc0=backupCounts(d);
       askConfirm('Restaurer cette sauvegarde ?','Elle contient '+rc0.students+' élève'+(rc0.students>1?'s':'')+', '+rc0.classes+' classe'+(rc0.classes>1?'s':'')+' et '+rc0.sessions+' session'+(rc0.sessions>1?'s':'')+' précédente'+(rc0.sessions>1?'s':'')+'. Les données actuelles seront remplacées.','Restaurer',()=>{
-      DB=d;if(!Array.isArray(DB.archivedStudents))DB.archivedStudents=[];if(!Array.isArray(DB.sessions))DB.sessions=[];if(!DB.finance||typeof DB.finance!=='object')DB.finance={fees:{},pays:{},updatedAt:''};else{if(!DB.finance.fees||typeof DB.finance.fees!=='object')DB.finance.fees={};if(!DB.finance.pays||typeof DB.finance.pays!=='object')DB.finance.pays={}};calcCache={};S.sessionId=null;S.closeState=null;S.simulationState=null;try{repairMatricules();upgradeLegacyMatricules()}catch(e){}saveNow();closeModal();ME=null;try{sessionStorage.removeItem(SKEY)}catch(e){}render();
+      stripLegacyFlags(d);DB=d;if(!Array.isArray(DB.archivedStudents))DB.archivedStudents=[];if(!Array.isArray(DB.sessions))DB.sessions=[];if(!DB.finance||typeof DB.finance!=='object')DB.finance={fees:{},pays:{},updatedAt:''};else{if(!DB.finance.fees||typeof DB.finance.fees!=='object')DB.finance.fees={};if(!DB.finance.pays||typeof DB.finance.pays!=='object')DB.finance.pays={}};calcCache={};S.sessionId=null;S.closeState=null;S.simulationState=null;try{repairMatricules();upgradeLegacyMatricules()}catch(e){}saveNow();closeModal();ME=null;try{sessionStorage.removeItem(SKEY)}catch(e){}render();
       const rc=backupCounts(DB);
       toast('Sauvegarde restaurée : '+rc.students+' élève'+(rc.students>1?'s':'')+', '+rc.classes+' classe'+(rc.classes>1?'s':'')+', '+rc.sessions+' session'+(rc.sessions>1?'s':'')+' précédente'+(rc.sessions>1?'s':'')+'. Connectez-vous.','ok');
       },true);
@@ -5532,58 +5563,18 @@ function handleFile(el){
 /* ---------- Démarrage ---------- */
 ME=sessionUser();
 
-/* ---------- Démarrage et passage en production ---------- */
+/* ---------- Démarrage ---------- */
 /* ====================================================================
    Démarrage
    Aucun compte ni donnée de démonstration n'est créé. Sur une installation
-   neuve, l'application ouvre la création du compte administrateur.
+   neuve, l'application ouvre la création du compte administrateur ; sur une
+   installation existante, la page de connexion, puis le tableau de bord.
    ==================================================================== */
-
-/* Une installation créée par une version de démonstration porte ce drapeau :
-   elle est invitée une seule fois à passer en production. */
-function productionHtml(){
-  const c=backupCounts();
-  return '<div class="auth"><div style="position:relative;z-index:2;width:min(620px,100%)">'+
-   '<div class="auth-box" style="text-align:left;width:100%">'+
-   '<h1 style="text-align:center">Passage en production</h1>'+
-   '<p style="text-align:center">Cette installation contient des <b>comptes de test</b> et des données fictives : '+
-     c.classes+' classe'+(c.classes>1?'s':'')+', '+c.students+' élève'+(c.students>1?'s':'')+', '+c.users+' compte'+(c.users>1?'s':'')+'.</p>'+
-   '<div class="notice info" style="font-size:13px"><b>Repartir propre</b> efface les comptes de test, les élèves fictifs, leurs notes et leurs finances. '+
-     'Le nom de l’établissement, la ville, l’année scolaire, l’en-tête et le logo sont conservés. Vous créez ensuite votre compte administrateur.</div>'+
-   (Cloud.enabled()?'<label class="f" style="flex-direction:row;align-items:flex-start;gap:8px;margin:10px 0 0"><input type="checkbox" id="purge-remote" checked style="width:auto;margin-top:3px"><span>Vider aussi la base partagée ('+esc(String(Cloud.cfg.schoolId||''))+' sur '+esc(String(Cloud.cfg.url||'').replace(/^https?:\/\//,''))+')<br><span class="small muted">Sinon, les comptes de test reviendraient à la prochaine synchronisation.</span></span></label>':'')+
-   '<div class="toolbar" style="margin-top:12px"><button class="btn" data-act="backup">Télécharger d’abord une sauvegarde</button></div>'+
-   '<button class="btn primary" style="width:100%;justify-content:center;margin-top:10px" data-act="go-production">Effacer et configurer mon établissement</button>'+
-   '<p class="small muted" style="margin:18px 0 0">Si vous avez déjà saisi vos vraies données dans cette installation, choisissez plutôt :</p>'+
-   '<p class="small" style="margin:6px 0 0"><a href="#" data-act="keep-data">Conserver mes données et désactiver le mode démonstration</a><br>'+
-     '<span class="small muted">Les comptes de test restent ; vous les supprimez dans <b>Personnel</b> (Paramètres).</span></p>'+
-   '</div></div></div>';
-}
-A['go-production']=()=>{
-  const c=backupCounts();
-  askConfirm('Effacer et configurer mon établissement ?',
-    'Seront supprimés : '+c.users+' compte(s), '+c.classes+' classe(s), '+c.students+' élève(s), les notes et les finances. Le nom, la ville, l’année, l’en-tête et le logo sont conservés ; vous créez ensuite votre compte administrateur.',
-    'Effacer et continuer',async()=>{
-  const box=$('#purge-remote');
-  if(box&&box.checked&&Cloud.enabled()&&Cloud.online){
-    if(!await Cloud.clearRemote()){return toast('Base partagée non vidée : vérifiez la connexion, puis réessayez. Rien n’a été effacé sur cet ordinateur.','err')}
-  }
-  const school=JSON.parse(JSON.stringify(DB.school||{}));
-  const cloudCfg=(typeof Cloud!=='undefined')?JSON.parse(JSON.stringify(Cloud.cfg||{})):null;
-  DB=blankDB();
-  DB.school=Object.assign(DB.school,school);
-  if(cloudCfg){Cloud.cfg=cloudCfg}
-  try{localStorage.removeItem(SKEY);sessionStorage.removeItem(SKEY)}catch(e){}
-  ME=null;S.sessionId=null;S.closeState=null;S.simulationState=null;S.asAdmin=null;
-  dirty();saveNow();render();
-  toast('Installation remise à zéro : créez maintenant votre compte administrateur.','ok');
-  },true);
-};
-A['keep-data']=()=>{
-  delete DB.demoMode;dirty();saveNow();render();
-  toast('Mode démonstration désactivé. Vérifiez les comptes dans Paramètres → Personnel.','ok');
-};
-
 function bootApp(){
+  /* Drapeau de démonstration hérité d'une ancienne version : effacé de la base
+     pour qu'il ne revienne pas au prochain démarrage. */
+  stripLegacyFlags(DB);
+  if(legacyDemoCleared){try{localStorage.setItem(KEY,JSON.stringify(DB))}catch(e){}}
   /* Aucun doublon de matricule ne doit subsister dans l'année en cours */
   try{
     let touched=repairMatricules();
