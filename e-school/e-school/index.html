@@ -2507,9 +2507,9 @@ function setupHtml(){
   '<div class="form-sec">Compte administrateur</div>'+
   '<label class="f">Nom complet<input name="name" required></label>'+
   '<div class="row"><label class="f">Identifiant de connexion<input name="username" autocapitalize="none" autocomplete="username" required></label>'+
-    '<label class="f">Mot de passe<input name="pw" type="password" minlength="4" autocomplete="new-password" required></label></div>'+
-  '<label class="f">Confirmer le mot de passe<input name="pw2" type="password" minlength="4" autocomplete="new-password" required></label>'+
-  '<div class="pw-row"><button type="button" class="btn sm" data-act="toggle-pw">Afficher les mots de passe</button>'+
+    '<label class="f">Mot de passe<input name="pw" type="text" data-visible="1" minlength="4" autocomplete="new-password" required></label></div>'+
+  '<label class="f">Confirmer le mot de passe<input name="pw2" type="text" data-visible="1" minlength="4" autocomplete="new-password" required></label>'+
+  '<div class="pw-row"><button type="button" class="btn sm" data-act="toggle-pw">Masquer les mots de passe</button>'+
     '<button type="button" class="btn sm" data-act="form-reset">Tout effacer</button></div>'+
   '<div class="err" id="fe"></div><button class="btn primary" style="width:100%;justify-content:center">Créer le compte et commencer</button>'+
   '<p class="small muted" style="margin:14px 0 0">Les données sont enregistrées sur cet ordinateur ; la base partagée se configure ensuite dans Paramètres. Pensez à exporter régulièrement une sauvegarde.</p>'+
@@ -5226,7 +5226,7 @@ A['toggle-pw']=el=>{
 A['form-reset']=el=>{
   const f=el.closest('form');if(!f)return;
   f.reset();
-  f.querySelectorAll('input[name="pw"],input[name="old"],input[name="new"]').forEach(i=>{i.type='password'});
+  f.querySelectorAll('input[name="pw"],input[name="pw2"],input[name="old"],input[name="new"]').forEach(i=>{i.type=i.dataset.visible?'text':'password'});
   const fe=$('#fe',f.closest('.modal')||document);if(fe)fe.textContent='';
   const first=f.querySelector('input:not([type=hidden])');if(first)first.focus();
 };
