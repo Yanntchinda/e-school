@@ -3627,8 +3627,9 @@ function schoolHtml(){
    '<div class="toolbar"><button class="btn primary" data-act="cloud-save">Enregistrer et connecter</button><button class="btn" data-act="cloud-pull">Recevoir de la base</button><button class="btn" data-act="cloud-push">Envoyer mes données</button>'+(Cloud.enabled()?'<button class="btn danger" data-act="cloud-off">Déconnecter</button>':'')+'</div>'+
    '<div id="cloud-status" class="small muted" style="margin-top:6px">'+esc(Cloud.msg||'Mode local — aucune synchronisation configurée.')+'</div>'+
    '<p class="small muted" style="margin-bottom:0">Avec <b>mon serveur e-school</b> : lancez <code>python3 server/e-school-server.py</code> sur un poste du réseau, puis indiquez ici son adresse et le même code d’école partout. Avec <b>Supabase</b> : exécutez <code>supabase/01-schema.sql</code> une fois, puis collez l’URL et la clé anon. Dans les deux cas, les mêmes informations doivent être saisies sur chaque poste.</p></div>'+
-  '<div class="panel"><h3>Sauvegarde et partage des notes</h3><p style="margin-top:0">Sans base partagée, les données vivent dans le navigateur de cet ordinateur. Exportez une sauvegarde régulièrement et avant tout nettoyage du navigateur.</p>'+
-   '<div class="toolbar"><button class="btn primary" data-act="backup">Exporter une sauvegarde complète</button><button class="btn" data-act="restore-start">Restaurer une sauvegarde…</button></div>'+
+  '<div class="panel"><h3>Sauvegarde de toutes les données</h3><p style="margin-top:0">Un seul fichier contient <b>tout le programme</b> : classes, élèves, notes, appréciations et leçons, finances (montants et versements), élèves archivés, <b>sessions précédentes</b>, utilisateurs et réglages (en-tête et logo). Il se réimporte plus tard, sur cet ordinateur ou sur un autre.</p>'+
+   '<div class="toolbar"><button class="btn primary" data-act="backup">Sauvegarder toutes les données…</button><button class="btn" data-act="restore-start">Restaurer une sauvegarde…</button></div>'+
+   '<p class="small muted">Le fichier porte une date et une heure (ex. <code>sauvegarde-e-school_…_2026-10-24_14h30.json</code>). Gardez-le à l’abri : il contient les notes et les coordonnées des familles. Une restauration remplace les données présentes après confirmation.</p>'+
    '<p class="small muted"><b>Plusieurs ordinateurs :</b> envoyez la sauvegarde aux enseignants, qui la restaurent chez eux, saisissent leurs notes puis utilisent « Exporter mes notes » (onglet Notes). Importez ensuite chaque fichier ci-dessous pour fusionner les notes.</p>'+
    '<div class="toolbar"><button class="btn" data-act="merge-start">Importer un fichier de notes d’enseignant…</button></div></div>'+
   '<div class="panel"><h3>Exemple et réinitialisation</h3><div class="toolbar"><button class="btn" data-act="demo">Ajouter une classe d’exemple (élèves fictifs)</button><button class="btn danger" data-act="wipe">Tout effacer</button></div></div>';
@@ -3647,47 +3648,270 @@ function accountHtml(){
   '<form class="panel" data-form="pw" style="max-width:460px"><h3>Changer mon mot de passe</h3><label class="f">Mot de passe actuel<input name="old" type="password" required></label><label class="f">Nouveau mot de passe<input name="new" type="password" minlength="4" required></label><div class="err" id="fe"></div><button class="btn primary">Enregistrer</button></form>';
 }
 
-/* ---------- Import des élèves ---------- */
-const SEXM=['M','H','G','GARCON','GARÇON','MASCULIN','MALE'],SEXF=['F','FILLE','FEMININ','FÉMININ','FEMALE'];
-function parseStudents(text){
-  const out=[];
-  for(const raw of text.split(/\r?\n/)){
-    const line=raw.trim();if(!line)continue;
-    let cells=/[\t;]/.test(line)?line.split(/[\t;]/):(line.includes(',')?line.split(','):[line]);
-    cells=cells.map(c=>c.trim()).filter(Boolean);
-    let sex='',parts=[];
-    for(const c of cells){
-      const u=c.toUpperCase();
-      if(SEXM.includes(u)){sex='M';continue}
-      if(SEXF.includes(u)){sex='F';continue}
-      if(/^\d{1,4}[.)]?$/.test(c))continue;
-      if(/^(N°|N°\.|NO|NUM[ÉE]RO|NOMS?( ET PR[ÉE]NOMS?)?|PR[ÉE]NOMS?|NAMES?|SEXE|GENRE|MATRICULE)$/i.test(c))continue;
-      if(/^\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{2,4}$/.test(c))continue;
-      parts.push(c.replace(/^\d{1,4}\s*[.)\-]\s+/,''));
+/* ---------- Import des élèves ----------
+   Le logiciel attribue lui-même les matricules : aucune colonne n'est
+   obligatoire à part le nom. Le modèle téléchargeable (bouton dans la
+   fenêtre d'import) donne les colonnes attendues, dans l'ordre ; l'import
+   accepte ce modèle rempli tel quel (.xls), un CSV enregistré depuis Excel,
+   un simple copier-coller, ou une liste de noms. */
+const IMPORT_COLS=[
+  {key:'name',        label:'NOM ET PRÉNOMS',           ex:'MBALLA Jean Pierre'},
+  {key:'sex',         label:'SEXE',                     ex:'M'},
+  {key:'dob',         label:'DATE DE NAISSANCE',        ex:'12/03/2013'},
+  {key:'pob',         label:'LIEU DE NAISSANCE',        ex:'Douala'},
+  {key:'parent',      label:'NOM DU PARENT / TUTEUR',   ex:'MBALLA Étienne'},
+  {key:'parentLink',  label:'LIEN DE PARENTÉ',          ex:'Père'},
+  {key:'parentPhone', label:'TÉLÉPHONE DU PARENT',      ex:'6 99 00 11 22'},
+  {key:'parentEmail', label:'E-MAIL DU PARENT',         ex:'parent@exemple.cm'},
+  {key:'mat',         label:'MATRICULE (laisser vide)', ex:'attribué par le logiciel'}
+];
+const IMPORT_ALIASES={
+  name:['NOM ET PRENOM','NOMS ET PRENOMS','NOM ET PRENOMS','NOM PRENOM','NOM PRENOMS','NOM','NOMS','NOM COMPLET','ELEVE','ELEVES','NAME','NOM DE L ELEVE'],
+  sex:['SEXE','GENRE','SEX','M F','M OU F'],
+  dob:['DATE DE NAISSANCE','DATE NAISSANCE','NAISSANCE','NE LE','DOB'],
+  pob:['LIEU DE NAISSANCE','LIEU NAISSANCE','NE A','POB'],
+  parent:['NOM DU PARENT TUTEUR','NOM DU PARENT OU TUTEUR','NOM ET PRENOMS DU PARENT','NOM DU PARENT','NOM DU TUTEUR','PARENT','TUTEUR','PERE','MERE'],
+  parentLink:['LIEN DE PARENTE','PARENTE','LIEN','RELATION'],
+  parentPhone:['TELEPHONE DU PARENT','TEL DU PARENT','NUMERO DU PARENT','TELEPHONE','TEL','NUMERO','NUMERO DE TELEPHONE','CONTACT'],
+  parentEmail:['E MAIL DU PARENT','EMAIL DU PARENT','E MAIL','EMAIL','MAIL','COURRIEL'],
+  mat:['MATRICULE LAISSER VIDE','MATRICULE','MAT']
+};
+const noAccent=v=>String(v==null?'':v).normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+const headKey=v=>noAccent(v).toUpperCase().replace(/[^A-Z0-9]+/g,' ').trim();
+const IMPORT_SEXM=['M','H','G','GARCON','MASCULIN','MALE','BOY','HOMME'];
+const IMPORT_SEXF=['F','FILLE','FEMININ','FEMALE','GIRL','FEMME'];
+function importSex(v){
+  const u=headKey(v);if(!u)return '';
+  if(IMPORT_SEXM.includes(u))return 'M';
+  if(IMPORT_SEXF.includes(u))return 'F';
+  if(u==='MASCULIN M'||u==='FEMININ F')return u[0]==='M'?'M':'F';
+  return '';
+}
+function importName(v){
+  let n=String(v==null?'':v).replace(/\s+/g,' ').trim();
+  n=n.replace(/^\d{1,4}\s*[.)\-]\s*/,'');
+  return n.toLocaleUpperCase('fr');
+}
+function importDate(v){
+  const raw=String(v==null?'':v).trim();if(!raw)return '';
+  if(/^\d{4}-\d{2}-\d{2}$/.test(raw))return raw;
+  const m=raw.match(/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})$/);
+  if(m){let y=Number(m[3]);if(y<100)y+=y>30?1900:2000;
+    const d=Number(m[1]),mo=Number(m[2]);
+    if(d>=1&&d<=31&&mo>=1&&mo<=12)return String(y).padStart(4,'0')+'-'+String(mo).padStart(2,'0')+'-'+String(d).padStart(2,'0')}
+  /* Excel stocke parfois une date comme un nombre de jours depuis 1900. */
+  if(/^\d{5}(\.\d+)?$/.test(raw)){
+    const days=Number(raw);
+    if(days>20000&&days<80000){
+      const dt=new Date(Date.UTC(1899,11,30)+days*86400000);
+      return dt.toISOString().slice(0,10);
     }
-    let name=parts.join(' ').replace(/\s+/g,' ').trim().toLocaleUpperCase('fr');
-    /* Sexe colle a la fin du nom (« ABENA ARNAUD M », « BIYA SANDRINE FEMININ ») :
-       frequent lors d'un collage depuis Excel ou Word. L'apercu permet de verifier. */
+  }
+  return '';
+}
+function importPhone(v){
+  let p=String(v==null?'':v).trim().replace(/\.0$/,'');
+  if(!p)return '';
+  p=p.replace(/[^\d+\s\/\-().]/g,'').trim();
+  return p;
+}
+function importEmail(v){
+  const e=String(v==null?'':v).trim().replace(/\s+/g,'').toLowerCase();
+  return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e)?e:'';
+}
+function importLink(v){
+  const u=headKey(v);if(!u)return '';
+  for(const k of PARENT_LINKS){if(headKey(k)===u)return k}
+  if(/^(PAPA|FATHER|PERE DU|PERE)/.test(u))return 'Père';
+  if(/^(MAMAN|MOTHER|MERE)/.test(u))return 'Mère';
+  if(/^(TUTEUR|TUTRICE|ONCLE|TANTE|GRAND)/.test(u))return 'Tuteur';
+  return '';
+}
+/* Découpe un CSV en respectant les guillemets et le séparateur du fichier. */
+function importCsvRows(text){
+  const s=String(text==null?'':text).replace(/^\uFEFF/,'').replace(/\r\n?/g,'\n');
+  const first=(s.split('\n').find(l=>l.trim())||'');
+  const counts={';':(first.match(/;/g)||[]).length,'\t':(first.match(/\t/g)||[]).length,',':(first.match(/,/g)||[]).length};
+  let sep=';';if(counts['\t']>counts[sep])sep='\t';if(counts[',']>counts[sep])sep=',';
+  const rows=[];let row=[],cell='',q=false;
+  for(let i=0;i<s.length;i++){
+    const ch=s[i];
+    if(q){
+      if(ch==='"'){if(s[i+1]==='"'){cell+='"';i++}else q=false}else cell+=ch;
+    }else if(ch==='"'){q=true}
+    else if(ch===sep){row.push(cell);cell=''}
+    else if(ch==='\n'){row.push(cell);rows.push(row);row=[];cell=''}
+    else cell+=ch;
+  }
+  if(cell!==''||row.length){row.push(cell);rows.push(row)}
+  return rows.map(r=>r.map(c=>String(c).trim()));
+}
+/* Lit la première feuille d'un classeur au format Excel XML (.xls du modèle). */
+function importSheetRows(text){
+  try{
+    const doc=new DOMParser().parseFromString(String(text),'application/xml');
+    if(doc.getElementsByTagName('parsererror').length)return null;
+    const sheets=doc.getElementsByTagName('Worksheet');
+    const root=sheets.length?sheets[0]:doc.documentElement;
+    const rows=[...root.getElementsByTagName('Row')];
+    if(!rows.length)return null;
+    return rows.map(r=>{
+      const line=[];
+      [...r.getElementsByTagName('Cell')].forEach(c=>{
+        const at=Number(c.getAttribute('ss:Index')||c.getAttribute('Index')||0);
+        if(at>0)while(line.length<at-1)line.push('');
+        const data=c.getElementsByTagName('Data')[0];
+        line.push(data?data.textContent:'');
+      });
+      return line;
+    });
+  }catch(e){return null}
+}
+/* Mode sans en-tête : une ligne = un élève, le nom d'abord, le sexe s'il est
+   présent dans la ligne (« M », « F », « Fille »…). */
+function importPlainNames(rows){
+  const out=[];
+  for(const cells of rows){
+    const parts=[],seen=[];
+    let sex='';
+    for(const raw of cells){
+      const c=String(raw==null?'':raw).trim();
+      if(!c)continue;
+      const s=importSex(c);
+      if(s&&!sex){sex=s;continue}
+      if(/^\d{1,4}[.)]?$/.test(c))continue;
+      if(/^(N°|NO|NUMERO|NOMS?|PRENOMS?|SEXE|GENRE|MATRICULE)$/i.test(headKey(c)))continue;
+      if(/^\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{2,4}$/.test(c))continue;
+      parts.push(c);
+    }
+    let name=importName(parts.join(' '));
     if(!sex){
-      const m=name.match(/\s+(FEMININ|FÉMININ|FEMALE|FILLE|MASCULIN|MALE|GARCON|GARÇON|[MF])$/);
-      if(m){sex=(/^(FEMININ|FÉMININ|FEMALE|FILLE|F)$/.test(m[1]))?'F':'M';name=name.slice(0,m.index).trim()}
+      const m=name.match(/\s+(FEMININ|FEMALE|FILLE|MASCULIN|MALE|GARCON|GARÇON|[MF])$/);
+      if(m){sex=/^(FEMININ|FEMALE|FILLE|F)$/.test(m[1])?'F':'M';name=name.slice(0,m.index).trim()}
     }
     if(name.length<2)continue;
-    if(/^(NOMS?( ET PR[ÉE]NOMS?)?|NAMES?|N°|NO)$/.test(name))continue;
+    if(/^(NOMS?|PRENOMS?|N°|NO|NOM ET PRENOMS)$/.test(headKey(name)))continue;
     out.push({name,sex});
   }
   return out;
 }
-let IMP=[];
-function importPreview(text){
-  const cls=curClass(),have=new Set(cls.students.map(s=>s.name.toLocaleUpperCase('fr')));
-  const seen=new Set();
-  IMP=parseStudents(text).map(x=>{const dup=have.has(x.name)||seen.has(x.name);seen.add(x.name);return{...x,dup}});
-  const ok=IMP.filter(x=>!x.dup).length,dup=IMP.length-ok;
-  $('#imp-prev').innerHTML=IMP.length?'<p class="small"><b>'+ok+'</b> élève'+(ok>1?'s':'')+' à ajouter'+(dup?' · <span class="badge warn">'+dup+' déjà présent'+(dup>1?'s':'')+' (ignoré'+(dup>1?'s':'')+')</span>':'')+'</p><div class="tw" style="max-height:230px;overflow:auto"><table class="t"><tbody>'+IMP.map((x,i)=>'<tr><td style="width:40px">'+(i+1)+'</td><td'+(x.dup?' class="muted" style="text-decoration:line-through"':'')+'>'+esc(x.name)+'</td><td style="width:60px">'+(x.sex||'')+'</td></tr>').join('')+'</tbody></table></div>':'<p class="small muted">Rien à importer pour le moment.</p>';
-  $('#imp-go').disabled=!ok;$('#imp-go').textContent=ok?'Importer '+ok+' élève'+(ok>1?'s':''):'Importer';
+/* Analyse un tableau de lignes (CSV, Excel XML, collage) et renvoie les
+   élèves complets, sans doublon interne. */
+function importParseRows(rows){
+  const clean=(rows||[]).filter(r=>r&&r.some(c=>String(c==null?'':c).trim()!==''));
+  if(!clean.length)return [];
+  const head=clean[0].map(headKey);
+  const at={};let found=0;
+  IMPORT_COLS.forEach(col=>{
+    at[col.key]=-1;
+    const aliases=(IMPORT_ALIASES[col.key]||[]).map(headKey);
+    aliases.forEach(a=>{const i=head.indexOf(a);if(i>=0&&at[col.key]<0)at[col.key]=i});
+    if(at[col.key]>=0)found++;
+  });
+  const byHeader=found>=2;
+  if(!byHeader)return importPlainNames(clean);
+  const pick=(cells,key)=>{const i=at[key];return i>=0&&i<cells.length?String(cells[i]==null?'':cells[i]).trim():''};
+  const out=[],seen=new Set();
+  for(const cells of clean.slice(1)){
+    const name=importName(pick(cells,'name'));
+    if(name.length<2)continue;
+    if(/^(NOM ET PRENOMS|NOMS|PRENOMS|NOM)$/.test(headKey(name)))continue;
+    if(seen.has(name))continue;seen.add(name);
+    out.push({
+      name,
+      sex:importSex(pick(cells,'sex')),
+      dob:importDate(pick(cells,'dob')),
+      pob:String(pick(cells,'pob')).replace(/\s+/g,' ').trim(),
+      parent:String(pick(cells,'parent')).replace(/\s+/g,' ').trim(),
+      parentLink:importLink(pick(cells,'parentLink')),
+      parentPhone:importPhone(pick(cells,'parentPhone')),
+      parentEmail:importEmail(pick(cells,'parentEmail')),
+      mat:String(pick(cells,'mat')).replace(/\s+/g,'').toUpperCase()
+    });
+  }
+  return out;
 }
-
+function importParseText(text){return importParseRows(importCsvRows(text))}
+let IMP=[];
+function importPreview(input){
+  const cls=curClass();
+  if(!cls){toast('Ouvrez d’abord une classe.','err');return}
+  const rows=Array.isArray(input)?input:importCsvRows(String(input||''));
+  const base=importParseRows(rows);
+  const have=new Set(cls.students.map(s=>s.name.toLocaleUpperCase('fr')));
+  const seen=new Set();
+  IMP=base.map(x=>{const dup=have.has(x.name)||seen.has(x.name);seen.add(x.name);return Object.assign({},x,{dup})});
+  const ok=IMP.filter(x=>!x.dup).length,dup=IMP.length-ok;
+  const box=$('#imp-prev');
+  if(!box)return;
+  if(!IMP.length){box.innerHTML='<p class="small muted">Aucun élève reconnu. Vérifiez que la première colonne contient bien les noms.</p>';}
+  else{
+    box.innerHTML='<p class="small"><b>'+ok+'</b> élève'+(ok>1?'s':'')+' à ajouter'+(dup?' · <span class="badge warn">'+dup+' déjà présent'+(dup>1?'s':'')+' (ignoré'+(dup>1?'s':'')+')</span>':'')+' · les matricules seront attribués automatiquement.</p>'+
+      '<div class="tw" style="max-height:260px;overflow:auto"><table class="t"><thead><tr><th style="width:34px">#</th><th>Nom et prénoms</th><th style="width:44px">Sexe</th><th style="width:92px">Naissance</th><th>Parent / tuteur</th><th style="width:120px">Téléphone</th></tr></thead><tbody>'+
+      IMP.map((x,i)=>'<tr'+(x.dup?' class="muted" style="text-decoration:line-through"':'')+'><td>'+(i+1)+'</td><td>'+esc(x.name)+'</td><td>'+(x.sex||'')+'</td><td>'+(x.dob?esc(x.dob.split('-').reverse().join('/')):'')+'</td><td>'+esc(x.parent||'')+(x.parentLink?' <span class="small muted">('+esc(x.parentLink)+')</span>':'')+'</td><td>'+esc(x.parentPhone||'')+'</td></tr>').join('')+
+      '</tbody></table></div>';
+  }
+  const go=$('#imp-go');
+  if(go){go.disabled=!ok;go.textContent=ok?'Importer '+ok+' élève'+(ok>1?'s':''):'Importer'}
+}
+/* Lecture d'un fichier choisi dans la fenêtre d'import : .xls du modèle,
+   .csv / .txt d'Excel, ou collage. Un .xlsx doit d'abord être enregistré en
+   CSV (message explicite plutôt qu'un import vide). */
+function importFile(file){
+  if(!file)return;
+  const rd=new FileReader();
+  rd.onerror=()=>toast('Lecture du fichier impossible.','err');
+  rd.onload=()=>{
+    let bytes;
+    try{bytes=new Uint8Array(rd.result)}catch(e){return toast('Fichier illisible.','err')}
+    if(bytes.length>1&&bytes[0]===0x50&&bytes[1]===0x4B)
+      return toast('Ce fichier est un .xlsx. Ouvrez-le dans Excel puis « Enregistrer sous » → CSV UTF-8, ou utilisez le modèle .xls fourni.','err');
+    const text=new TextDecoder('utf-8').decode(bytes);
+    if(/^\s*(<\?xml|<Workbook)/i.test(text.slice(0,600))){
+      const rows=importSheetRows(text);
+      if(!rows)return toast('Classeur illisible : repartez du modèle fourni.','err');
+      return importPreview(rows);
+    }
+    importPreview(text);
+  };
+  rd.readAsArrayBuffer(file);
+}
+/* Modèle de fichier : en-têtes seuls dans la première feuille (celle qui est
+   lue), exemple et mode d'emploi dans les feuilles suivantes. */
+function importModelXls(){
+  const esc0=v=>String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  const cell=(v,style)=>'<Cell'+(style?' ss:StyleID="'+style+'"':'')+'><Data ss:Type="String">'+esc0(v)+'</Data></Cell>';
+  const line=(cells,style)=>'<Row>'+cells.map(c=>Array.isArray(c)?cell(c[0],c[1]):cell(c,style)).join('')+'</Row>';
+  const widths=IMPORT_COLS.map(c=>'<Column ss:AutoFitWidth="0" ss:Width="'+({name:230,sex:60,dob:105,pob:130,parent:200,parentLink:100,parentPhone:120,parentEmail:190,mat:150}[c.key]||120)+'"/>').join('');
+  const sheet=(name,cols,rows)=>'<Worksheet ss:Name="'+esc0(name)+'"><Table>'+cols+rows+'</Table></Worksheet>';
+  const xls='<?xml version="1.0" encoding="UTF-8"?>\n<?mso-application progid="Excel.Sheet"?>\n'+
+    '<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">'+
+    '<Styles><Style ss:ID="head"><Font ss:Bold="1" ss:Color="#FFFFFF"/><Interior ss:Color="#1F4E79" ss:Pattern="Solid"/></Style>'+
+    '<Style ss:ID="hint"><Font ss:Italic="1" ss:Color="#6B7280"/></Style></Styles>'+
+    sheet('Eleves',widths,line(IMPORT_COLS.map(c=>[c.label,'head'])))+
+    sheet('Exemple',widths,
+      line(IMPORT_COLS.map(c=>[c.label,'head']))+
+      line(IMPORT_COLS.map(c=>[c.ex,'hint'])))+
+    sheet('Mode d emploi','',
+      line([['Comment remplir ce fichier','head']])+
+      line([['1. Ne modifiez pas la feuille « Eleves » : les colonnes sont déjà prêtes.']])+
+      line([['2. Un élève par ligne, en commençant par le nom et les prénoms.']])+
+      line([['3. Le matricule est attribué par le logiciel : laissez la colonne vide.']])+
+      line([['4. La date de naissance s’écrit 12/03/2013 (ou 2013-03-12).']])+
+      line([['5. Le sexe s’écrit M ou F (Masculin / Féminin acceptés).']])+
+      line([['6. Enregistrez au format .xls (comme le modèle) puis importez ce fichier.']])+
+      line([['7. Si Excel propose un autre format, choisissez « Classeur Excel 97-2003 ».']]))+
+    '</Workbook>';
+  download('modele-import-eleves.xls',xls,'application/vnd.ms-excel;charset=utf-8');
+  toast('Modèle .xls téléchargé : remplissez-le, puis importez-le tel quel.','ok');
+}
+function importModelCsv(){
+  const head=IMPORT_COLS.map(c=>c.label).join(';');
+  const ex=IMPORT_COLS.map(c=>c.ex).join(';');
+  const txt='\uFEFF'+head+'\r\n'+ex+'\r\n';
+  download('modele-import-eleves.csv',txt,'text/csv;charset=utf-8');
+  toast('Modèle CSV téléchargé : ouvrez-le dans Excel, remplissez, puis « Enregistrer sous » → CSV UTF-8.','ok');
+}
 /* ---------- Finances : espace économe ----------
    Chaque élève possède un profil financier : un montant à payer saisi
    individuellement, des versements libres (date, montant, mode, référence,
@@ -4522,6 +4746,7 @@ A['new-class']=()=>{if(!confirm('Créer une nouvelle classe ?'))return;
   openModal('<form data-form="newclass"><h2>Nouvelle classe</h2><label class="f">Modèle de bulletin<select name="preset" autofocus>'+PRESETS.map(p=>'<option value="'+p.key+'">'+esc(p.label)+'</option>').join('')+'</select></label>'+
    '<label class="f">Nom de la classe (modifiable : « 6e B », « Tle A4 »…)<input name="name" id="ncname" value="6e" required></label>'+
    '<p class="small muted">Les matières et coefficients du modèle reprennent vos bulletins Excel ; vous pourrez les ajuster ensuite dans les paramètres de la classe.</p>'+
+   '<label class="f" style="flex-direction:row;align-items:flex-start;gap:8px;margin-top:4px"><input type="checkbox" name="importList" value="1" style="width:auto;margin-top:4px"><span>Importer ensuite la liste des élèves (modèle Excel ou fichier CSV)<br><span class="small muted">Les matricules sont attribués automatiquement à l’import.</span></span></label>'+
    '<div class="acts"><button type="button" class="btn" data-act="mclose">Annuler</button><button class="btn primary">Créer la classe</button></div></form>');
 };
 A['add-student']=()=>{if(!confirm('Ajouter un nouvel élève à cette classe ?'))return;studentForm(null)};
@@ -4552,12 +4777,38 @@ A['restore-student']=el=>restoreStudent(el.dataset.id);
 A['purge-student']=el=>purgeStudent(el.dataset.id);
 A['import-students']=()=>{
   IMP=[];
-  openModal('<h2>Importer une liste d’élèves</h2><p class="small muted" style="margin-top:0">Collez les noms (un élève par ligne). Depuis Excel : sélectionnez la colonne des noms, copiez, puis collez ici. Un numéro en début de ligne et une colonne M/F sont reconnus.</p>'+
-   '<textarea class="inp" id="imp-text" rows="8" placeholder="AWE WANG DANIEL&#10;DJOUMEUGEU TEDJENAN INESSE&#10;KAMWOUE JUSTINE" autofocus></textarea>'+
-   '<div class="toolbar" style="margin-top:8px"><label class="btn sm" style="cursor:pointer">Ouvrir un fichier .csv ou .txt<input type="file" accept=".csv,.txt,.tsv,text/plain,text/csv" data-file="imp" class="hide"></label></div>'+
-   '<div id="imp-prev"><p class="small muted">Rien à importer pour le moment.</p></div><div class="acts"><button class="btn" data-act="mclose">Annuler</button><button class="btn primary" id="imp-go" data-act="imp-go" disabled>Importer</button></div>','wide');
+  const cols=IMPORT_COLS.map(c=>esc(c.label)).join(' · ');
+  openModal('<h2>Importer la liste des élèves</h2>'+
+   '<p class="small muted" style="margin-top:0">Téléchargez le modèle, remplissez-le dans Excel, puis importez-le. Vous pouvez aussi coller directement la liste depuis Excel ou choisir un fichier CSV. <b>Le matricule est toujours attribué par le logiciel</b> : ne le saisissez pas.</p>'+
+   '<div class="toolbar"><button class="btn primary" data-act="import-model-xls">Télécharger le modèle Excel (.xls)</button><button class="btn" data-act="import-model-csv">Modèle CSV</button></div>'+
+   '<p class="small muted" style="margin:6px 0 0">Colonnes du modèle : '+cols+'. Seul le nom est obligatoire ; les autres colonnes peuvent rester vides.</p>'+
+   '<div class="form-sec">Coller depuis Excel</div>'+
+   '<textarea class="inp" id="imp-text" rows="7" placeholder="NOM ET PRÉNOMS;SEXE;DATE DE NAISSANCE;LIEU DE NAISSANCE;PARENT;LIEN;TÉLÉPHONE;E-MAIL&#10;AWE WANG DANIEL;M;12/03/2013;Douala;AWE WANG Paul;Père;6 99 00 11 22;parent@exemple.cm&#10;DJOUMEUGEU TEDJENAN INESSE;F;05/07/2013;Yaoundé;;;6 77 12 34 56;"></textarea>'+
+   '<div class="toolbar" style="margin-top:8px"><label class="btn sm" style="cursor:pointer">Ouvrir un fichier .xls, .csv ou .txt<input type="file" accept=".xls,.csv,.txt,.tsv,application/vnd.ms-excel,text/csv,text/plain" data-file="imp" class="hide"></label>'+
+   '<span class="small muted">Un fichier .xlsx doit d’abord être enregistré en CSV UTF-8.</span></div>'+
+   '<div id="imp-prev"><p class="small muted">Rien à importer pour le moment.</p></div>'+
+   '<div class="acts"><button class="btn" data-act="mclose">Annuler</button><button class="btn primary" id="imp-go" data-act="imp-go" disabled>Importer</button></div>','wide');
 };
-A['imp-go']=()=>{const cls=curClass();if(!confirm('Importer ces élèves dans la classe ?'))return;let n=0;for(const x of IMP){if(x.dup)continue;cls.students.push({id:uid(),name:x.name,sex:x.sex,mat:genMat(),dob:'',pob:'',parent:'',parentLink:'',parentPhone:'',parentEmail:'',photo:'',sessionTag:'N'});n++}cls.students.sort(cmpName);dirty();closeModal();render();toast(n+' élève'+(n>1?'s ajoutés':' ajouté')+'.','ok')};
+A['import-model-xls']=importModelXls;
+A['import-model-csv']=importModelCsv;
+A['imp-go']=()=>{
+  const cls=curClass();if(!cls)return;
+  const list=IMP.filter(x=>!x.dup);
+  if(!list.length)return toast('Aucun élève à ajouter.','err');
+  if(!confirm('Importer '+list.length+' élève'+(list.length>1?'s':'')+' dans '+cls.name+' ?\nLes matricules seront attribués automatiquement.'))return;
+  let n=0,reused=0;
+  for(const x of list){
+    let mat=String(x.mat||'').replace(/\s+/g,'').toUpperCase();
+    if(mat&&matTaken(mat))mat='';
+    if(mat)reused++;else mat=genMat();
+    cls.students.push({id:uid(),name:x.name,sex:x.sex||'',mat,dob:x.dob||'',pob:x.pob||'',
+      parent:x.parent||'',parentLink:x.parentLink||'',parentPhone:x.parentPhone||'',parentEmail:x.parentEmail||'',
+      photo:'',sessionTag:'N'});
+    n++;
+  }
+  cls.students.sort(cmpName);dirty();closeModal();render();
+  toast(n+' élève'+(n>1?'s ajoutés':' ajouté')+' dans '+cls.name+(reused?' ('+reused+' matricule'+(reused>1?'s':'')+' repris du fichier).':' — matricules attribués automatiquement.'),'ok');
+};
 A['fin-class']=el=>{if(!canFinance())return;S.view='fin-class';S.classId=el.dataset.id;S.studentId=null;S.focusStudent=null;render()};
 A['fin-student']=el=>{if(!canFinance())return;const found=financeStudent(el.dataset.id);if(!found)return toast('Élève introuvable.','err');S.view='fin-student';S.classId=found.cls.id;S.studentId=el.dataset.id;render()};
 A['fin-home']=()=>{if(!canFinance())return;S.view='fin';S.classId=null;S.studentId=null;render()};
@@ -4756,7 +5007,37 @@ A['del-teacher']=el=>{const u=DB.users.find(x=>x.id===el.dataset.id);
 /* établissement */
 A['header-reset']=()=>{if(!confirm('Rétablir l’en-tête d’origine ?'))return;DB.school.header=null;dirty();render()};
 A['logo-reset']=()=>{if(!confirm('Rétablir le logo d’origine ?'))return;DB.school.logo=null;dirty();render()};
-A.backup=()=>{if(!confirm('Exporter une sauvegarde complète ?'))return;saveNow();download('sauvegarde_bulletins_'+new Date().toISOString().slice(0,10)+'.json',JSON.stringify(DB),'application/json');toast('Sauvegarde exportée.','ok')};
+/* Contenu réel d'une sauvegarde : sert au nom du fichier, au message de
+   confirmation et à la vérification après restauration. */
+function backupCounts(d){
+  d=d||DB;let classes=(d.classes||[]).length,students=0,grades=0,remarks=0,payments=0;
+  (d.classes||[]).forEach(c=>{
+    students+=(c.students||[]).length;
+    for(const sid in (c.grades||{}))for(const sub in (c.grades[sid]||{}))grades+=(c.grades[sid][sub]||[]).filter(v=>v!=null&&v!=='').length;
+    for(const sid in (c.remarks||{}))if((c.remarks[sid]||{}).app)remarks++;
+  });
+  const fin=d.finance||{};
+  for(const sid in (fin.pays||{}))payments+=(fin.pays[sid]||[]).length;
+  return {classes,students,grades,remarks,payments,
+    archived:(d.archivedStudents||[]).length,
+    sessions:(d.sessions||[]).length,
+    users:(d.users||[]).length};
+}
+A.backup=()=>{
+  if(!confirm('Exporter toutes les données du programme ?\n\nÉlèves, notes, appréciations, finances, élèves archivés, sessions précédentes et réglages seront enregistrés dans un seul fichier, à réimporter plus tard.'))return;
+  saveNow();
+  const c=backupCounts();
+  const pack={app:'e-school',format:2,
+    exported_at:new Date().toISOString(),
+    school:{name:(DB.school&&DB.school.name)||'',city:(DB.school&&DB.school.city)||'',year:(DB.school&&DB.school.year)||''},
+    counts:c,data:DB};
+  const slug=(String(pack.school.name||'ecole').normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .replace(/[^A-Za-z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,40))||'ecole';
+  const d=new Date(),pad=v=>String(v).padStart(2,'0');
+  const name='sauvegarde-e-school_'+slug+'_'+d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+'_'+pad(d.getHours())+'h'+pad(d.getMinutes())+'.json';
+  download(name,JSON.stringify(pack),'application/json;charset=utf-8');
+  toast('Sauvegarde complète exportée : '+c.students+' élève'+(c.students>1?'s':'')+', '+c.classes+' classe'+(c.classes>1?'s':'')+', '+c.sessions+' session'+(c.sessions>1?'s':'')+' précédente'+(c.sessions>1?'s':'')+', '+c.payments+' versement'+(c.payments>1?'s':'')+'.','ok');
+};
 A['restore-start']=()=>{if(!confirm('Restaurer une sauvegarde (les données actuelles seront remplacées) ?'))return;openModal('<h2>Restaurer une sauvegarde</h2><p>Choisissez un fichier de sauvegarde (.json). '+(DB.users.length?'<b>Toutes les données actuelles seront remplacées.</b>':'')+'</p><input type="file" accept=".json,application/json" data-file="restore" class="inp"><div class="err" id="fe"></div><div class="acts"><button class="btn" data-act="mclose">Annuler</button></div>')};
 A['merge-start']=()=>{if(!confirm('Importer un fichier de notes d’enseignant ?'))return;openModal('<h2>Importer un fichier de notes</h2><p>Choisissez un fichier « notes_… .json » exporté par un enseignant. Les notes saisies sont ajoutées à la classe et à la matière correspondantes ; les cases vides du fichier ne remplacent rien.</p><input type="file" accept=".json,application/json" data-file="merge" class="inp"><div class="err" id="fe"></div><div class="acts"><button class="btn" data-act="mclose">Annuler</button></div>')};
 A.demo=()=>{if(!confirm('Ajouter une classe d’exemple avec des élèves fictifs ?'))return;const c=loadDemo();S.view='class';S.classId=c.id;S.tab='bulletins';S.trim=1;render();toast('Classe d’exemple ajoutée : vous pouvez la supprimer dans ses paramètres.','ok')};
@@ -4940,6 +5221,7 @@ document.addEventListener('submit',async e=>{
     if(fd.pw)toast('Enregistré. Identifiant : '+un+' · mot de passe : '+fd.pw,'ok');
   }else if(kind==='newclass'){if(!confirm('Créer cette classe ?'))return;
     const c=newClass(fd.preset,fd.name.trim());DB.classes.push(c);dirty();closeModal();S.view='class';S.classId=c.id;S.tab='eleves';render();
+    if(fd.importList){toast('Classe créée — importez maintenant la liste des élèves.','ok');A['import-students']();}
   }else if(kind==='student'){if(!confirm('Enregistrer cet élève ?'))return;
     const cls=curClass(),name=fd.name.trim().replace(/\s+/g,' ').toLocaleUpperCase('fr'),id=f.dataset.id;
     if(cls.students.some(s=>s.name===name&&s.id!==id))return err('Un élève porte déjà ce nom dans cette classe.');
@@ -4991,6 +5273,8 @@ document.addEventListener('change',e=>{
 function handleFile(el){
   const file=el.files&&el.files[0];if(!file)return;const kind=el.dataset.file;
   const bad=m=>{const x=$('#fe');if(x)x.textContent=m;else toast(m,'err')};
+  /* Liste d'élèves : lecture binaire (détection d'un .xlsx) puis CSV / Excel XML. */
+  if(kind==='imp'){importFile(file);try{el.value=''}catch(e){}return}
   if(kind==='header'){if(!confirm('Remplacer l’en-tête des bulletins par cette image ?'))return;
     const img=new Image(),url=URL.createObjectURL(file);
     img.onload=()=>{const w=Math.min(1400,img.width),c=document.createElement('canvas');c.width=w;c.height=Math.round(img.height*w/img.width);const g=c.getContext('2d');g.fillStyle='#fff';g.fillRect(0,0,c.width,c.height);g.drawImage(img,0,0,c.width,c.height);DB.school.header=c.toDataURL('image/jpeg',.88);URL.revokeObjectURL(url);dirty();render();toast('En-tête remplacé.','ok')};
@@ -5005,11 +5289,15 @@ function handleFile(el){
   rd.onerror=()=>bad('Lecture du fichier impossible.');
   rd.onload=()=>{
     const txt=String(rd.result);
-    if(kind==='imp'){const ta=$('#imp-text');ta.value=txt;importPreview(txt);return}
     let d;try{d=JSON.parse(txt)}catch(e){return bad('Ce fichier n’est pas un fichier JSON valide.')}
     if(kind==='restore'){if(!confirm('Restaurer cette sauvegarde (les données actuelles seront remplacées) ?'))return;
+      /* Anciennes sauvegardes : le fichier EST la base. Nouvelles : enveloppe
+         {app:'e-school',data:…}. Les deux formats restent acceptés. */
+      if(d&&d.app==='e-school'&&d.data&&d.data.school)d=d.data;
       if(!d||!d.school||!Array.isArray(d.users)||!Array.isArray(d.classes)||!d.users.some(u=>u.role==='admin'))return bad('Ce fichier n’est pas une sauvegarde complète de cette application.');
-      DB=d;if(!Array.isArray(DB.archivedStudents))DB.archivedStudents=[];if(!DB.finance||typeof DB.finance!=='object')DB.finance={fees:{},pays:{},updatedAt:''};else{if(!DB.finance.fees||typeof DB.finance.fees!=='object')DB.finance.fees={};if(!DB.finance.pays||typeof DB.finance.pays!=='object')DB.finance.pays={}};calcCache={};S.sessionId=null;S.closeState=null;S.simulationState=null;try{repairMatricules();upgradeLegacyMatricules()}catch(e){}saveNow();closeModal();ME=null;try{sessionStorage.removeItem(SKEY)}catch(e){}render();toast('Sauvegarde restaurée : connectez-vous.','ok');
+      DB=d;if(!Array.isArray(DB.archivedStudents))DB.archivedStudents=[];if(!Array.isArray(DB.sessions))DB.sessions=[];if(!DB.finance||typeof DB.finance!=='object')DB.finance={fees:{},pays:{},updatedAt:''};else{if(!DB.finance.fees||typeof DB.finance.fees!=='object')DB.finance.fees={};if(!DB.finance.pays||typeof DB.finance.pays!=='object')DB.finance.pays={}};calcCache={};S.sessionId=null;S.closeState=null;S.simulationState=null;try{repairMatricules();upgradeLegacyMatricules()}catch(e){}saveNow();closeModal();ME=null;try{sessionStorage.removeItem(SKEY)}catch(e){}render();
+      const rc=backupCounts(DB);
+      toast('Sauvegarde restaurée : '+rc.students+' élève'+(rc.students>1?'s':'')+', '+rc.classes+' classe'+(rc.classes>1?'s':'')+', '+rc.sessions+' session'+(rc.sessions>1?'s':'')+' précédente'+(rc.sessions>1?'s':'')+'. Connectez-vous.','ok');
     }else if(kind==='merge'){if(!confirm('Fusionner les notes de ce fichier dans les classes correspondantes ?'))return;
       if(!d||d.type!=='mbi-notes'||!Array.isArray(d.classes))return bad('Ce fichier n’est pas un fichier de notes exporté par un enseignant.');
       let n=0,skipped=0;
