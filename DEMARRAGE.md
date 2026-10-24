@@ -25,6 +25,18 @@ oublié l'identifiant) et le **nom de l'établissement** tel qu'il a été enreg
 (il est affiché sur la page de connexion). Vous choisissez ensuite un nouveau mot
 de passe : classes, élèves, notes et finances sont conservés.
 
+Le nom de l'établissement est **rappelé sur l'écran de récupération**, il suffit
+de le recopier ; les accents, les majuscules et la ponctuation n'ont pas
+d'importance, et un nom partiel (« Complexe Scolaire » pour « Complexe Scolaire
+Bilingue ») ou la **ville** sont acceptés.
+
+**Vous avez tout oublié (identifiant et nom exact) ?** Sur ce même écran,
+cliquez sur **« Je ne connais plus ces informations »**, recopiez le mot
+`REINITIALISER` puis choisissez un nouveau mot de passe. Seul le mot de passe du
+compte administrateur change : classes, élèves, notes, finances et autres
+comptes restent intacts. L'identifiant est ensuite rappelé en clair et déjà
+inscrit sur la page de connexion.
+
 Cette récupération fonctionne **uniquement pour le compte administrateur**. Pour
 un enseignant, un surveillant général ou un économe, l'administrateur
 réinitialise le mot de passe dans **Paramètres → Personnel** (bouton « Modifier »
