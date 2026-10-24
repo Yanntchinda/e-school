@@ -33,7 +33,8 @@ fenêtre : c'est le chemin le plus rapide pour une année complète.
 
 La colonne **`SÉRIE`** (`A`, `C`, `D`) est reconnue en plus, à la place que vous
 voulez : `ALL` et `ESP` sont ramenés à `A`. La série est enregistrée sur la
-fiche de l'élève ; elle sert au choix du modèle de bulletin.
+fiche de l'élève, où elle reste modifiable (liste des élèves → **Modifier**),
+et s'affiche en pastille à côté du nom.
 
 Seul le nom est indispensable. Une colonne vide n'empêche rien : un élève sans
 contact est accepté, il pourra être complété plus tard dans sa fiche.
