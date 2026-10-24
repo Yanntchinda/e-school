@@ -93,7 +93,11 @@ label.f textarea{resize:vertical;min-height:80px}
   box-shadow:0 10px 26px rgba(2,10,24,.28)}
 .auth-box label.f{color:rgba(255,255,255,.92);font-weight:600}
 .auth-box label.f input,.auth-box label.f select,.auth-box .inp{
-  background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.34);color:#fff;border-radius:9px;padding:10px 12px}
+  background:rgba(6,18,36,.55);border:1px solid rgba(255,255,255,.42);color:#fff;border-radius:9px;padding:10px 12px;
+  caret-color:#fff;-webkit-text-fill-color:#fff}
+.auth-box label.f input[type=password]{letter-spacing:.08em}
+.pw-row{display:flex;gap:8px;flex-wrap:wrap;margin:-4px 0 10px}
+.pw-row .btn.sm{padding:5px 11px;font-size:12.5px}
 .auth-box label.f input::placeholder{color:rgba(255,255,255,.55)}
 .auth-box label.f input:focus,.auth-box .inp:focus{background:rgba(255,255,255,.22);border-color:rgba(255,255,255,.70);outline:none}
 .auth-box .btn{background:rgba(255,255,255,.16);border-color:rgba(255,255,255,.36);color:#fff}
@@ -2505,6 +2509,8 @@ function setupHtml(){
   '<div class="row"><label class="f">Identifiant de connexion<input name="username" autocapitalize="none" autocomplete="username" required></label>'+
     '<label class="f">Mot de passe<input name="pw" type="password" minlength="4" autocomplete="new-password" required></label></div>'+
   '<label class="f">Confirmer le mot de passe<input name="pw2" type="password" minlength="4" autocomplete="new-password" required></label>'+
+  '<div class="pw-row"><button type="button" class="btn sm" data-act="toggle-pw">Afficher les mots de passe</button>'+
+    '<button type="button" class="btn sm" data-act="form-reset">Tout effacer</button></div>'+
   '<div class="err" id="fe"></div><button class="btn primary" style="width:100%;justify-content:center">Créer le compte et commencer</button>'+
   '<p class="small muted" style="margin:14px 0 0">Les données sont enregistrées sur cet ordinateur ; la base partagée se configure ensuite dans Paramètres. Pensez à exporter régulièrement une sauvegarde.</p>'+
   '<p class="small" style="margin:10px 0 0"><a href="#" data-act="restore-start">Restaurer une sauvegarde existante</a></p></form></div>';
@@ -2529,6 +2535,8 @@ function loginHtml(){
   '<p>'+(lead?lead+'<br>':'')+[esc(DB.school.name),DB.school.year?'année scolaire '+esc(DB.school.year):''].filter(Boolean).join(' · ')+'</p>'+
   '<label class="f">Identifiant<input name="username" autocapitalize="none" autocomplete="username" placeholder="Votre identifiant" required autofocus></label>'+
   '<label class="f">Mot de passe<input name="pw" type="password" autocomplete="current-password" placeholder="••••••••" required></label>'+
+  '<div class="pw-row"><button type="button" class="btn sm" data-act="toggle-pw">Afficher le mot de passe</button>'+
+    '<button type="button" class="btn sm" data-act="form-reset">Tout effacer</button></div>'+
   '<div class="err" id="fe"></div><button class="btn primary" style="width:100%;justify-content:center;padding:11px 14px;font-size:15px">Se connecter</button>'+
   '<div class="auth-sep"></div>'+
   '</form>'+
@@ -3376,7 +3384,7 @@ function commitCell(el){
   el.classList.remove('bad');
   const sub=cls.subjects.find(s=>s.id===el.dataset.sub);if(!sub||!canEdit(cls,sub))return false;
   const old=getG(cls,el.dataset.sid,sub.id);const oldV=old?old[+el.dataset.seq]:null;
-  if(oldV!=null && oldV!==v){if(!confirm('Modifier la note de '+cls.students.find(s=>s.id===el.dataset.sid).name+' — '+sub.name+' (S'+(+el.dataset.seq+1)+') de '+String(oldV).replace('.',',')+' en '+(v==null?'vide':String(v).replace('.',','))+' ?')){el.value=oldV==null?'':String(oldV).replace('.',',');return false}}
+  /* Correction d'une note : enregistrée directement, sans boîte bloquante. */
   setG(cls,el.dataset.sid,sub.id,+el.dataset.seq,v);
   el.value=v==null?'':String(v).replace('.',',');
   if(v!=null&&v<10)el.classList.add('low');else el.classList.remove('low');
@@ -3631,7 +3639,7 @@ function accountHtml(){
       'Votre identifiant reste <b>« '+esc(ME.username)+' »</b> : demandez-lui la modification si nécessaire.</p></div>';
   }
   return head+
-  '<form class="panel" data-form="pw" style="max-width:460px"><h3>Changer mon mot de passe</h3><label class="f">Mot de passe actuel<input name="old" type="password" required></label><label class="f">Nouveau mot de passe<input name="new" type="password" minlength="4" required></label><div class="err" id="fe"></div><button class="btn primary">Enregistrer</button></form>';
+  '<form class="panel" data-form="pw" style="max-width:460px"><h3>Changer mon mot de passe</h3><label class="f">Mot de passe actuel<input name="old" type="password" required></label><label class="f">Nouveau mot de passe<input name="new" type="password" minlength="4" required></label><div class="pw-row"><button type="button" class="btn sm" data-act="toggle-pw">Afficher les mots de passe</button></div><div class="err" id="fe"></div><button class="btn primary">Enregistrer</button></form>';
 }
 
 /* ---------- Import des élèves ----------
@@ -4695,22 +4703,23 @@ A['search-open']=el=>{
 A['disc-save']=()=>{if(isReadOnlySession())return;saveNow();toast('Discipline enregistrée.','ok')};
 A['disc-clear']=el=>{
   const cls=discClass();if(!cls||isReadOnlySession())return;
-  if(!confirm('Effacer les valeurs de cet élève pour ce trimestre ?'))return;
-  if(cls.disc&&cls.disc[el.dataset.sid])delete cls.disc[el.dataset.sid]['t'+S.trim];
-  dirty();render();toast('Ligne effacée.','ok');
+  askConfirm('Effacer cette ligne ?','Les absences, retards et consignes de cet élève pour le '+TRN[S.trim-1]+' trimestre seront effacés.','Effacer',()=>{
+    if(cls.disc&&cls.disc[el.dataset.sid])delete cls.disc[el.dataset.sid]['t'+S.trim];
+    dirty();render();toast('Ligne effacée.','ok');
+  },true);
 };
 A.logout=()=>{try{sessionStorage.removeItem(SKEY)}catch(e){}ME=null;S.asAdmin=null;S.sessionId=null;S.closeState=null;S.simulationState=null;S.view='dash';render()};
 A.mclose=closeModal;
 A['confirm-ok']=()=>{const f=confirmCb;confirmCb=null;closeModal();if(f)f()};
-A['new-class']=()=>{if(!confirm('Créer une nouvelle classe ?'))return;
+A['new-class']=()=>{
   openModal('<form data-form="newclass"><h2>Nouvelle classe</h2><label class="f">Modèle de bulletin<select name="preset" autofocus>'+PRESETS.map(p=>'<option value="'+p.key+'">'+esc(p.label)+'</option>').join('')+'</select></label>'+
    '<label class="f">Nom de la classe (modifiable : « 6e B », « Tle A4 »…)<input name="name" id="ncname" value="6e" required></label>'+
    '<p class="small muted">Les matières et coefficients du modèle reprennent vos bulletins Excel ; vous pourrez les ajuster ensuite dans les paramètres de la classe.</p>'+
    '<label class="f" style="flex-direction:row;align-items:flex-start;gap:8px;margin-top:4px"><input type="checkbox" name="importList" value="1" style="width:auto;margin-top:4px"><span>Importer ensuite la liste des élèves (modèle Excel ou fichier CSV)<br><span class="small muted">Les matricules sont attribués automatiquement à l’import.</span></span></label>'+
    '<div class="acts"><button type="button" class="btn" data-act="mclose">Annuler</button><button class="btn primary">Créer la classe</button></div></form>');
 };
-A['add-student']=()=>{if(!confirm('Ajouter un nouvel élève à cette classe ?'))return;studentForm(null)};
-A['edit-student']=el=>{if(!confirm('Modifier cet élève ?'))return;studentForm(curClass().students.find(s=>s.id===el.dataset.id))};
+A['add-student']=()=>studentForm(null);
+A['edit-student']=el=>{const cls=curClass();if(!cls)return;studentForm(cls.students.find(s=>s.id===el.dataset.id))};
 function studentForm(s){
   const matVal=s?s.mat||'':genMat();
   const dobVal=s?s.dob||'':'';
@@ -4755,7 +4764,6 @@ A['imp-go']=()=>{
   const cls=curClass();if(!cls)return;
   const list=IMP.filter(x=>!x.dup);
   if(!list.length)return toast('Aucun élève à ajouter.','err');
-  if(!confirm('Importer '+list.length+' élève'+(list.length>1?'s':'')+' dans '+cls.name+' ?\nLes matricules seront attribués automatiquement.'))return;
   let n=0,reused=0;
   for(const x of list){
     let mat=String(x.mat||'').replace(/\s+/g,'').toUpperCase();
@@ -4901,7 +4909,6 @@ A['cloud-pull']=async()=>{
   toast(ok?'Données reçues de la base.':'Aucune donnée reçue : '+Cloud.msg,ok?'ok':'err');
 };
 A['cloud-off']=()=>{
-  if(!confirm('Désactiver la synchronisation sur cet ordinateur ? Les données locales sont conservées.'))return;
   Cloud.stop();Cloud.cfg={mode:'',url:'',key:'',schoolId:''};Cloud.store();Cloud.snap=null;
   render();toast('Synchronisation désactivée. Mode local.','ok');
 };
@@ -4916,12 +4923,13 @@ A['refresh-lessons']=async()=>{
 };
 A['reset-lessons']=()=>{
   if(!isAdmin())return;
-  if(!confirm('Remettre toutes les leçons prévues et faites à 0 ?'))return;
-  let n=0;
-  for(const cls of viewClasses()){initLessonsForClass(cls);for(const sub of cls.subjects){cls.lessons[sub.id]={planned:0,done:0};n++}}
-  dirty();saveNow();render();toast('Leçons réinitialisées ('+n+' matières).','ok');
+  askConfirm('Remettre les leçons à 0 ?','Toutes les leçons prévues et faites de toutes les classes seront remises à zéro.','Remettre à 0',()=>{
+    let n=0;
+    for(const cls of viewClasses()){initLessonsForClass(cls);for(const sub of cls.subjects){cls.lessons[sub.id]={planned:0,done:0};n++}}
+    dirty();saveNow();render();toast('Leçons réinitialisées ('+n+' matières).','ok');
+  },true);
 };
-A['toggle-lock']=el=>{const cls=curClass(),t=+el.dataset.t;if(!cls)return;if(!confirm((cls.locks&&cls.locks[t]===false?'Débloquer':'Bloquer')+' la saisie des notes pour le '+TRN[t-1]+' trimestre ?'))return;if(!cls.locks)cls.locks={1:false,2:false,3:false};cls.locks[t]=!(cls.locks[t]!==false);dirty();render();toast('Saisie '+(cls.locks[t]!==false?'débloquée':'bloquée')+' pour le '+TRN[t-1]+' trimestre.','ok')};
+A['toggle-lock']=el=>{const cls=curClass(),t=+el.dataset.t;if(!cls)return;if(!cls.locks)cls.locks={1:false,2:false,3:false};cls.locks[t]=!(cls.locks[t]!==false);dirty();render();toast('Saisie '+(cls.locks[t]!==false?'débloquée':'bloquée')+' pour le '+TRN[t-1]+' trimestre.','ok')};
 A['export-my-notes']=()=>{
   const cls=curClass(),out={type:'mbi-notes',school:viewYear(),by:ME.username,date:new Date().toISOString(),classes:[]};
   const mine=viewClasses().filter(c=>isAdmin()||c.subjects.some(s=>s.teacherId===ME.id));
@@ -4931,9 +4939,9 @@ A['export-my-notes']=()=>{
   download('notes_'+ME.username+'_'+new Date().toISOString().slice(0,10)+'.json',JSON.stringify(out),'application/json');toast('Fichier de notes exporté.','ok');
 };
 /* paramètres de classe */
-A['sub-add']=()=>{const cls=curClass();if(!confirm('Ajouter une nouvelle matière à cette classe ?'))return;cls.subjects.push({id:uid(),name:'NOUVELLE MATIÈRE',coef:1,group:'',opt:false,teacherId:''});dirty();render()};
-A['sub-group']=()=>{if(!confirm('Ajouter un nouveau groupe de matières ?'))return;openModal('<form data-form="group"><h2>Ajouter un groupe</h2><label class="f">Nom du groupe (ex. LITTÉRAIRE)<input name="g" autofocus required></label><p class="small muted">Le groupe apparaît dans la liste « Groupe » de chaque matière. Une ligne « MOYENNE … » est imprimée à la fin de chaque groupe.</p><div class="acts"><button type="button" class="btn" data-act="mclose">Annuler</button><button class="btn primary">Ajouter</button></div></form>')};
-A['sub-up']=el=>{if(!confirm('Déplacer cette matière vers le haut ?'))return;moveSub(el.dataset.id,-1)};A['sub-down']=el=>{if(!confirm('Déplacer cette matière vers le bas ?'))return;moveSub(el.dataset.id,1)};
+A['sub-add']=()=>{const cls=curClass();if(!cls)return;cls.subjects.push({id:uid(),name:'NOUVELLE MATIÈRE',coef:1,group:'',opt:false,teacherId:''});dirty();render()};
+A['sub-group']=()=>{if(!curClass())return;openModal('<form data-form="group"><h2>Ajouter un groupe</h2><label class="f">Nom du groupe (ex. LITTÉRAIRE)<input name="g" autofocus required></label><p class="small muted">Le groupe apparaît dans la liste « Groupe » de chaque matière. Une ligne « MOYENNE … » est imprimée à la fin de chaque groupe.</p><div class="acts"><button type="button" class="btn" data-act="mclose">Annuler</button><button class="btn primary">Ajouter</button></div></form>')};
+A['sub-up']=el=>moveSub(el.dataset.id,-1);A['sub-down']=el=>moveSub(el.dataset.id,1);
 function moveSub(id,d){const cls=curClass(),i=cls.subjects.findIndex(s=>s.id===id),j=i+d;if(j<0||j>=cls.subjects.length)return;[cls.subjects[i],cls.subjects[j]]=[cls.subjects[j],cls.subjects[i]];dirty();render()}
 A['sub-del']=el=>{const cls=curClass(),s=cls.subjects.find(x=>x.id===el.dataset.id);
   askConfirm('Retirer cette matière ?','<b>'+esc(s.name)+'</b> sera retirée du bulletin et toutes les notes saisies dans cette matière seront supprimées.','Retirer',()=>{cls.subjects=cls.subjects.filter(x=>x.id!==s.id);for(const k in cls.grades)delete cls.grades[k][s.id];dirty();render()},true)};
@@ -4946,13 +4954,13 @@ A['sub-reset']=()=>{const cls=curClass();
 A['del-class']=()=>{const cls=curClass();
   askConfirm('Supprimer la classe '+cls.name+' ?','Les <b>'+cls.students.length+' élèves</b> et toutes leurs notes seront supprimés définitivement.','Supprimer la classe',()=>{DB.classes=DB.classes.filter(c=>c.id!==cls.id);dirty();S.view='dash';S.classId=null;render();toast('Classe supprimée.')},true)};
 /* enseignants */
-A['add-teacher']=()=>{if(!confirm('Ajouter un nouveau compte de personnel ?'))return;teacherForm(null)};
-A['edit-teacher']=el=>{if(!confirm('Modifier cet enseignant ?'))return;teacherForm(DB.users.find(u=>u.id===el.dataset.id))};
+A['add-teacher']=()=>teacherForm(null);
+A['edit-teacher']=el=>teacherForm(DB.users.find(u=>u.id===el.dataset.id));
 A['del-teacher']=el=>{const u=DB.users.find(x=>x.id===el.dataset.id);
   askConfirm('Supprimer ce compte ?','Le compte de <b>'+esc(u.name)+'</b> sera supprimé. Ses affectations de matières seront retirées ; les notes déjà saisies sont conservées.','Supprimer',()=>{DB.users=DB.users.filter(x=>x.id!==u.id);DB.classes.forEach(c=>{c.subjects.forEach(s=>{if(s.teacherId===u.id)s.teacherId=''});if(c.ppId===u.id){c.ppId='';c.ppName=u.name}});dirty();render()},true)};
 /* établissement */
-A['header-reset']=()=>{if(!confirm('Retirer l’en-tête des bulletins ?'))return;DB.school.header=null;dirty();render();toast('En-tête retiré.','ok')};
-A['logo-reset']=()=>{if(!confirm('Retirer le logo de l’établissement ?'))return;DB.school.logo=null;dirty();render();toast('Logo retiré.','ok')};
+A['header-reset']=()=>askConfirm('Retirer l’en-tête ?','Les bulletins seront imprimés sans bandeau.','Retirer',()=>{DB.school.header=null;dirty();render();toast('En-tête retiré.','ok')},true);
+A['logo-reset']=()=>askConfirm('Retirer le logo ?','Le logo n’apparaîtra plus sur le tableau d’honneur.','Retirer',()=>{DB.school.logo=null;dirty();render();toast('Logo retiré.','ok')},true);
 /* Contenu réel d'une sauvegarde : sert au nom du fichier, au message de
    confirmation et à la vérification après restauration. */
 function backupCounts(d){
@@ -4970,7 +4978,6 @@ function backupCounts(d){
     users:(d.users||[]).length};
 }
 A.backup=()=>{
-  if(!confirm('Exporter toutes les données du programme ?\n\nÉlèves, notes, appréciations, finances, élèves archivés, sessions précédentes et réglages seront enregistrés dans un seul fichier, à réimporter plus tard.'))return;
   saveNow();
   const c=backupCounts();
   const pack={app:'e-school',format:2,
@@ -4984,8 +4991,8 @@ A.backup=()=>{
   download(name,JSON.stringify(pack),'application/json;charset=utf-8');
   toast('Sauvegarde complète exportée : '+c.students+' élève'+(c.students>1?'s':'')+', '+c.classes+' classe'+(c.classes>1?'s':'')+', '+c.sessions+' session'+(c.sessions>1?'s':'')+' précédente'+(c.sessions>1?'s':'')+', '+c.payments+' versement'+(c.payments>1?'s':'')+'.','ok');
 };
-A['restore-start']=()=>{if(!confirm('Restaurer une sauvegarde (les données actuelles seront remplacées) ?'))return;openModal('<h2>Restaurer une sauvegarde</h2><p>Choisissez un fichier de sauvegarde (.json). '+(DB.users.length?'<b>Toutes les données actuelles seront remplacées.</b>':'')+'</p><input type="file" accept=".json,application/json" data-file="restore" class="inp"><div class="err" id="fe"></div><div class="acts"><button class="btn" data-act="mclose">Annuler</button></div>')};
-A['merge-start']=()=>{if(!confirm('Importer un fichier de notes d’enseignant ?'))return;openModal('<h2>Importer un fichier de notes</h2><p>Choisissez un fichier « notes_… .json » exporté par un enseignant. Les notes saisies sont ajoutées à la classe et à la matière correspondantes ; les cases vides du fichier ne remplacent rien.</p><input type="file" accept=".json,application/json" data-file="merge" class="inp"><div class="err" id="fe"></div><div class="acts"><button class="btn" data-act="mclose">Annuler</button></div>')};
+A['restore-start']=()=>{openModal('<h2>Restaurer une sauvegarde</h2><p>Choisissez un fichier de sauvegarde (.json). '+(DB.users.length?'<b>Toutes les données actuelles seront remplacées.</b>':'')+'</p><input type="file" accept=".json,application/json" data-file="restore" class="inp"><div class="err" id="fe"></div><div class="acts"><button class="btn" data-act="mclose">Annuler</button></div>')};
+A['merge-start']=()=>{openModal('<h2>Importer un fichier de notes</h2><p>Choisissez un fichier « notes_… .json » exporté par un enseignant. Les notes saisies sont ajoutées à la classe et à la matière correspondantes ; les cases vides du fichier ne remplacent rien.</p><input type="file" accept=".json,application/json" data-file="merge" class="inp"><div class="err" id="fe"></div><div class="acts"><button class="btn" data-act="mclose">Annuler</button></div>')};
 A.wipe=()=>askConfirm('Tout effacer ?','Classes, élèves, notes et comptes seront supprimés de cet ordinateur. Cette action est définitive : exportez d’abord une sauvegarde si nécessaire.','Tout effacer',()=>{try{localStorage.removeItem(KEY);sessionStorage.removeItem(SKEY)}catch(e){}DB=blankDB();ME=null;S.sessionId=null;S.closeState=null;S.simulationState=null;calcCache={};S.view='dash';render()},true);
 
 const READ_ONLY_ACTIONS=new Set(['export-missing-notes','print-missing-notes','export-class-council','print-class-council','go','open-class','tab','trim','logout','session-view','session-current','sessions-cancel-close','simulation-cancel','preview','prev-b','print-all','print-one','print-results','export-csv','export-my-notes','pack-dl','honour-prev','honour-print','honour-dl','mclose','noop']);
@@ -5034,14 +5041,14 @@ document.addEventListener('change',e=>{
   if(el.classList.contains('cell')){commitCell(el);refreshSummary();return}
   if(el.dataset.chk==='mine'){S.mine=el.checked;render();return}
   const cls=curClass();
-  if(el.dataset.cp&&cls){const k=el.dataset.cp,old=cls[k];const nv=el.value;if(old!==nv&&!confirm('Modifier « '+k+' » de cette classe ?')){el.value=old||'';return}cls[k]=nv;dirty();if(['name','ppId'].includes(k))render();return}
+  if(el.dataset.cp&&cls){const k=el.dataset.cp,old=cls[k];const nv=el.value;if(old===nv)return;cls[k]=nv;dirty();if(['name','ppId'].includes(k))render();return}
   if(el.dataset.sp&&cls){
     const s=cls.subjects.find(x=>x.id===el.dataset.id);if(!s)return;const k=el.dataset.sp;
     if(k==='coef'){const v=parseFloat(String(el.value).replace(',','.'));if(isNaN(v)||v<0){toast('Coefficient invalide.','err');render();return}s.coef=v}
     else if(k==='opt')s.opt=el.checked;else s[k]=el.value;
     dirty();if(k==='group'||k==='name')render();return;
   }
-  if(el.dataset.sc){const k=el.dataset.sc,old=DB.school[k];const nv=el.value.trim();if(old!==nv&&!confirm('Modifier le paramètre « '+k+' » de « '+(old||'')+' » en « '+nv+' » ?')){el.value=old||'';return}DB.school[k]=nv;dirty();return}
+  if(el.dataset.sc){const k=el.dataset.sc,old=DB.school[k];const nv=el.value.trim();if(old===nv)return;DB.school[k]=nv;dirty();return}
   if(el.dataset.file==='photo'){previewStudentPhoto(el);return}
   if(el.dataset.file){handleFile(el);return}
 });
@@ -5088,12 +5095,29 @@ document.addEventListener('paste',e=>{
   }));
   refreshSummary();if(n)toast(n+' note'+(n>1?'s collées':' collée')+(bad?' ('+bad+' invalide'+(bad>1?'s':'')+')':'')+'.',bad?'':'ok');
 });
+/* Filet de sécurité : une erreur ne doit jamais figer l'écran sans explication.
+   Le message est affiché et la page reste utilisable ; le détail est conservé
+   dans window.__errs pour être transmis au support si besoin. */
+window.__errs=[];
+let lastErrAt=0;
+function reportErr(where,msg){
+  try{
+    const line='['+new Date().toLocaleTimeString('fr-FR')+'] '+(where||'')+' : '+msg;
+    window.__errs.push(line);if(window.__errs.length>40)window.__errs.shift();
+    if(Date.now()-lastErrAt<4000)return;lastErrAt=Date.now();
+    toast('Une erreur est survenue — '+(msg||'erreur inconnue').slice(0,140)+'. Vos données restent enregistrées.','err');
+  }catch(e){}
+}
+addEventListener('error',e=>reportErr('script',(e.message||'')+' ('+(e.filename||'').split('/').pop()+':'+(e.lineno||'')+')'));
+addEventListener('unhandledrejection',e=>reportErr('promesse',String((e.reason&&(e.reason.message||e.reason))||'')));
+
 document.addEventListener('submit',async e=>{
   const f=e.target.closest('[data-form]');if(!f)return;e.preventDefault();
+  const kind=f.dataset.form;
+  try{
   if(isReadOnlySession()){toast('Cette session est archivée et consultable en lecture seule.','err');return;}
   const fd=Object.fromEntries(new FormData(f).entries()),err=m=>{const x=$('#fe',f.closest('.modal')||document);if(x)x.textContent=m};
-  const kind=f.dataset.form;
-  if(kind==='setup'){if(!confirm('Créer le compte administrateur et commencer ?'))return;
+  if(kind==='setup'){
     const un=fd.username.trim().toLowerCase();if(!/^[a-z0-9._-]{2,}$/.test(un))return err('Identifiant : lettres, chiffres, point ou tiret (2 caractères minimum), sans espace.');
     if(DB.users.some(x=>x.username===un))return err('Cet identifiant est déjà utilisé.');
     if(String(fd.pw).length<4)return err('Le mot de passe doit contenir au moins 4 caractères.');
@@ -5118,7 +5142,7 @@ document.addEventListener('submit',async e=>{
     if(asked!==own)toast('Compte '+own+' : ouverture de l’espace correspondant.','ok');
   }else if(kind==='pw'){
     if(!isAdmin())return err('Seul l’administrateur peut changer son mot de passe. Contactez-le pour toute modification.');
-    if(!confirm('Changer le mot de passe ?'))return;
+
     if(!verifyPw(fd.old,ME.salt,ME.hash))return err('Le mot de passe actuel est incorrect.');
     ME.salt=uid();ME.hash=await hashPw(fd.new,ME.salt);dirty();render();toast('Mot de passe modifié.','ok');
   }else if(kind==='fee'){
@@ -5137,7 +5161,7 @@ document.addEventListener('submit',async e=>{
     const p=addPayment(sid,{date:fd.date,amount:amt,mode:fd.mode,ref:fd.ref,note:fd.note});
     dirty();saveNow();closeModal();render();
     toast('Versement de '+money(p.amount)+' enregistré · reçu N° '+String(p.no).padStart(4,'0'),'ok');
-  }else if(kind==='teacher'){if(!confirm('Enregistrer cet enseignant ?'))return;
+  }else if(kind==='teacher'){
     const un=fd.username.trim().toLowerCase();if(!/^[a-z0-9._-]{2,}$/.test(un))return err('Identifiant : lettres, chiffres, point ou tiret, sans espace.');
     const id=f.dataset.id;if(DB.users.some(u=>u.username===un&&u.id!==id))return err('Cet identifiant est déjà utilisé.');
     let u=id&&DB.users.find(x=>x.id===id);
@@ -5147,17 +5171,17 @@ document.addEventListener('submit',async e=>{
     if(fd.pw){u.salt=uid();u.hash=await hashPw(fd.pw,u.salt)}
     dirty();closeModal();render();
     if(fd.pw)toast('Enregistré. Identifiant : '+un+' · mot de passe : '+fd.pw,'ok');
-  }else if(kind==='newclass'){if(!confirm('Créer cette classe ?'))return;
+  }else if(kind==='newclass'){
     const c=newClass(fd.preset,fd.name.trim());DB.classes.push(c);dirty();closeModal();S.view='class';S.classId=c.id;S.tab='eleves';render();
     if(fd.importList){toast('Classe créée — importez maintenant la liste des élèves.','ok');A['import-students']();}
-  }else if(kind==='student'){if(!confirm('Enregistrer cet élève ?'))return;
+  }else if(kind==='student'){
     const cls=curClass(),name=fd.name.trim().replace(/\s+/g,' ').toLocaleUpperCase('fr'),id=f.dataset.id;
     if(cls.students.some(s=>s.name===name&&s.id!==id))return err('Un élève porte déjà ce nom dans cette classe.');
     const existant=id?cls.students.find(x=>x.id===id):null;
     const mat=(fd.mat.trim()||(existant&&existant.mat)||genMat()).toUpperCase();
     const detenteur=matTaken(mat,id);
     if(detenteur)return err('Matricule déjà attribué à '+detenteur.st.name+' ('+(detenteur.current?detenteur.cls.name:'archive '+detenteur.year)+'). Chaque élève doit avoir un matricule unique.');
-    if(existant&&existant.mat&&matKey(mat)!==matKey(existant.mat)&&!confirm('Changer le matricule de '+existant.name+' ?\n'+existant.mat+' → '+mat+'\n\nLe matricule est normalement définitif.'))return;
+    if(existant&&existant.mat&&matKey(mat)!==matKey(existant.mat))toast('Matricule de '+existant.name+' modifié : '+existant.mat+' → '+mat+'.','ok');
     /* Contact du parent / tuteur : facultatif, mais verifie quand il est renseigne. */
     const parent=(fd.parent||'').replace(/\s+/g,' ').trim().toLocaleUpperCase('fr');
     const parentLink=(fd.parentLink||'').trim();
@@ -5172,12 +5196,40 @@ document.addEventListener('submit',async e=>{
       s.parent=parent;s.parentLink=parentLink;s.parentPhone=parentPhone;s.parentEmail=parentEmail;
       if(photo)s.photo=photo}else cls.students.push({id:uid(),name,sex:fd.sex,mat:mat,dob:fd.dob||'',pob:(fd.pob||'').trim(),parent:parent,parentLink:parentLink,parentPhone:parentPhone,parentEmail:parentEmail,photo:photo||'',sessionTag:'N'});
     cls.students.sort(cmpName);dirty();closeModal();render();
-  }else if(kind==='group'){if(!confirm('Ajouter ce groupe ?'))return;
+  }else if(kind==='group'){
     const cls=curClass(),g=fd.g.trim().toLocaleUpperCase('fr');if(!g)return;
     const last=cls.subjects[cls.subjects.length-1];cls.subjects.push({id:uid(),name:'NOUVELLE MATIÈRE',coef:1,group:g,opt:false,teacherId:''});dirty();closeModal();render();
   }
+  }catch(ex){
+    /* Un formulaire ne doit jamais laisser la fenêtre bloquée : on explique,
+       on garde la saisie et on rend la main. */
+    reportErr('formulaire '+kind,(ex&&ex.message)||String(ex));
+    try{
+      const x=f.querySelector('#fe')||$('#fe',f.closest('.modal')||document);
+      if(x)x.textContent='Enregistrement impossible : '+((ex&&ex.message)||'action inattendue')+' — vérifiez la saisie, puis réessayez.';
+    }catch(e2){}
+  }
 });
 A['noop']=()=>{};
+/* Afficher/masquer le mot de passe saisi (page de connexion et installation). */
+A['toggle-pw']=el=>{
+  const f=el.closest('form');if(!f)return;
+  const sel='input[type="password"],input[name="pw"],input[name="pw2"],input[name="old"],input[name="new"]';
+  const list=[...f.querySelectorAll(sel)].filter(i=>i.type!=='hidden');
+  if(!list.length)return;
+  const show=list[0].type==='password';
+  list.forEach(i=>{i.type=show?'text':'password'});
+  el.textContent=(show?'Masquer':'Afficher')+(list.length>1?' les mots de passe':' le mot de passe');
+  list[0].focus();
+};
+/* Vider les champs d'un formulaire sans recharger la page. */
+A['form-reset']=el=>{
+  const f=el.closest('form');if(!f)return;
+  f.reset();
+  f.querySelectorAll('input[name="pw"],input[name="old"],input[name="new"]').forEach(i=>{i.type='password'});
+  const fe=$('#fe',f.closest('.modal')||document);if(fe)fe.textContent='';
+  const first=f.querySelector('input:not([type=hidden])');if(first)first.focus();
+};
 document.addEventListener('keydown',e=>{
   const el=e.target;
   if(!el||el.id!=='sband-input')return;
@@ -5203,12 +5255,12 @@ function handleFile(el){
   const bad=m=>{const x=$('#fe');if(x)x.textContent=m;else toast(m,'err')};
   /* Liste d'élèves : lecture binaire (détection d'un .xlsx) puis CSV / Excel XML. */
   if(kind==='imp'){importFile(file);try{el.value=''}catch(e){}return}
-  if(kind==='header'){if(!confirm('Remplacer l’en-tête des bulletins par cette image ?'))return;
+  if(kind==='header'){
     const img=new Image(),url=URL.createObjectURL(file);
     img.onload=()=>{const w=Math.min(1400,img.width),c=document.createElement('canvas');c.width=w;c.height=Math.round(img.height*w/img.width);const g=c.getContext('2d');g.fillStyle='#fff';g.fillRect(0,0,c.width,c.height);g.drawImage(img,0,0,c.width,c.height);DB.school.header=c.toDataURL('image/jpeg',.88);URL.revokeObjectURL(url);dirty();render();toast('En-tête remplacé.','ok')};
     img.onerror=()=>toast('Image illisible.','err');img.src=url;return;
   }
-  if(kind==='logo'){if(!confirm('Utiliser cette image comme logo de l’établissement ?'))return;
+  if(kind==='logo'){
     const img=new Image(),url=URL.createObjectURL(file);
     img.onload=()=>{const w=Math.min(600,img.width),h=Math.round(img.height*w/img.width),c=document.createElement('canvas');c.width=w;c.height=h;const g=c.getContext('2d');g.fillStyle='#fff';g.fillRect(0,0,w,h);g.drawImage(img,0,0,w,h);DB.school.logo=c.toDataURL('image/jpeg',.9);URL.revokeObjectURL(url);dirty();render();toast('Logo remplacé.','ok')};
     img.onerror=()=>toast('Image illisible.','err');img.src=url;return;
@@ -5218,15 +5270,18 @@ function handleFile(el){
   rd.onload=()=>{
     const txt=String(rd.result);
     let d;try{d=JSON.parse(txt)}catch(e){return bad('Ce fichier n’est pas un fichier JSON valide.')}
-    if(kind==='restore'){if(!confirm('Restaurer cette sauvegarde (les données actuelles seront remplacées) ?'))return;
+    if(kind==='restore'){
       /* Anciennes sauvegardes : le fichier EST la base. Nouvelles : enveloppe
          {app:'e-school',data:…}. Les deux formats restent acceptés. */
       if(d&&d.app==='e-school'&&d.data&&d.data.school)d=d.data;
       if(!d||!d.school||!Array.isArray(d.users)||!Array.isArray(d.classes)||!d.users.some(u=>u.role==='admin'))return bad('Ce fichier n’est pas une sauvegarde complète de cette application.');
+      const rc0=backupCounts(d);
+      askConfirm('Restaurer cette sauvegarde ?','Elle contient '+rc0.students+' élève'+(rc0.students>1?'s':'')+', '+rc0.classes+' classe'+(rc0.classes>1?'s':'')+' et '+rc0.sessions+' session'+(rc0.sessions>1?'s':'')+' précédente'+(rc0.sessions>1?'s':'')+'. Les données actuelles seront remplacées.','Restaurer',()=>{
       DB=d;if(!Array.isArray(DB.archivedStudents))DB.archivedStudents=[];if(!Array.isArray(DB.sessions))DB.sessions=[];if(!DB.finance||typeof DB.finance!=='object')DB.finance={fees:{},pays:{},updatedAt:''};else{if(!DB.finance.fees||typeof DB.finance.fees!=='object')DB.finance.fees={};if(!DB.finance.pays||typeof DB.finance.pays!=='object')DB.finance.pays={}};calcCache={};S.sessionId=null;S.closeState=null;S.simulationState=null;try{repairMatricules();upgradeLegacyMatricules()}catch(e){}saveNow();closeModal();ME=null;try{sessionStorage.removeItem(SKEY)}catch(e){}render();
       const rc=backupCounts(DB);
       toast('Sauvegarde restaurée : '+rc.students+' élève'+(rc.students>1?'s':'')+', '+rc.classes+' classe'+(rc.classes>1?'s':'')+', '+rc.sessions+' session'+(rc.sessions>1?'s':'')+' précédente'+(rc.sessions>1?'s':'')+'. Connectez-vous.','ok');
-    }else if(kind==='merge'){if(!confirm('Fusionner les notes de ce fichier dans les classes correspondantes ?'))return;
+      },true);
+    }else if(kind==='merge'){
       if(!d||d.type!=='mbi-notes'||!Array.isArray(d.classes))return bad('Ce fichier n’est pas un fichier de notes exporté par un enseignant.');
       let n=0,skipped=0;
       for(const fc of d.classes){const c=DB.classes.find(x=>x.id===fc.id);if(!c){skipped++;continue}
@@ -5268,9 +5323,11 @@ function productionHtml(){
      '<span class="small muted">Les comptes de test restent ; vous les supprimez dans <b>Personnel</b> (Paramètres).</span></p>'+
    '</div></div></div>';
 }
-A['go-production']=async()=>{
+A['go-production']=()=>{
   const c=backupCounts();
-  if(!confirm('Effacer les comptes de test et les données fictives ?\n\n'+c.users+' compte(s), '+c.classes+' classe(s), '+c.students+' élève(s).\n\nLes données actuelles seront remplacées. Le nom, la ville, l’année, l’en-tête et le logo de l’établissement sont conservés.'))return;
+  askConfirm('Effacer et configurer mon établissement ?',
+    'Seront supprimés : '+c.users+' compte(s), '+c.classes+' classe(s), '+c.students+' élève(s), les notes et les finances. Le nom, la ville, l’année, l’en-tête et le logo sont conservés ; vous créez ensuite votre compte administrateur.',
+    'Effacer et continuer',async()=>{
   const box=$('#purge-remote');
   if(box&&box.checked&&Cloud.enabled()&&Cloud.online){
     if(!await Cloud.clearRemote()){return toast('Base partagée non vidée : vérifiez la connexion, puis réessayez. Rien n’a été effacé sur cet ordinateur.','err')}
@@ -5284,9 +5341,9 @@ A['go-production']=async()=>{
   ME=null;S.sessionId=null;S.closeState=null;S.simulationState=null;S.asAdmin=null;
   dirty();saveNow();render();
   toast('Installation remise à zéro : créez maintenant votre compte administrateur.','ok');
+  },true);
 };
 A['keep-data']=()=>{
-  if(!confirm('Désactiver le mode démonstration et conserver les données actuelles ?\n\nLes comptes de test resteront en place : supprimez-les dans Paramètres → Personnel.'))return;
   delete DB.demoMode;dirty();saveNow();render();
   toast('Mode démonstration désactivé. Vérifiez les comptes dans Paramètres → Personnel.','ok');
 };
