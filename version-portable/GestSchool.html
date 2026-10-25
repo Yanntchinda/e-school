@@ -4195,9 +4195,11 @@ function schoolHtml(){
      '<li>Menu <b>Aide</b> → <b>Récupérer les données d’une ancienne version…</b></li>'+
      '<li>Le logiciel affiche les dossiers de données trouvés ; acceptez le plus récent. Il redémarre avec ces données.</li>'+
    '</ol>'+
+   '<div class="toolbar" style="margin:0 0 10px"><button class="btn primary" data-act="recover-start">Importer un fichier de récupération (.json)…</button></div>'+
+   '<p class="small muted" style="margin:0 0 8px">Ce bouton affiche d’abord <b>ce que contient le fichier</b> — nombre de classes, d’élèves, de comptes — avant de remplacer quoi que ce soit. Si le fichier est vide, le logiciel le dit clairement au lieu de restaurer une base vide.</p>'+
    '<p class="small muted" style="margin:0">Cette option cherche dans l’ancien dossier « e-School Gestion Bulletins », dans le dossier actuel et dans Chrome, Edge et Brave (si l’ancienne version était ouverte en double-cliquant sur le fichier <code>.html</code>). Rien n’est supprimé : le dossier actuel est mis de côté dans <code>Documents\\GestSchool-Sauvegardes</code> avant la copie. Autre solution, si le logiciel ne démarre plus : le programme <code>RECUPERER-MES-DONNEES.bat</code> fourni avec le logiciel (mode d’emploi : <code>RECUPERER-MES-DONNEES.md</code>).</p></div>'+
   '<div class="panel"><h3>Sauvegarde de toutes les données</h3><p style="margin-top:0">Un seul fichier contient <b>tout le programme</b> : classes, élèves, notes, appréciations et leçons, finances (montants et versements), élèves archivés, <b>sessions précédentes</b>, utilisateurs et réglages (en-tête et logo). Il se réimporte plus tard, sur cet ordinateur ou sur un autre.</p>'+
-   '<div class="toolbar"><button class="btn primary" data-act="backup">Sauvegarder toutes les données…</button><button class="btn" data-act="restore-start">Restaurer une sauvegarde…</button></div>'+
+   '<div class="toolbar"><button class="btn primary" data-act="backup">Sauvegarder toutes les données…</button><button class="btn" data-act="restore-start">Restaurer une sauvegarde…</button><button class="btn" data-act="recover-start" title="Voir ce que contient un fichier .json de récupération avant de le restaurer">Importer un fichier de récupération…</button></div>'+
    '<p class="small muted"><b>Sauvegarde automatique :</b> dans l’application Windows, une sauvegarde complète est aussi déposée chaque jour, sans rien demander, dans <code>Documents\\GestSchool-Sauvegardes</code> (menu <b>Aide → Sauvegardes automatiques</b>). Les 40 dernières sont conservées.</p>'+
    '<p class="small muted">Le fichier comprend aussi la <b>corbeille</b> (éléments supprimés restaurables). Il porte une date et une heure (ex. <code>sauvegarde-gestschool_…_2026-10-24_14h30.json</code>). Gardez-le à l’abri : il contient les notes et les coordonnées des familles. Une restauration remplace les données présentes après confirmation.</p>'+
    '<p class="small muted"><b>Plusieurs ordinateurs :</b> envoyez la sauvegarde aux enseignants, qui la restaurent chez eux, saisissent leurs notes puis utilisent « Exporter mes notes » (onglet Notes). Importez ensuite chaque fichier ci-dessous pour fusionner les notes.</p>'+
@@ -6433,6 +6435,103 @@ function backupCounts(d){
     sessions:(d.sessions||[]).length,
     users:(d.users||[]).length};
 }
+/* ---------- Import d'un fichier de récupération ----------
+   Les fichiers produits par l'outil de récupération, comme les sauvegardes,
+   peuvent contenir la base à deux endroits : directement, ou dans une
+   enveloppe ({app:'gestschool',data:…}). Certains fichiers contiennent même
+   plusieurs bases successives. On les examine toutes, on les classe de la plus
+   complète à la plus vide, et on montre à l'utilisateur ce qu'elles contiennent
+   avant de restaurer : il choisit en connaissance de cause. */
+let RECOVER=[];
+function dbCandidates(root){
+  const list=[];
+  const seen=new Set();
+  const push=(o,label)=>{
+    if(!o||typeof o!=='object'||Array.isArray(o))return;
+    if(!Array.isArray(o.users)||!Array.isArray(o.classes))return;
+    let sig='';try{sig=JSON.stringify([(o.school&&o.school.name)||'',o.classes.length,o.users.length,
+      o.classes.reduce((n,c)=>n+((c&&c.students)||[]).length,0)])}catch(e){sig=''}
+    if(seen.has(sig))return;
+    seen.add(sig);
+    list.push({db:o,label:label});
+  };
+  push(root,'le fichier entier');
+  if(root&&typeof root==='object'){
+    ['data','db','base','backup','sauvegarde','payload'].forEach(k=>{
+      if(root[k]&&typeof root[k]==='object'){
+        push(root[k],'champ « '+k+' »');
+        if(root[k].data&&typeof root[k].data==='object')push(root[k].data,'champ « '+k+'.data »');
+      }
+    });
+    if(Array.isArray(root.databases))root.databases.forEach((o,i)=>push(o,'base n° '+(i+1)));
+    if(Array.isArray(root.bases))root.bases.forEach((o,i)=>push(o,'base n° '+(i+1)));
+  }
+  return list;
+}
+function dbScore(d){
+  const c=backupCounts(d);
+  return c.students*1000+c.classes*200+c.grades*2+c.payments*3+c.expenses+c.archived*5;
+}
+function dbSummaryLine(d){
+  const c=backupCounts(d);
+  return c.classes+' classe'+(c.classes>1?'s':'')+' · '+c.students+' élève'+(c.students>1?'s':'')+' · '+
+    c.users+' compte'+(c.users>1?'s':'')+' · '+c.grades+' note'+(c.grades>1?'s':'')+' · '+
+    c.payments+' versement'+(c.payments>1?'s':'');
+}
+function normalizeDb(d){
+  stripLegacyFlags(d);
+  if(!Array.isArray(d.archivedStudents))d.archivedStudents=[];
+  if(!Array.isArray(d.trash))d.trash=[];
+  if(!Array.isArray(d.sessions))d.sessions=[];
+  if(!Array.isArray(d.users))d.users=[];
+  if(!Array.isArray(d.classes))d.classes=[];
+  if(!d.school||typeof d.school!=='object')d.school={name:'',city:'',year:'',principal:'',header:null,logo:null};
+  if(!d.finance||typeof d.finance!=='object')d.finance={fees:{},pays:{},expenses:[],updatedAt:''};
+  else{
+    if(!d.finance.fees||typeof d.finance.fees!=='object')d.finance.fees={};
+    if(!d.finance.pays||typeof d.finance.pays!=='object')d.finance.pays={};
+    if(!Array.isArray(d.finance.expenses))d.finance.expenses=[];
+  }
+  return d;
+}
+/* Remplace la base et renvoie à l'écran de connexion. */
+function applyRestoredDb(d){
+  DB=normalizeDb(d);
+  calcCache={};S.sessionId=null;S.closeState=null;S.simulationState=null;
+  try{repairMatricules();upgradeLegacyMatricules()}catch(e){}
+  saveNow();closeModal();ME=null;
+  try{sessionStorage.removeItem(SKEY)}catch(e){}
+  render();
+  const rc=backupCounts(DB);
+  toast('Données restaurées : '+rc.students+' élève'+(rc.students>1?'s':'')+', '+rc.classes+' classe'+(rc.classes>1?'s':'')+', '+rc.users+' compte'+(rc.users>1?'s':'')+'. Connectez-vous.','ok');
+}
+function openRecoveryImport(){
+  openModal('<h2>Importer un fichier de récupération</h2>'+
+    '<p class="small muted" style="margin-top:0">Choisissez le fichier <code>.json</code> fabriqué par <b>RECUPERER-MES-DONNEES.bat</b> (ou une sauvegarde <code>sauvegarde-gestschool_…json</code>). Le logiciel affichera d’abord ce que le fichier contient — classes, élèves, comptes — avant de remplacer quoi que ce soit.</p>'+
+    '<input type="file" accept=".json,application/json" data-file="recover" class="inp">'+
+    '<div class="err" id="fe"></div>'+
+    '<div class="acts"><button class="btn" data-act="mclose">Annuler</button></div>');
+}
+function recoveryChoiceHtml(fileName){
+  const rows=RECOVER.map((c,i)=>{
+    const d=c.db,s=dbScore(d),empty=!backupCounts(d).classes&&!backupCounts(d).students;
+    const hasAdmin=d.users.some(u=>u&&u.role==='admin');
+    return '<tr><td>'+(i===0?'<b>':'')+esc(c.label)+(i===0?'</b> <span class="badge ok">la plus complète</span>':'')+'</td>'+
+      '<td class="small">'+esc(dbSummaryLine(d))+'</td>'+
+      '<td class="small">'+(d.school&&d.school.name?esc(d.school.name):'<span class="muted">sans nom</span>')+'<br><span class="muted">'+(d.school&&d.school.year?esc(d.school.year):'')+'</span></td>'+
+      '<td>'+(empty?'<span class="badge bad">vide</span>':hasAdmin?'<span class="badge ok">complète</span>':'<span class="badge warn">sans administrateur</span>')+'</td>'+
+      '<td class="right nowrap"><button class="btn sm '+(i===0&&!empty?'primary':'')+'" data-act="recover-use" data-i="'+i+'" '+(hasAdmin?'':'disabled')+'>Restaurer</button></td></tr>';
+  }).join('');
+  const best=RECOVER[0]?backupCounts(RECOVER[0].db):null;
+  const alert=(best&&!best.classes&&!best.students)
+    ? '<div class="notice" style="margin:0 0 12px"><b>Ce fichier ne contient aucune classe ni aucun élève.</b> La restauration donnerait un logiciel vide : ce n’est pas le bon fichier. Relancez <b>RECUPERER-MES-DONNEES.bat</b> (il écrit maintenant plusieurs fichiers, le n° 1 étant le plus complet) ou choisissez une sauvegarde plus ancienne.</div>'
+    : '<div class="notice info" style="margin:0 0 12px">Le fichier « <b>'+esc(fileName||'')+'</b> » contient '+RECOVER.length+' base'+(RECOVER.length>1?'s':'')+'. La plus complète est proposée en premier : vérifiez le nombre de classes et d’élèves avant de restaurer.</div>';
+  return '<h2>Contenu du fichier</h2>'+alert+
+    '<div class="tw"><table class="t"><thead><tr><th>Emplacement</th><th>Contenu</th><th>Établissement</th><th>État</th><th class="right">Action</th></tr></thead><tbody>'+rows+'</tbody></table></div>'+
+    '<p class="small muted" style="margin:12px 0 0">La restauration remplace les données actuelles, puis renvoie à l’écran de connexion. Exportez d’abord une sauvegarde si vous avez un doute.</p>'+
+    '<div class="acts"><button class="btn" data-act="mclose">Annuler</button></div>';
+}
+
 /* Construit et télécharge une sauvegarde complète. Renvoie le nom du fichier
    et son contenu pour le message affiché. */
 function downloadBackup(prefix){
@@ -6471,6 +6570,21 @@ function autoBackupTick(){
     try{localStorage.setItem(AUTO_BACKUP_KEY,day)}catch(e){}
   }catch(e){}
 }
+A['recover-start']=()=>{
+  if(!isAdmin())return toast('Seul l’administrateur peut restaurer des données.','err');
+  openRecoveryImport();
+};
+A['recover-use']=el=>{
+  const c=RECOVER[Number(el.dataset.i)];
+  if(!c)return toast('Choix introuvable : recommencez l’import.','err');
+  const rc=backupCounts(c.db);
+  if(!c.db.users.some(u=>u&&u.role==='admin'))return toast('Cette base ne contient aucun compte administrateur : elle rendrait le logiciel inaccessible.','err');
+  askConfirm('Restaurer ces données ?',
+    dbSummaryLine(c.db)+'.<br>'+(c.db.school&&c.db.school.name?'Établissement : <b>'+esc(c.db.school.name)+'</b>. ':'')+
+    'Les données actuelles seront remplacées et vous serez renvoyé à l’écran de connexion.'+
+    ((!rc.classes&&!rc.students)?'<br><br><b>Cette base est vide.</b>':''),
+    'Restaurer',()=>{RECOVER=[];applyRestoredDb(c.db)},true);
+};
 A['restore-start']=()=>{openModal('<h2>Restaurer une sauvegarde</h2><p>Choisissez un fichier de sauvegarde (.json). '+(DB.users.length?'<b>Toutes les données actuelles seront remplacées.</b>':'')+'</p><input type="file" accept=".json,application/json" data-file="restore" class="inp"><div class="err" id="fe"></div><div class="acts"><button class="btn" data-act="mclose">Annuler</button></div>')};
 A['merge-start']=()=>{openModal('<h2>Importer un fichier de notes</h2><p>Choisissez un fichier « notes_… .json » exporté par un enseignant. Les notes saisies sont ajoutées à la classe et à la matière correspondantes ; les cases vides du fichier ne remplacent rien.</p><input type="file" accept=".json,application/json" data-file="merge" class="inp"><div class="err" id="fe"></div><div class="acts"><button class="btn" data-act="mclose">Annuler</button></div>')};
 A.wipe=()=>{
@@ -6941,15 +7055,25 @@ function handleFile(el){
     if(kind==='restore'){
       /* Anciennes sauvegardes : le fichier EST la base. Nouvelles : enveloppe
          {app:'gestschool',data:…}. Les sauvegardes faites avant le changement
-         de nom ({app:'e-school'}) restent acceptées. */
-      if(d&&(d.app==='gestschool'||d.app==='e-school')&&d.data&&d.data.school)d=d.data;
-      if(!d||!d.school||!Array.isArray(d.users)||!Array.isArray(d.classes)||!d.users.some(u=>u.role==='admin'))return bad('Ce fichier n’est pas une sauvegarde complète de cette application.');
-      const rc0=backupCounts(d);
-      askConfirm('Restaurer cette sauvegarde ?','Elle contient '+rc0.students+' élève'+(rc0.students>1?'s':'')+', '+rc0.classes+' classe'+(rc0.classes>1?'s':'')+' et '+rc0.sessions+' session'+(rc0.sessions>1?'s':'')+' précédente'+(rc0.sessions>1?'s':'')+'. Les données actuelles seront remplacées.','Restaurer',()=>{
-      stripLegacyFlags(d);DB=d;if(!Array.isArray(DB.archivedStudents))DB.archivedStudents=[];if(!Array.isArray(DB.trash))DB.trash=[];if(!Array.isArray(DB.sessions))DB.sessions=[];if(!DB.finance||typeof DB.finance!=='object')DB.finance={fees:{},pays:{},updatedAt:''};else{if(!DB.finance.fees||typeof DB.finance.fees!=='object')DB.finance.fees={};if(!DB.finance.pays||typeof DB.finance.pays!=='object')DB.finance.pays={}};calcCache={};S.sessionId=null;S.closeState=null;S.simulationState=null;try{repairMatricules();upgradeLegacyMatricules()}catch(e){}saveNow();closeModal();ME=null;try{sessionStorage.removeItem(SKEY)}catch(e){}render();
-      const rc=backupCounts(DB);
-      toast('Sauvegarde restaurée : '+rc.students+' élève'+(rc.students>1?'s':'')+', '+rc.classes+' classe'+(rc.classes>1?'s':'')+', '+rc.sessions+' session'+(rc.sessions>1?'s':'')+' précédente'+(rc.sessions>1?'s':'')+'. Connectez-vous.','ok');
-      },true);
+         de nom ({app:'e-school'}) restent acceptées. Un fichier de récupération
+         peut aussi contenir plusieurs bases : on prend la plus complète. */
+      const cands=dbCandidates(d).sort((a,b)=>dbScore(b.db)-dbScore(a.db));
+      if(!cands.length)return bad('Ce fichier ne contient aucune base reconnue : ni classe, ni compte. Essayez « Importer un fichier de récupération » pour voir son contenu.');
+      const best=cands[0].db;
+      if(!best.users.some(u=>u&&u.role==='admin'))return bad('Ce fichier ne contient aucun compte administrateur : la restauration rendrait le logiciel inaccessible.');
+      const rc0=backupCounts(best);
+      const vide=!rc0.classes&&!rc0.students;
+      askConfirm('Restaurer cette sauvegarde ?',
+        'Elle contient '+rc0.students+' élève'+(rc0.students>1?'s':'')+', '+rc0.classes+' classe'+(rc0.classes>1?'s':'')+', '+rc0.users+' compte'+(rc0.users>1?'s':'')+' et '+rc0.sessions+' session'+(rc0.sessions>1?'s':'')+' précédente'+(rc0.sessions>1?'s':'')+'. Les données actuelles seront remplacées.'+
+        (vide?'<br><br><b>Attention : ce fichier ne contient aucune classe ni aucun élève.</b> La restauration donnerait un logiciel vide. Est-ce bien le fichier voulu ?':''),
+        'Restaurer',()=>applyRestoredDb(best),true);
+    }else if(kind==='recover'){
+      /* Fichier de récupération : on montre son contenu, on ne restaure rien
+         tant que l'utilisateur n'a pas choisi et confirmé. */
+      const cands=dbCandidates(d).sort((a,b)=>dbScore(b.db)-dbScore(a.db));
+      if(!cands.length)return bad('Aucune base de données reconnue dans ce fichier (aucun élève, aucune classe). Relancez RECUPERER-MES-DONNEES.bat : il écrit maintenant plusieurs fichiers, le n° 1 étant le plus complet.');
+      RECOVER=cands;
+      openModal(recoveryChoiceHtml(file.name||''),'xl');
     }else if(kind==='merge'){
       if(!d||d.type!=='mbi-notes'||!Array.isArray(d.classes))return bad('Ce fichier n’est pas un fichier de notes exporté par un enseignant.');
       let n=0,skipped=0;

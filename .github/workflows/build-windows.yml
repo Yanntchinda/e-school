@@ -154,7 +154,15 @@ jobs:
               `Documents\GestSchool-Sauvegardes` puis redemarre avec les donnees choisies.
             - Outil de secours **RECUPERER-MES-DONNEES.bat** (joint ci-dessous), utile si le
               logiciel ne demarre pas : il ne supprime rien, copie l'ancienne base sur le
-              Bureau puis la remet en place. Mode d'emploi : RECUPERER-MES-DONNEES.md.
+              Bureau puis la remet en place. Il classe desormais toutes les bases trouvees
+              de la plus complete a la plus vide et ecrit un fichier .json par base
+              (DONNEES-1_LA-PLUS-COMPLETE...), avec LISEZ-MOI.txt et RAPPORT.txt.
+            - **Parametres > Importer un fichier de recuperation (.json)...** : le logiciel
+              affiche avant toute restauration le nombre de classes, d'eleves et de comptes
+              contenus dans le fichier. Une base vide est signalee en rouge au lieu d'etre
+              restauree silencieusement ; une base sans administrateur est refusee.
+              Correctif : un fichier .json vide ne peut plus donner un logiciel vide sans
+              explication.
 
             En cas de logiciel vide apres une mise a jour : ouvrir GestSchool puis
             **Aide > Recuperer les donnees d'une ancienne version...**.

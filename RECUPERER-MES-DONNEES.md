@@ -40,11 +40,23 @@ Il ne supprime rien et :
 - cherche dans l'ancien dossier, le dossier actuel **et** Chrome / Edge / Brave ;
 - copie tout ce qu'il trouve dans un dossier du Bureau
   (`GestSchool-recuperation-date`) ;
-- remet l'ancienne base en place dans GestSchool ;
-- fabrique, si possible, un fichier `DONNEES-RECUPEREES_….json` restaurable ;
+- **classe toutes les bases trouvées** de la plus complète à la plus vide : un
+  ordinateur en contient souvent plusieurs (celle d'avant la mise à jour, et
+  celle — vide — écrite après). Le programme écrit un fichier par base :
+  `DONNEES-1_LA-PLUS-COMPLETE_…json`, `DONNEES-2_…json`, … ;
+- **remet en place la base la plus complète** (et remplace le dossier actuel
+  s'il ne contient aucune classe) ;
 - retrouve les anciennes sauvegardes `.json` (Bureau, Téléchargements,
   Documents, OneDrive) et les copie au même endroit ;
-- écrit un `RAPPORT.txt` avec tout ce qu'il a trouvé.
+- dépose un `LISEZ-MOI.txt` et un `RAPPORT.txt` avec tout ce qu'il a trouvé.
+
+> **Si un fichier `.json` ne restaure rien** : c'est presque toujours une base
+> vide (le programme prenait autrefois le dossier le plus récent au lieu du plus
+> complet). La version actuelle écrit plusieurs fichiers, numérotés du plus
+> complet au plus vide. Dans le logiciel, **Paramètres → Importer un fichier de
+> récupération (.json)…** affiche, avant toute restauration, le nombre de
+> classes, d'élèves et de comptes contenus dans le fichier : si c'est « 0
+> classe / 0 élève », choisissez le fichier suivant.
 
 ## Méthode 3 — à la main, sans aucun programme
 
@@ -52,6 +64,21 @@ Il ne supprime rien et :
 2. Renommez `GestSchool` en `GestSchool-vide`.
 3. Renommez `e-School Gestion Bulletins` en `GestSchool`.
 4. Relancez GestSchool.
+
+## Méthode 3 bis — importer un fichier sans rien risquer
+
+**Paramètres → Importer un fichier de récupération (.json)…**
+
+Le logiciel lit le fichier, en extrait **toutes** les bases qu'il contient (un
+fichier peut en renfermer plusieurs) et les présente dans un tableau : classes,
+élèves, comptes, notes, versements, nom de l'établissement. La plus complète est
+proposée en premier. Vous ne restaurez que ce que vous avez vu.
+
+- un fichier vide est signalé en rouge (« aucune classe ni aucun élève ») ;
+- une base sans compte administrateur est refusée (elle rendrait le logiciel
+  inaccessible) ;
+- la restauration remplace les données actuelles, puis renvoie à l'écran de
+  connexion.
 
 ## Méthode 4 — restaurer une sauvegarde `.json`
 

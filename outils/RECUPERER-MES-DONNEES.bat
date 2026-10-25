@@ -30,8 +30,9 @@ exit /b %RC%
 #       « GestSchool », et navigateurs (Chrome, Edge, Brave) si l'ancienne
 #       version a ete ouverte en double-cliquant sur le fichier .html ;
 #    2. en fait une copie de securite sur le Bureau ;
-#    3. remet l'ancienne base dans le dossier utilise par GestSchool ;
-#    4. fabrique, si possible, un fichier de sauvegarde .json restaurable ;
+#    3. classe TOUTES les bases trouvees de la plus complete a la plus vide
+#       et ecrit un fichier .json par base ;
+#    4. remet en place la base la plus complete ;
 #    5. retrouve les anciennes sauvegardes .json deja exportees.
 #  Double-cliquer sur RECUPERER-MES-DONNEES.bat pour l'executer.
 # ==========================================================================
@@ -46,6 +47,7 @@ $desk = [Environment]::GetFolderPath('Desktop')
 if (-not $desk -or -not (Test-Path -LiteralPath $desk)) { $desk = [Environment]::GetFolderPath('MyDocuments') }
 $outDir = Join-Path $desk ('GestSchool-recuperation-' + $stamp)
 $global:GS_LINES = New-Object System.Collections.Generic.List[string]
+$global:GS_MAXJSON = 6
 
 function Say {
   param([string]$Text = '')
@@ -63,6 +65,12 @@ function ArrCount {
   param($Value)
   if ($null -eq $Value) { return 0 }
   return @($Value).Count
+}
+
+function PropExists {
+  param($Obj, [string]$Name)
+  if ($null -eq $Obj) { return $false }
+  return ($null -ne $Obj.PSObject.Properties[$Name])
 }
 
 function Storage-HasData {
@@ -125,10 +133,51 @@ function Get-JsonAt {
   return $null
 }
 
-function Find-DbObject {
+# Statistiques d'une base : sert a classer les bases trouvees. La plus
+# complete (celle qui a le plus d'eleves) est proposee en premier.
+function Get-DbStats {
+  param($Obj)
+  $classes = 0
+  $students = 0
+  $grades = 0
+  $payments = 0
+  $expenses = 0
+  foreach ($c in @($Obj.classes)) {
+    if ($null -eq $c) { continue }
+    $classes = $classes + 1
+    $students = $students + (ArrCount $c.students)
+    if ((PropExists $c 'grades') -and $null -ne $c.grades) {
+      foreach ($g in @($c.grades.PSObject.Properties)) {
+        foreach ($sub in @($g.Value.PSObject.Properties)) {
+          foreach ($v in @($sub.Value)) { if ($null -ne $v -and "$v" -ne '') { $grades = $grades + 1 } }
+        }
+      }
+    }
+  }
+  if ((PropExists $Obj 'finance') -and $null -ne $Obj.finance) {
+    if ((PropExists $Obj.finance 'pays') -and $null -ne $Obj.finance.pays) {
+      foreach ($p in @($Obj.finance.pays.PSObject.Properties)) { $payments = $payments + (ArrCount $p.Value) }
+    }
+    if (PropExists $Obj.finance 'expenses') { $expenses = ArrCount $Obj.finance.expenses }
+  }
+  $users = ArrCount $Obj.users
+  $archived = ArrCount $Obj.archivedStudents
+  $sessions = ArrCount $Obj.sessions
+  $score = ($students * 1000) + ($classes * 200) + ($payments * 3) + $expenses + ($archived * 5)
+  return [pscustomobject]@{
+    classes = $classes; students = $students; grades = $grades; payments = $payments
+    expenses = $expenses; users = $users; archived = $archived; sessions = $sessions
+    score = $score
+  }
+}
+
+# Toutes les bases presentes dans un dossier de donnees (il peut y en avoir
+# plusieurs : la base d'avant la mise a jour et celle, vide, ecrite apres).
+function Find-DbObjects {
   param([string]$Dir)
+  $out = @()
   $ls = Join-Path $Dir 'Local Storage\leveldb'
-  if (-not (Test-Path -LiteralPath $ls)) { return $null }
+  if (-not (Test-Path -LiteralPath $ls)) { return $out }
   $files = @(Get-ChildItem -LiteralPath $ls -File -ErrorAction SilentlyContinue | Where-Object { $_.Name -match '\.(ldb|log)$' } | Sort-Object LastWriteTime -Descending)
   foreach ($f in $files) {
     if ($f.Length -lt 100) { continue }
@@ -139,51 +188,36 @@ function Find-DbObject {
       [Text.Encoding]::Unicode.GetString($bytes)
     )
     foreach ($t in $texts) {
-      $found = [regex]::Matches($t, '\{"v":\s*\d+,')
-      foreach ($m in $found) {
+      foreach ($m in [regex]::Matches($t, '\{"v":\s*\d+,')) {
         $json = Get-JsonAt -Text $t -Start $m.Index
         if (-not $json) { continue }
         $o = $null
         try { $o = $json | ConvertFrom-Json } catch { $o = $null }
         if ($null -eq $o) { continue }
-        if ($null -eq $o.PSObject.Properties['school']) { continue }
-        if ($null -eq $o.PSObject.Properties['users']) { continue }
-        if ($null -eq $o.PSObject.Properties['classes']) { continue }
+        if (-not (PropExists $o 'school')) { continue }
+        if (-not (PropExists $o 'users')) { continue }
+        if (-not (PropExists $o 'classes')) { continue }
         $admins = 0
         foreach ($u in @($o.users)) { if ($u -ne $null -and $u.role -eq 'admin') { $admins = $admins + 1 } }
         if ($admins -lt 1) { continue }
-        return $o
+        $out = $out + [pscustomobject]@{ Obj = $o; Json = $json; Dir = $Dir; File = $f.Name; When = $f.LastWriteTime }
       }
     }
   }
-  return $null
+  return $out
 }
 
 function Save-BackupJson {
   param($Obj, [string]$Path)
-  $classes = 0
-  $students = 0
-  $payments = 0
-  $expenses = 0
-  foreach ($c in @($Obj.classes)) {
-    if ($null -eq $c) { continue }
-    $classes = $classes + 1
-    $students = $students + (ArrCount $c.students)
-  }
-  if ($null -ne $Obj.PSObject.Properties['finance'] -and $null -ne $Obj.finance) {
-    if ($null -ne $Obj.finance.PSObject.Properties['pays'] -and $null -ne $Obj.finance.pays) {
-      foreach ($p in $Obj.finance.pays.PSObject.Properties) { $payments = $payments + (ArrCount $p.Value) }
-    }
-    if ($null -ne $Obj.finance.PSObject.Properties['expenses']) { $expenses = ArrCount $Obj.finance.expenses }
-  }
+  $st = Get-DbStats -Obj $Obj
   $counts = [ordered]@{
-    classes  = $classes
-    students = $students
-    payments = $payments
-    expenses = $expenses
-    archived = (ArrCount $Obj.archivedStudents)
-    sessions = (ArrCount $Obj.sessions)
-    users    = (ArrCount $Obj.users)
+    classes  = $st.classes
+    students = $st.students
+    payments = $st.payments
+    expenses = $st.expenses
+    archived = $st.archived
+    sessions = $st.sessions
+    users    = $st.users
   }
   $pack = [ordered]@{
     app         = 'gestschool'
@@ -199,7 +233,7 @@ function Save-BackupJson {
   }
   $text = $pack | ConvertTo-Json -Depth 100 -Compress
   [IO.File]::WriteAllText($Path, $text, (New-Object System.Text.UTF8Encoding($false)))
-  return $counts
+  return $st
 }
 
 function Copy-Store {
@@ -262,6 +296,17 @@ function Get-BrowserProfiles {
   return $list
 }
 
+function New-DbFile {
+  param($Candidate, [int]$Rank, [string]$OutDir)
+  $st = Get-DbStats -Obj $Candidate.Obj
+  $name = 'DONNEES-' + $Rank
+  if ($Rank -eq 1) { $name = $name + '_LA-PLUS-COMPLETE' }
+  $name = $name + '_' + $st.classes + 'classes_' + $st.students + 'eleves.json'
+  $path = Join-Path $OutDir $name
+  $saved = Save-BackupJson -Obj $Candidate.Obj -Path $path
+  return [pscustomobject]@{ Path = $path; Name = $name; Stats = $saved }
+}
+
 # --------------------------------------------------------------------------
 Say '=========================================================='
 Say '   GestSchool - recuperation des donnees'
@@ -313,11 +358,12 @@ foreach ($d in @(Get-ChildItem -LiteralPath $roaming -Directory -ErrorAction Sil
   }
 }
 $browserProfiles = @(Get-BrowserProfiles -LocalApp $localApp)
-foreach ($b in $browserProfiles) { $profiles = $profiles + $b.Path }
-$profiles = @($profiles | Select-Object -Unique)
-
 $browserName = @{}
-foreach ($b in $browserProfiles) { $browserName[$b.Path] = $b.Browser }
+foreach ($b in $browserProfiles) {
+  $profiles = $profiles + $b.Path
+  $browserName[$b.Path] = $b.Browser
+}
+$profiles = @($profiles | Select-Object -Unique)
 
 if ($profiles.Count -eq 0) {
   Say '  Aucun dossier de donnees trouve.'
@@ -355,39 +401,62 @@ foreach ($p in $profiles) {
   Say ('  ' + $p + '  ->  ' + $copied + ' sous-dossier(s) copie(s)')
 }
 
-Head '3. Base de donnees retrouvee'
-$withData = @($profiles | Where-Object { Storage-HasData -Dir $_ } | Sort-Object { Storage-Newest -Dir $_ } -Descending)
-if ($withData.Count -eq 0) {
+Head '3. Bases retrouvees, de la plus complete a la plus vide'
+$all = @()
+foreach ($p in $profiles) {
+  if (-not (Storage-HasData -Dir $p)) { continue }
+  $all = $all + @(Find-DbObjects -Dir $p)
+}
+$seen = @{}
+$uniq = @()
+foreach ($c in $all) {
+  $h = ''
+  try {
+    $sha = [System.Security.Cryptography.SHA1]::Create()
+    $h = [BitConverter]::ToString($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes($c.Json))).Replace('-', '')
+  } catch { $h = $c.Json.Length.ToString() + '|' + $c.File }
+  if ($seen.ContainsKey($h)) { continue }
+  $seen[$h] = $true
+  $st = Get-DbStats -Obj $c.Obj
+  $c | Add-Member -NotePropertyName Stats -NotePropertyValue $st -Force
+  $c | Add-Member -NotePropertyName Score -NotePropertyValue $st.score -Force
+  $uniq = $uniq + $c
+}
+$ranked = @($uniq | Sort-Object Score -Descending)
+
+if ($ranked.Count -eq 0) {
   Say '  Aucune base GestSchool / e-School identifiable sur cet ordinateur.'
 } else {
-  foreach ($p in $withData) {
+  $rank = 0
+  foreach ($c in $ranked) {
+    $rank = $rank + 1
     $who = 'logiciel'
-    if ($browserName.ContainsKey($p)) { $who = 'navigateur ' + $browserName[$p] }
-    Say ('  ' + (Storage-Newest -Dir $p).ToString('dd/MM/yyyy HH:mm') + '  ' + $who + '  ' + $p)
+    if ($browserName.ContainsKey($c.Dir)) { $who = 'navigateur ' + $browserName[$c.Dir] }
+    $nm = ''
+    if ((PropExists $c.Obj.school) -and $c.Obj.school.name) { $nm = ' - ' + [string]$c.Obj.school.name }
+    Say ('  ' + $rank + '. ' + $c.Stats.classes + ' classe(s), ' + $c.Stats.students + ' eleve(s), ' + $c.Stats.users + ' compte(s), ' + $c.Stats.payments + ' versement(s)  [' + $who + ']' + $nm)
   }
 }
 
-$best = $null
-if ($withData.Count -gt 0) { $best = $withData[0] }
-$jsonPath = ''
-$counts = $null
-$extractOk = $false
-if ($best) {
-  $db = Find-DbObject -Dir $best
-  if ($null -ne $db) {
-    $jsonPath = Join-Path $outDir ('DONNEES-RECUPEREES_' + $stamp + '.json')
-    try { $counts = Save-BackupJson -Obj $db -Path $jsonPath; $extractOk = $true } catch { $counts = $null; $jsonPath = '' }
+$files = @()
+if ($ranked.Count -gt 0) {
+  $rank = 0
+  foreach ($c in $ranked) {
+    $rank = $rank + 1
+    if ($rank -gt $global:GS_MAXJSON) { break }
+    if ($c.Stats.students -le 0 -and $c.Stats.classes -le 0) { continue }
+    try {
+      $made = New-DbFile -Candidate $c -Rank $rank -OutDir $outDir
+      $files = $files + $made
+      Say ''
+      Say ('  Fichier ecrit : ' + $made.Path)
+      Say ('      ' + $made.Stats.classes + ' classe(s), ' + $made.Stats.students + ' eleve(s), ' + $made.Stats.users + ' compte(s)')
+    } catch { Say ('  Ecriture impossible du fichier n' + [char]176 + ' ' + $rank + ' : ' + $_.Exception.Message) }
   }
 }
-if ($extractOk) {
+if ($files.Count -eq 0) {
   Say ''
-  Say ('  Etablissement : ' + $counts['classes'] + ' classe(s), ' + $counts['students'] + ' eleve(s), ' + $counts['users'] + ' compte(s), ' + $counts['payments'] + ' versement(s).')
-  Say ('  Fichier de sauvegarde cree : ' + $jsonPath)
-} elseif ($best) {
-  Say ''
-  Say '  La base est bien la, mais elle est compressee par le logiciel :'
-  Say '  elle ne peut pas etre transformee en fichier .json.'
-  Say '  C est normal : l etape 4 la remet directement en place.'
+  Say '  Aucun fichier .json n a pu etre ecrit (les bases trouvees sont vides).'
 }
 
 Head '4. Remise en place dans GestSchool'
@@ -397,28 +466,46 @@ if (-not (Test-Path -LiteralPath $target)) {
   try { New-Item -ItemType Directory -Force -Path $target | Out-Null } catch { }
 }
 $targetHas = Storage-HasData -Dir $target
-$sources = @($withData | Where-Object { $_ -ne $target })
-
+$targetStats = $null
 if ($targetHas) {
-  $alreadyHad = $true
-  Say '  Le dossier actuel de GestSchool contient deja une base : rien n a ete remplace.'
-  Say '  Ouvrez GestSchool : vos donnees devraient s afficher.'
-  Say '  Si vous voulez plutot remettre une autre version des donnees, utilisez le'
-  Say '  fichier .json de l etape 3 : GestSchool > Parametres > Restaurer une sauvegarde.'
-} elseif ($sources.Count -gt 0) {
-  foreach ($src in $sources) {
-    $who = 'dossier ' + $src
-    if ($browserName.ContainsKey($src)) { $who = 'navigateur ' + $browserName[$src] }
-    Say ('  Copie depuis : ' + $who)
-    $localOnly = $browserName.ContainsKey($src)
-    if (Copy-Store -From $src -To $target -LocalStorageOnly:$localOnly) {
+  $tCands = @(Find-DbObjects -Dir $target)
+  if ($tCands.Count -gt 0) {
+    $targetBest = $tCands | Sort-Object { (Get-DbStats -Obj $_.Obj).score } -Descending | Select-Object -First 1
+    $targetStats = Get-DbStats -Obj $targetBest.Obj
+  }
+}
+$sourceBest = $null
+if ($ranked.Count -gt 0) { $sourceBest = $ranked[0] }
+if ($null -ne $sourceBest -and $sourceBest.Dir -eq $target) { $sourceBest = $null }
+
+if ($null -ne $sourceBest -and $null -ne $targetStats) {
+  $sStats = $sourceBest.Stats
+  if (($sStats.score -gt $targetStats.score) -and ($targetStats.students -eq 0) -and ($targetStats.classes -eq 0)) {
+    Say '  Le dossier actuel ne contient aucune classe : il sera remplace.'
+    $moved = Join-Path $outDir 'dossier-actuel-avant-remise-en-place'
+    try { Copy-Item -LiteralPath (Join-Path $target 'Local Storage') -Destination (Join-Path $moved 'Local Storage') -Recurse -Force -ErrorAction SilentlyContinue } catch { }
+    if (Copy-Store -From $sourceBest.Dir -To $target -LocalStorageOnly:($browserName.ContainsKey($sourceBest.Dir))) {
       $restored = $true
-      Say ('      -> donnees remises dans ' + $target)
-      break
+      Say ('      -> donnees remises en place : ' + $sStats.classes + ' classe(s), ' + $sStats.students + ' eleve(s)')
     } else {
       Say '      -> copie impossible (fichier verrouille ?)'
     }
+  } else {
+    Say '  Le dossier actuel contient deja des donnees (' + $targetStats.classes + ' classe(s), ' + $targetStats.students + ' eleve(s)) : rien n a ete remplace.'
   }
+} elseif ($null -ne $sourceBest) {
+  $sStats = $sourceBest.Stats
+  Say ('  Copie de la base la plus complete (' + $sStats.classes + ' classe(s), ' + $sStats.students + ' eleve(s))')
+  if (Copy-Store -From $sourceBest.Dir -To $target -LocalStorageOnly:($browserName.ContainsKey($sourceBest.Dir))) {
+    $restored = $true
+    Say ('      -> donnees remises dans ' + $target)
+  } else {
+    Say '      -> copie impossible (fichier verrouille ?)'
+  }
+} elseif ($targetHas) {
+  $alreadyHad = $true
+  Say '  Une base est deja en place dans GestSchool.'
+  Say '  Ouvrez GestSchool : vos donnees devraient s afficher.'
 } else {
   Say '  Aucune base a remettre en place.'
 }
@@ -444,23 +531,47 @@ if ($backups.Count -eq 0) {
   Say ('  ' + $backups.Count + ' fichier(s) copie(s) dans le dossier de recuperation.')
 }
 
+# Petit mode d'emploi depose a cote des fichiers
+try {
+  $readme = @(
+    'GestSchool - donnees recuperees',
+    '',
+    'Les fichiers DONNEES-1_..., DONNEES-2_... de ce dossier contiennent les bases',
+    'trouvees sur cet ordinateur, de la plus complete (n 1) a la plus vide.',
+    '',
+    'Pour les remettre dans le logiciel :',
+    '  1. Ouvrez GestSchool.',
+    '  2. Menu Parametres > Importer un fichier de recuperation (.json)...',
+    '  3. Choisissez DONNEES-1_LA-PLUS-COMPLETE_....json',
+    '  4. Le logiciel affiche le nombre de classes, d''eleves et de comptes :',
+    '     si cela correspond, cliquez sur Restaurer.',
+    '',
+    'Si le fichier n 1 est vide, essayez le n 2, puis le n 3.',
+    'Le fichier RAPPORT.txt contient le detail de ce qui a ete trouve.'
+  ) -join "`r`n"
+  [IO.File]::WriteAllText((Join-Path $outDir 'LISEZ-MOI.txt'), $readme, (New-Object System.Text.UTF8Encoding($true)))
+} catch { }
+
 # --------------------------------------------------------------------------
 $finalHas = Storage-HasData -Dir $target
 Say ''
 Say '=========================================================='
-if ($finalHas) {
+if ($restored -or $finalHas) {
   Say '   VOS DONNEES SONT EN PLACE.'
   Say ''
   Say '   1. Fermez cette fenetre.'
   Say '   2. Ouvrez GestSchool (icone du Bureau ou du menu Demarrer).'
   Say '   3. Vos classes, eleves, notes et finances doivent apparaitre.'
   if (-not $restored) { Say '' ; Say '   (Le dossier contenait deja une base : rien n a ete ecrase.)' }
-} elseif ($extractOk) {
-  Say '   SAUVEGARDE RETROUVEE, A RESTAURER DANS LE LOGICIEL.'
+} elseif ($files.Count -gt 0) {
+  Say '   DONNEES RETROUVEES DANS UN FICHIER, A IMPORTER DANS LE LOGICIEL.'
   Say ''
   Say '   1. Ouvrez GestSchool.'
-  Say '   2. Parametres > Restaurer une sauvegarde...'
-  Say ('   3. Choisissez : ' + $jsonPath)
+  Say '   2. Parametres > Importer un fichier de recuperation (.json)...'
+  Say ('   3. Choisissez : ' + $files[0].Name)
+  Say '      (le logiciel affiche le nombre de classes et d''eleves avant de restaurer)'
+  Say ''
+  Say '   Si ce fichier est vide, essayez DONNEES-2, DONNEES-3...'
 } else {
   Say '   AUCUNE DONNEE RETROUVEE AUTOMATIQUEMENT.'
   Say ''
