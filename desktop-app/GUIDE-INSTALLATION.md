@@ -143,7 +143,24 @@ Il faut Node.js (gratuit) et une connexion internet la premiere fois.
 | Windows bloque l'installateur | Non signe numeriquement | **Executer quand meme** |
 | Fenetre blanche au lancement | `app/index.html` absent de l'installation | Reinstaller avec le dernier installateur |
 | L'imprimante n'apparait pas | Pilote absent | Installer l'imprimante dans Windows d'abord |
-| Donnees perdues apres reinstallation | Dossier `%APPDATA%` efface | Restaurer depuis une sauvegarde `.json` |
+| Logiciel vide apres une mise a jour | Le dossier du nouveau nom existait deja, vide | Lancer `outils/RECUPERER-MES-DONNEES.bat` (voir `RECUPERER-MES-DONNEES.md`) : il remet l'ancienne base en place sans rien supprimer |
+| Donnees perdues apres reinstallation | Dossier de donnees efface | Restaurer depuis `Documents\GestSchool-Sauvegardes` ou une sauvegarde `.json` |
+
+---
+
+## Mise a jour sans perte de donnees
+
+Les donnees ne sont pas dans le dossier d'installation (remplace a chaque
+version) mais dans `%APPDATA%\GestSchool` (ancien nom : `%APPDATA%\e-School
+Gestion Bulletins`). Desinstaller ou reinstaler ne les efface donc pas, et
+`deleteAppDataOnUninstall` reste a `false`.
+
+Depuis cette version, le logiciel verifie au demarrage que le dossier du nom
+actuel contient reellement la base ; sinon il reprend l'ancien dossier (copie,
+sans rien effacer). Une sauvegarde complete est en plus deposee chaque jour
+dans `Documents\GestSchool-Sauvegardes` (40 dernieres conservees).
+
+En cas de doute : `RECUPERER-MES-DONNEES.md` a la racine du depot.
 
 ---
 

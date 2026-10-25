@@ -3930,6 +3930,7 @@ function schoolHtml(){
    '<p class="small muted" style="margin-bottom:0">Avec <b>mon serveur GestSchool</b> : lancez <code>python3 server/gestschool-server.py</code> sur un poste du réseau, puis indiquez ici son adresse et le même code d’école partout. Avec <b>Supabase</b> : exécutez <code>supabase/01-schema.sql</code> une fois, puis collez l’URL et la clé anon. Dans les deux cas, les mêmes informations doivent être saisies sur chaque poste.</p></div>'+
   '<div class="panel"><h3>Sauvegarde de toutes les données</h3><p style="margin-top:0">Un seul fichier contient <b>tout le programme</b> : classes, élèves, notes, appréciations et leçons, finances (montants et versements), élèves archivés, <b>sessions précédentes</b>, utilisateurs et réglages (en-tête et logo). Il se réimporte plus tard, sur cet ordinateur ou sur un autre.</p>'+
    '<div class="toolbar"><button class="btn primary" data-act="backup">Sauvegarder toutes les données…</button><button class="btn" data-act="restore-start">Restaurer une sauvegarde…</button></div>'+
+   '<p class="small muted"><b>Sauvegarde automatique :</b> dans l’application Windows, une sauvegarde complète est aussi déposée chaque jour, sans rien demander, dans <code>Documents\\GestSchool-Sauvegardes</code> (menu <b>Aide → Sauvegardes automatiques</b>). Les 40 dernières sont conservées.</p>'+
    '<p class="small muted">Le fichier porte une date et une heure (ex. <code>sauvegarde-gestschool_…_2026-10-24_14h30.json</code>). Gardez-le à l’abri : il contient les notes et les coordonnées des familles. Une restauration remplace les données présentes après confirmation.</p>'+
    '<p class="small muted"><b>Plusieurs ordinateurs :</b> envoyez la sauvegarde aux enseignants, qui la restaurent chez eux, saisissent leurs notes puis utilisent « Exporter mes notes » (onglet Notes). Importez ensuite chaque fichier ci-dessous pour fusionner les notes.</p>'+
    '<div class="toolbar"><button class="btn" data-act="merge-start">Importer un fichier de notes d’enseignant…</button></div></div>'+
@@ -6085,6 +6086,28 @@ A.backup=()=>{
   download(name,JSON.stringify(pack),'application/json;charset=utf-8');
   toast('Sauvegarde complète exportée : '+c.students+' élève'+(c.students>1?'s':'')+', '+c.classes+' classe'+(c.classes>1?'s':'')+', '+c.sessions+' session'+(c.sessions>1?'s':'')+' précédente'+(c.sessions>1?'s':'')+', '+c.payments+' versement'+(c.payments>1?'s':'')+'.','ok');
 };
+/* Sauvegarde automatique quotidienne : dans l'application Windows, le fichier
+   est déposé par le programme dans Documents\GestSchool-Sauvegardes sans
+   aucune fenêtre (voir main.js). Dans un simple navigateur, rien n'est écrit
+   tout seul : le bouton « Sauvegarder toutes les données » reste la référence. */
+const AUTO_BACKUP_KEY='mbi_autobackup_v1';
+function isDesktopApp(){try{return /Electron/i.test(navigator.userAgent||'')}catch(e){return false}}
+function autoBackupTick(){
+  try{
+    if(!isDesktopApp())return;
+    if(!DB.users||!DB.users.length)return;
+    const c=backupCounts();
+    if(!c.classes&&!c.students&&!c.archived)return;
+    const day=todayISO();
+    try{if(localStorage.getItem(AUTO_BACKUP_KEY)===day)return}catch(e){}
+    const pack={app:'gestschool',format:2,
+      exported_at:new Date().toISOString(),
+      school:{name:(DB.school&&DB.school.name)||'',city:(DB.school&&DB.school.city)||'',year:(DB.school&&DB.school.year)||''},
+      counts:c,data:DB};
+    download('auto-sauvegarde-gestschool_'+day+'.json',JSON.stringify(pack),'application/json;charset=utf-8');
+    try{localStorage.setItem(AUTO_BACKUP_KEY,day)}catch(e){}
+  }catch(e){}
+}
 A['restore-start']=()=>{openModal('<h2>Restaurer une sauvegarde</h2><p>Choisissez un fichier de sauvegarde (.json). '+(DB.users.length?'<b>Toutes les données actuelles seront remplacées.</b>':'')+'</p><input type="file" accept=".json,application/json" data-file="restore" class="inp"><div class="err" id="fe"></div><div class="acts"><button class="btn" data-act="mclose">Annuler</button></div>')};
 A['merge-start']=()=>{openModal('<h2>Importer un fichier de notes</h2><p>Choisissez un fichier « notes_… .json » exporté par un enseignant. Les notes saisies sont ajoutées à la classe et à la matière correspondantes ; les cases vides du fichier ne remplacent rien.</p><input type="file" accept=".json,application/json" data-file="merge" class="inp"><div class="err" id="fe"></div><div class="acts"><button class="btn" data-act="mclose">Annuler</button></div>')};
 A.wipe=()=>{
@@ -6591,6 +6614,9 @@ function bootApp(){
 
 try{ if(typeof Cloud!=='undefined'){ Cloud.load(); Cloud.badge(); } }catch(e){}
 bootApp();
+/* Sauvegarde automatique quotidienne (application Windows) : un peu après le
+   démarrage, pour ne pas ralentir l'ouverture. */
+setTimeout(autoBackupTick,2500);
 try{ if(typeof Cloud!=='undefined'){ setTimeout(()=>Cloud.boot(),1200); } }catch(e){}
 </script>
 </body>

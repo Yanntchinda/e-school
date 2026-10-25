@@ -42,6 +42,25 @@ jobs:
             }
           }
 
+      - name: Verifier le script de recuperation
+        shell: pwsh
+        working-directory: .
+        run: |
+          $bat = Get-Content -Raw -Encoding UTF8 'outils/RECUPERER-MES-DONNEES.bat'
+          $m = '#' + 'PSSTART' + '#'
+          $i = $bat.IndexOf($m)
+          if ($i -lt 0) { throw "Marqueur absent du fichier .bat" }
+          $code = $bat.Substring($i + $m.Length)
+          $errs = $null
+          [void][System.Management.Automation.Language.Parser]::ParseInput($code, [ref]$null, [ref]$errs)
+          if ($errs -and $errs.Count -gt 0) {
+            $errs | ForEach-Object { Write-Host $_ }
+            throw "Erreur de syntaxe dans le script de recuperation"
+          }
+          if ($code -notmatch 'mbi_gestion_bulletins_v1') { throw "Cle de donnees absente du script" }
+          if ($code -notmatch 'Copy-Store') { throw "Remise en place absente du script" }
+          Write-Host "[OK] script de recuperation : syntaxe valide"
+
       - name: Installer les composants
         shell: pwsh
         run: |
@@ -116,6 +135,20 @@ jobs:
 
             Mise a jour depuis l'ancien nom (e-School) : les donnees deja saisies sont
             reprises automatiquement au premier demarrage, il n'y a rien a ressaisir.
+
+            Reparation des donnees :
+
+            - Le logiciel cherche maintenant la base dans les deux dossiers de donnees
+              (`%APPDATA%\GestSchool` et `%APPDATA%\e-School Gestion Bulletins`) et
+              reprend celui qui contient reellement les classes, eleves et notes. Un
+              dossier `GestSchool` vide ne peut plus faire demarrer le logiciel sur une
+              base vide.
+            - Sauvegarde automatique : chaque jour, une sauvegarde complete est deposee
+              dans `Documents\GestSchool-Sauvegardes` (les 40 dernieres sont gardees),
+              sans aucune fenetre. Menu Aide > Sauvegardes automatiques.
+            - Outil de recuperation `outils/RECUPERER-MES-DONNEES.bat` : il ne supprime
+              rien, copie l'ancienne base sur le Bureau puis la remet en place. Mode
+              d'emploi : `RECUPERER-MES-DONNEES.md`.
 
             Nouveautes :
             - En-tete de l'etablissement (image importee ou nom, ville et annee) sur tous

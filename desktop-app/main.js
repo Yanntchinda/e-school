@@ -1,6 +1,6 @@
 'use strict';
 
-const { app, BrowserWindow, Menu, dialog, shell } = require('electron');
+const { app, BrowserWindow, Menu, dialog, shell, session } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
@@ -10,22 +10,115 @@ app.setName(APP_NAME);
 
 /* Le logiciel portait avant le nom « e-School Gestion Bulletins ». Ses données
    (classes, élèves, notes, comptes, finances) sont dans un dossier de
-   %APPDATA%. Ce dossier est repris tel quel au premier démarrage : rien n'est
-   effacé, rien n'est à ressaisir. */
+   %APPDATA%. Ce dossier est repris tel quel : rien n'est effacé, rien n'est à
+   ressaisir. */
 const LEGACY_DATA_DIR = 'e-School Gestion Bulletins';
-try {
+
+/* Clé sous laquelle le logiciel range TOUTE sa base dans le stockage local du
+   navigateur intégré. Sa présence dans les fichiers du dossier de données est
+   la preuve qu'un dossier contient réellement des données. */
+const DATA_MARK = 'mbi_gestion_bulletins_v1';
+
+function storageHasData (dir) {
+  if (!dir) return false;
+  const ls = path.join(dir, 'Local Storage', 'leveldb');
+  let names;
+  try { names = fs.readdirSync(ls); } catch (e) { return false; }
+  for (const name of names) {
+    if (!/\.(ldb|log)$/i.test(name)) continue;
+    const file = path.join(ls, name);
+    try {
+      if (fs.statSync(file).size < 200) continue;
+      if (fs.readFileSync(file).includes(DATA_MARK)) return true;
+    } catch (e) { /* fichier verrouillé : on essaie le suivant */ }
+  }
+  return false;
+}
+
+function storageNewest (dir) {
+  let newest = 0;
+  const ls = path.join(dir, 'Local Storage', 'leveldb');
+  let names = [];
+  try { names = fs.readdirSync(ls); } catch (e) { return 0; }
+  for (const name of names) {
+    if (!/\.(ldb|log)$/i.test(name)) continue;
+    try { newest = Math.max(newest, fs.statSync(path.join(ls, name)).mtimeMs); } catch (e) {}
+  }
+  return newest;
+}
+
+/* Tous les dossiers de %APPDATA% qui contiennent la base, du plus récent au
+   plus ancien. */
+function dataFolders (base) {
+  const found = [];
+  let names = [];
+  try { names = fs.readdirSync(base); } catch (e) { return found; }
+  for (const name of names) {
+    if (!/gestschool|e-?school|gestion|bulletin/i.test(name)) continue;
+    const dir = path.join(base, name);
+    try { if (!fs.statSync(dir).isDirectory()) continue; } catch (e) { continue; }
+    if (storageHasData(dir)) found.push(dir);
+  }
+  return found.sort((a, b) => storageNewest(b) - storageNewest(a));
+}
+
+/* Copie le stockage d'un dossier vers un autre (sans rien supprimer côté
+   source). Renvoie true si le dossier de destination contient la base. */
+function copyStorage (from, to) {
+  for (const sub of ['Local Storage', 'Session Storage', 'IndexedDB', 'Preferences']) {
+    const src = path.join(from, sub);
+    if (!fs.existsSync(src)) continue;
+    try {
+      fs.mkdirSync(to, { recursive: true });
+      fs.rmSync(path.join(to, sub), { recursive: true, force: true });
+      fs.cpSync(src, path.join(to, sub), { recursive: true });
+    } catch (e) { /* copie impossible : on tentera l'autre solution */ }
+  }
+  return storageHasData(to);
+}
+
+/* Dossier de données à utiliser, décidé avant le premier accès à userData :
+   1. le dossier du nom actuel s'il contient la base ;
+   2. sinon un ancien dossier qui la contient (« e-School Gestion Bulletins »),
+      recopié dans le dossier actuel ; à défaut, utilisé directement ;
+   3. sinon première installation : renommage de l'ancien dossier s'il existe.
+   Un dossier « GestSchool » vide (créé par un démarrage précédent) ne doit
+   jamais masquer les données de l'ancien nom : c'est ce qui faisait démarrer
+   le logiciel sur une base vide. */
+function chooseUserDataDir () {
   const base = app.getPath('appData');
   const target = path.join(base, APP_NAME);
   const legacy = path.join(base, LEGACY_DATA_DIR);
-  if (!fs.existsSync(target) && fs.existsSync(legacy)) {
-    try {
-      fs.renameSync(legacy, target);
-    } catch (e) {
-      /* Renommage impossible (dossier verrouillé) : on continue à travailler
-         dans l'ancien dossier plutôt que de perdre les données. */
-      app.setPath('userData', legacy);
+  let note = '';
+  try {
+    if (!fs.existsSync(target) && fs.existsSync(legacy)) {
+      try {
+        fs.renameSync(legacy, target);
+        note = 'ancien dossier renomme';
+      } catch (e) {
+        app.setPath('userData', legacy);
+        return { dir: legacy, note: 'renommage impossible : ancien dossier utilise' };
+      }
     }
+    if (storageHasData(target)) return { dir: target, note: note || 'dossier actuel' };
+    const others = dataFolders(base).filter(d => d !== target);
+    if (others.length) {
+      if (copyStorage(others[0], target) && storageHasData(target)) {
+        return { dir: target, note: 'donnees de ' + path.basename(others[0]) + ' recopiees' };
+      }
+      app.setPath('userData', others[0]);
+      return { dir: others[0], note: 'donnees lues dans ' + path.basename(others[0]) };
+    }
+  } catch (e) {
+    return { dir: target, note: 'erreur : ' + e.message };
   }
+  return { dir: target, note: note || 'aucune donnee existante' };
+}
+
+let userDataInfo = { dir: '', note: '' };
+try {
+  userDataInfo = chooseUserDataDir();
+  app.setPath('userData', userDataInfo.dir);
 } catch (e) { /* chemin indisponible : Electron utilise son dossier habituel */ }
 
 let mainWindow = null;
@@ -37,6 +130,63 @@ if (!app.requestSingleInstanceLock()) {
 
 /* Identifiant Windows (raccourci correct, notifications, barre des tâches). */
 app.setAppUserModelId('com.eschool.bulletins');
+
+/* Journal de démarrage : note dans quel dossier les données ont été trouvées.
+   Il sert uniquement au dépannage (fichier demarrage.log du dossier de
+   données), il ne contient aucune donnée scolaire. */
+function writeDiagnostic () {
+  try {
+    const file = path.join(app.getPath('userData'), 'demarrage.log');
+    let text = '';
+    try { if (fs.statSync(file).size > 200000) text = ''; } catch (e) {}
+    try { text = text || fs.readFileSync(file, 'utf8'); } catch (e) { text = ''; }
+    const lines = (text + '\n').split('\n').filter(Boolean).slice(-400);
+    lines.push(new Date().toISOString() + '  version ' + app.getVersion() +
+      '  dossier : ' + userDataInfo.dir + '  (' + userDataInfo.note + ')');
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, lines.join('\n') + '\n');
+  } catch (e) { /* journal facultatif */ }
+}
+
+/* Sauvegardes automatiques : chaque jour, le logiciel dépose une sauvegarde
+   complète dans Documents\GestSchool-Sauvegardes, sans aucune fenêtre et sans
+   écraser les précédentes. C'est le filet de sécurité si un dossier de données
+   venait à être perdu. */
+const AUTO_BACKUP_PREFIX = 'auto-sauvegarde-';
+
+function backupsFolder () {
+  let docs = '';
+  try { docs = app.getPath('documents'); } catch (e) { docs = app.getPath('home'); }
+  return path.join(docs, 'GestSchool-Sauvegardes');
+}
+
+function pruneBackups (folder, keep) {
+  try {
+    const files = fs.readdirSync(folder)
+      .filter(n => n.indexOf(AUTO_BACKUP_PREFIX) === 0)
+      .map(n => {
+        try { return { n, t: fs.statSync(path.join(folder, n)).mtimeMs }; } catch (e) { return null; }
+      })
+      .filter(Boolean)
+      .sort((a, b) => b.t - a.t);
+    files.slice(keep).forEach(f => { try { fs.unlinkSync(path.join(folder, f.n)); } catch (e) {} });
+  } catch (e) {}
+}
+
+function installAutoBackup () {
+  try {
+    const folder = backupsFolder();
+    session.defaultSession.on('will-download', (event, item) => {
+      const name = item.getFilename() || '';
+      if (name.indexOf(AUTO_BACKUP_PREFIX) !== 0) return;
+      try {
+        fs.mkdirSync(folder, { recursive: true });
+        item.setSavePath(path.join(folder, name));
+      } catch (e) { return; }
+      item.once('done', () => pruneBackups(folder, 40));
+    });
+  } catch (e) { /* fonction facultative */ }
+}
 
 function createWindow () {
   mainWindow = new BrowserWindow({
@@ -175,6 +325,14 @@ function buildMenu () {
           click: () => {
             shell.openPath(app.getPath('userData'));
           }
+        },
+        {
+          label: 'Sauvegardes automatiques (Documents)',
+          click: () => {
+            const folder = backupsFolder();
+            try { fs.mkdirSync(folder, { recursive: true }); } catch (e) {}
+            shell.openPath(folder);
+          }
         }
       ]
     }
@@ -192,6 +350,8 @@ app.on('second-instance', () => {
 });
 
 app.whenReady().then(() => {
+  writeDiagnostic();
+  installAutoBackup();
   createWindow();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
