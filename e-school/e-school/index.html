@@ -1288,6 +1288,12 @@ function pdfW(str,size,bold){
   for(const ch of String(str==null?'':str)){const b=ch.normalize('NFD')[0];u+=PDFW[b]!==undefined?PDFW[b]:556}
   return u/1000*size*(bold?1.045:1);
 }
+/* Taille de police qui fait tenir un texte sur une largeur donnée : on
+   rétrécit plutôt que de laisser la ligne déborder de la page. */
+function pdfFitSize(str,size,bold,maxW){
+  const w=pdfW(str,size,bold),m=Math.max(1,maxW);
+  return w<=m?size:Math.max(4.4,size*m/w);
+}
 /* Coupe un texte trop large, avec des points de suspension. */
 function pdfCut(str,size,maxW,bold){
   const s=String(str==null?'':str);
@@ -1428,15 +1434,22 @@ function PdfDoc(size){
   /* Pied de page commun à tous les documents : la devise de l'établissement
      en français et en anglais, puis l'infoline. Le numéro de page reste à
      droite. Les opérateurs sont produits à part pour pouvoir aussi les poser
-     sur la seule dernière page (rapport des dépenses). */
+     sur la seule dernière page (rapport des dépenses).
+     Les tailles de police s'adaptent à la largeur disponible : la ligne des
+     téléphones est longue, elle rétrécit plutôt que de déborder (A5 compris). */
   d.footOps=()=>{
     const M=d.M,W=d.W,cw=d.cw,y=d.H;
+    const pn='page __PAGE__/__NPAGES__',pnW=pdfW('page 00/00',6.6,false);
+    const maxTel=cw-pnW-10;
+    const frS=pdfFitSize(DOC_MOTTO_FR,6.6,false,cw);
+    const enS=pdfFitSize(DOC_MOTTO_EN,6.3,false,cw);
+    const telS=pdfFitSize(DOC_INFOLINE,7,true,maxTel);
     const ops=[];
-    ops.push('BT /F1 6.6 Tf 0.420 0.460 0.530 rg '+M.toFixed(2)+' '+(y-19).toFixed(2)+' Td ('+pdfEsc(DOC_MOTTO_FR)+') Tj ET');
-    ops.push('BT /F1 6.3 Tf 0.460 0.500 0.570 rg '+M.toFixed(2)+' '+(y-26.5).toFixed(2)+' Td ('+pdfEsc(DOC_MOTTO_EN)+') Tj ET');
-    ops.push('BT /F2 7 Tf 0.039 0.098 0.184 rg '+M.toFixed(2)+' '+(y-35).toFixed(2)+' Td ('+pdfEsc(DOC_INFOLINE)+') Tj ET');
+    ops.push('BT /F1 '+frS.toFixed(2)+' Tf 0.420 0.460 0.530 rg '+M.toFixed(2)+' '+(y-19).toFixed(2)+' Td ('+pdfEsc(DOC_MOTTO_FR)+') Tj ET');
+    ops.push('BT /F1 '+enS.toFixed(2)+' Tf 0.460 0.500 0.570 rg '+M.toFixed(2)+' '+(y-26.5).toFixed(2)+' Td ('+pdfEsc(DOC_MOTTO_EN)+') Tj ET');
+    ops.push('BT /F2 '+telS.toFixed(2)+' Tf 0.039 0.098 0.184 rg '+M.toFixed(2)+' '+(y-35).toFixed(2)+' Td ('+pdfEsc(DOC_INFOLINE)+') Tj ET');
     ops.push('0.788 0.635 0.153 RG 0.5 w '+M.toFixed(2)+' '+(y-14).toFixed(2)+' m '+(W-M).toFixed(2)+' '+(y-14).toFixed(2)+' l S');
-    ops.push('BT /F1 6.6 Tf 0.450 0.500 0.580 rg '+(W-M-52).toFixed(2)+' '+(y-35).toFixed(2)+' Td (page __PAGE__/__NPAGES__) Tj ET');
+    ops.push('BT /F1 6.6 Tf 0.450 0.500 0.580 rg '+(W-M-pnW).toFixed(2)+' '+(y-35).toFixed(2)+' Td ('+pn+') Tj ET');
     return ops.join('\n')+'\n';
   };
   /* Image : enregistrée une fois, puis posée aux dimensions demandées. */
@@ -5180,9 +5193,9 @@ function pdfHeader(doc){
    Chaque document téléchargé ou imprimé porte l'en-tête de l'établissement
    (l'image importée dans Paramètres, sinon son nom, sa ville et l'année) et
    la devise de l'école, en français et en anglais, suivie de l'infoline. */
-const DOC_MOTTO_FR='Inculquer le savoir, le savoir faire et le savoir être : telle est notre mission.';
-const DOC_MOTTO_EN='To instil knowledge, know-how and good conduct: such is our mission.';
-const DOC_INFOLINE='Infoline : 677712232/691212555';
+const DOC_MOTTO_FR='Inculquer le savoir, le savoir faire et le savoir être : telle est notre mission';
+const DOC_MOTTO_EN='Instilling knowledge, knowhow and wellbeing: that is our mission';
+const DOC_INFOLINE='INFOLINE : 6 77 71 22 32 / 6 73 35 80 89 / 6 87 656 296 / 6 59 33 74 06';
 function docFootHtml(cls){
   return '<div class="'+(cls||'doc-foot')+'">'+
     '<p class="fr">'+esc(DOC_MOTTO_FR)+'</p>'+
@@ -5673,11 +5686,12 @@ function receiptSheetOps(doc,f,p,state){
   doc.textRight('L’Économe / The Bursar',M+cw-16,doc.y,8.2,'F2',ink);
   doc.hline(M+cw-150,M+cw-16,doc.y+22,line,0.6);
   doc.textRight(p.by||(ME?ME.name:''),M+cw-16,doc.y+32,7.4,'F1',grey);
-  /* Pied de page de l'exemplaire : devise bilingue + infoline. */
+  /* Pied de page de l'exemplaire : devise bilingue + infoline, aux tailles
+     qui tiennent dans la largeur de la feuille A5. */
   doc.hline(M,M+cw,H-14,gold,0.5);
-  doc.text(DOC_MOTTO_FR,M,H-19,6.6,'F1',[0.42,0.46,0.53]);
-  doc.text(DOC_MOTTO_EN,M,H-26.5,6.3,'F1',[0.46,0.50,0.57]);
-  doc.text(DOC_INFOLINE,M,H-35,7,'F2',[0.039,0.098,0.184]);
+  doc.text(DOC_MOTTO_FR,M,H-19,pdfFitSize(DOC_MOTTO_FR,6.6,false,cw),'F1',[0.42,0.46,0.53]);
+  doc.text(DOC_MOTTO_EN,M,H-26.5,pdfFitSize(DOC_MOTTO_EN,6.3,false,cw),'F1',[0.46,0.50,0.57]);
+  doc.text(DOC_INFOLINE,M,H-35,pdfFitSize(DOC_INFOLINE,7,true,cw),'F2',[0.039,0.098,0.184]);
   const ops=doc.cur;
   Object.assign(doc,save);
   return ops;
