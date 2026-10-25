@@ -129,6 +129,12 @@ jobs:
             - Recu de paiement : deux exemplaires A5 imprimes cote a cote sur une seule
               feuille A4 paysage, pour un seul eleve (un pour l'ecole, un pour le parent).
             - Tableau d'honneur : ni en-tete ni pied de page imprimes.
+            - Espace administrateur : onglet **Copyright** sous « Mon compte »
+              (titulaire des droits, conditions d'utilisation et contact).
+
+            Copyright © 2026 GESTSCHOOL. Tous droits reserves.
+            Developpe et edite par TCHINDA NOTSAWO ANAIS YANN.
+            Contact : yanntchinda813@gmail.com
           files: desktop-app/dist/installers/*.exe
           draft: false
           prerelease: false
