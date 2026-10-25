@@ -105,6 +105,29 @@ comptes et réglages. Il se réimporte sur le même poste ou sur un autre.
 Faites-le régulièrement, et **avant** chaque opération importante
 (réinitialisation, changement d'ordinateur, fin d'année).
 
+## 4 bis. Supprimer sans perdre : la corbeille
+
+**Rien ne s'efface du premier coup.** Tout élément supprimé — élève, classe,
+matière, compte du personnel, versement (et son reçu), dépense, ligne de
+discipline, leçons, en-tête ou logo — part dans la **Corbeille**, accessible
+dans le menu **Administration** (et par un bouton « Corbeille » dans chaque
+section).
+
+- **Restaurer** remet l'élément exactement comme il était : les notes, les
+  versements, les reçus et les bulletins reviennent avec lui.
+- **Supprimer** (dans la corbeille) efface définitivement, après confirmation.
+- Le message affiché après une suppression propose **Annuler** pendant
+  quelques secondes.
+- **Vider la corbeille** efface tout ce qu'elle contient (les élèves archivés se
+  suppriment un par un).
+- La corbeille garde les 250 derniers éléments (2,5 Mo maximum) ; au-delà, les
+  plus anciens sont effacés et un message le signale.
+- L'économe ne voit que les versements et les dépenses ; le surveillant général,
+  que la discipline.
+
+La corbeille est comprise dans les sauvegardes `.json`, et « Tout effacer »
+télécharge automatiquement une sauvegarde complète avant l'effacement.
+
 ## 5. Repartir de zéro
 
 Le logiciel ne crée **aucune donnée de démonstration**, et il n'affiche aucun
@@ -121,7 +144,9 @@ changement d'établissement), connectez-vous en administrateur puis allez dans
 - si une **base partagée** est connectée, une case à cocher permet de la vider
   en même temps, sinon les données reviendraient à la prochaine synchro.
 
-Exportez une sauvegarde avant si vous voulez pouvoir revenir en arrière.
+Une sauvegarde complète est téléchargée automatiquement **avant** l'effacement :
+gardez ce fichier, il permet de tout remettre en place (Paramètres → Restaurer
+une sauvegarde).
 
 ## En-tête et logo des bulletins
 

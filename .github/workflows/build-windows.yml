@@ -169,6 +169,26 @@ jobs:
             - Espace administrateur : onglet **Copyright** sous « Mon compte »
               (titulaire des droits, conditions d'utilisation et contact).
 
+            Nouveau : corbeille dans toutes les sections.
+
+            - Supprimer un element ne l'efface plus : il passe dans la **Corbeille**
+              (menu Administration) et peut etre **restaure** en un clic, ou supprime
+              definitivement sur demande.
+            - Tout est concerne : eleves (avec notes, absences et photo), classes
+              entieres, matieres (avec leurs notes), comptes du personnel (avec leurs
+              affectations), versements et recus, depenses, lignes de discipline,
+              lecons, en-tete et logo de l'etablissement.
+            - Un bouton « Corbeille » est present dans chaque section (eleves, classe,
+              personnel, finances, depenses, discipline, lecons, parametres).
+            - Le message affiche apres une suppression propose **Annuler** pendant
+              quelques secondes.
+            - Les bulletins, recus et fiches se recalculent a partir des donnees :
+              restaurer l'element suffit a faire reapparaitre le document.
+            - « Tout effacer » telecharge automatiquement une sauvegarde complete avant
+              l'effacement ; la corbeille est comprise dans les sauvegardes.
+            - La corbeille est limitee a 250 elements : au-dela, les plus anciens sont
+              effaces et l'utilisateur est prevenu.
+
             Copyright © 2026 GESTSCHOOL. Tous droits reserves.
             Developpe et edite par TCHINDA NOTSAWO ANAIS YANN.
             Contact : yanntchinda813@gmail.com
