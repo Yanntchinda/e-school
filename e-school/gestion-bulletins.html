@@ -173,8 +173,17 @@ main{padding:24px 28px 60px;min-width:0}
 .copy-head{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;
   padding-bottom:14px;margin-bottom:16px;border-bottom:1px solid var(--line)}
 .copy-mark{display:flex;align-items:center;gap:12px}
-.copy-c{width:46px;height:46px;border-radius:50%;display:grid;place-items:center;background:var(--brand);
-  color:#fff;font-size:23px;font-weight:700;font-family:var(--serif);flex:none}
+/* Le cercle porte le logo GestSchool : capuchon de diplome blanc sur disque bleu,
+   comme l'icone du logiciel. */
+.copy-c{position:relative;width:56px;height:56px;border-radius:50%;display:grid;place-items:center;flex:none;
+  background:radial-gradient(circle at 32% 26%,#2f83e6,#1e6fd9 58%,#0b4ea2);
+  box-shadow:0 3px 10px rgba(16,32,56,.22),inset 0 0 0 1px rgba(255,255,255,.20);
+  -webkit-print-color-adjust:exact;print-color-adjust:exact}
+.copy-c svg{width:34px;height:34px;display:block}
+.copy-c svg .cap{fill:#fff}
+.copy-c .copy-cc{position:absolute;right:-3px;bottom:-3px;width:19px;height:19px;border-radius:50%;
+  display:grid;place-items:center;background:#fff;color:var(--brand);font-size:12px;font-weight:700;
+  font-family:var(--serif);box-shadow:0 1px 3px rgba(16,32,56,.28)}
 .copy-mark b{display:block;font-family:var(--serif);font-size:21px;color:var(--ink);letter-spacing:.01em}
 .copy-mark span{display:block;font-size:11.5px;color:var(--muted);letter-spacing:.06em;text-transform:uppercase}
 .copy-year{font-family:var(--serif);font-size:26px;font-weight:700;color:#c9a227;letter-spacing:.06em}
@@ -3922,7 +3931,14 @@ function copyrightHtml(){
   return '<div class="page-h"><div><h1>Copyright</h1><p>GestSchool · version '+esc(COPY_VERSION)+' · '+esc(COPY_YEAR)+'</p></div></div>'+
     '<div class="panel copy-card">'+
       '<div class="copy-head">'+
-        '<div class="copy-mark"><span class="copy-c">©</span><div><b>GestSchool</b>'+
+        '<div class="copy-mark"><span class="copy-c" role="img" aria-label="Logo GestSchool">'+
+            '<svg viewBox="0 0 64 64" aria-hidden="true" focusable="false">'+
+              '<path class="cap" d="M10 26 32 16l22 10-22 10z"/>'+
+              '<path class="cap" d="M20 31v8c0 3.6 5.4 6 12 6s12-2.4 12-6v-8l-12 5.4z"/>'+
+              '<rect class="cap" x="14" y="47" width="36" height="3" rx="1.5"/>'+
+            '</svg>'+
+            '<span class="copy-cc" aria-hidden="true">©</span></span>'+
+          '<div><b>GestSchool</b>'+
           '<span>Logiciel de gestion scolaire</span></div></div>'+
         '<div class="copy-year">'+esc(COPY_YEAR)+'</div>'+
       '</div>'+
