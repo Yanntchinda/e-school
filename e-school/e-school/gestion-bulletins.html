@@ -139,6 +139,10 @@ label.f textarea{resize:vertical;min-height:80px}
 .side{background:#fff;border-right:1px solid var(--line);padding:16px 10px;position:sticky;top:52px;height:calc(100vh - 52px);overflow:auto}
 .side h4{margin:16px 10px 6px;font-size:12px;color:var(--muted);font-weight:600;letter-spacing:.02em}
 .side .side-pick{width:calc(100% - 20px);margin:0 10px 4px;padding:7px 9px;font-size:13.5px}
+.ftabs{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 16px}
+.ftabs button{border:1px solid var(--line);background:#fff;color:var(--ink);padding:7px 14px;border-radius:8px;font-weight:700;font-size:13.5px;cursor:pointer}
+.ftabs button:hover{background:#eef2f7}
+.ftabs button.on{background:var(--brand);border-color:var(--brand);color:#fff}
 .side a.nav{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:7px 10px;border-radius:7px;color:var(--ink);text-decoration:none;font-weight:600;font-size:14px;cursor:pointer}
 .side a.nav:hover{background:#eef2f7}
 .side a.nav.on{background:var(--brand);color:#fff}
@@ -884,7 +888,7 @@ const LB={
 /* ---------- Données ---------- */
 function schoolYear(){const d=new Date(),y=d.getFullYear();return d.getMonth()>=8?y+'/'+(y+1):(y-1)+'/'+y}
 function nextSchoolYear(y){const m=String(y||'').match(/(\d{4})\s*\/\s*(\d{4})/);return m?(+m[1]+1)+'/'+(+m[2]+1):schoolYear()}
-function blankDB(){return{v:1,school:{name:'',city:'',year:'',principal:'',header:null,logo:null},users:[],classes:[],sessions:[],archivedStudents:[],finance:{fees:{},pays:{},updatedAt:''}}}
+function blankDB(){return{v:1,school:{name:'',city:'',year:'',principal:'',header:null,logo:null},users:[],classes:[],sessions:[],archivedStudents:[],finance:{fees:{},pays:{},expenses:[],updatedAt:''}}}
 let memOnly=false;
 /* Ancien drapeau « mode démonstration » des versions précédentes : il n'a plus
    aucune signification en production. S'il traîne dans les données (ancienne
@@ -998,7 +1002,7 @@ function secQuestionHtml(sel,nameQ,nameOther){
   '</select></label>'+
   '<label class="f" data-secq-other style="'+(sel&&SEC_QUESTIONS.indexOf(sel)<0?'':'display:none')+'">Ma question<input name="'+nameOther+'" value="'+(sel&&SEC_QUESTIONS.indexOf(sel)<0?esc(sel):'')+'" placeholder="Ex. Quel est le nom de mon premier directeur ?"></label>';
 }
-const S={view:'dash',classId:null,tab:'eleves',trim:1,mine:true,sort:'name',sessionId:null,closeState:null,simulationState:null,loginRole:'staff',loginView:null,forgotUid:null,forgotOk:false,forgotTries:0,forgotHelp:false,loginUser:'',studentId:null,asAdmin:null};
+const S={view:'dash',classId:null,expPeriod:'all',tab:'eleves',trim:1,mine:true,sort:'name',sessionId:null,closeState:null,simulationState:null,loginRole:'staff',loginView:null,forgotUid:null,forgotOk:false,forgotTries:0,forgotHelp:false,loginUser:'',studentId:null,asAdmin:null};
 const isAdmin=()=>ME&&ME.role==='admin';
 const isSurv=()=>ME&&ME.role==='surv';
 const isProf=()=>ME&&(ME.role==='prof'||ME.role==='teacher');
@@ -2228,6 +2232,11 @@ const Cloud={
       if(fee===null&&(!pays||!pays.length))return;
       o.finance.push({id:s.id,fee:pays?fee:(fee==null?null:fee),pays:Array.isArray(pays)?pays:[]});
     }));
+    /* Depenses du quotidien : une seule ligne dediee dans la table finance,
+       pour que la base partagee les transporte comme les versements, sans
+       changer le schema (id / fee / pays). */
+    if(Array.isArray(fin.expenses)&&fin.expenses.length)
+      o.finance.push({id:DEPENSES_ROW,fee:null,pays:fin.expenses});
     /* Eleves archives : conserves avec leurs notes et absences. */
     (Array.isArray(DB.archivedStudents)?DB.archivedStudents:[]).forEach(r=>{
       o.archived.push({id:r.id,at:r.at||'',by:r.by||'',year:r.year||'',class_id:r.classId||'',class_name:r.className||'',data:r.data||{},snapshot:r.snapshot||{}});
@@ -2403,15 +2412,16 @@ const Cloud={
       DB.classes=ordered;
       try{repairMatricules();upgradeLegacyMatricules()}catch(e){}
     }
-    /* Finances : montants et versements recus de la base. */
+    /* Finances : montants et versements recus de la base, plus les depenses. */
     if(Array.isArray(d.finance)){
-      const fees={},pays={};
+      const fees={},pays={};let expenses=[];
       d.finance.forEach(r=>{
         if(!r||!r.id)return;
+        if(r.id===DEPENSES_ROW){if(Array.isArray(r.pays))expenses=r.pays;return}
         if(r.fee!=null&&r.fee!=='')fees[r.id]=Number(r.fee);
         if(Array.isArray(r.pays)&&r.pays.length)pays[r.id]=r.pays;
       });
-      DB.finance={fees,pays,updatedAt:new Date().toISOString()};
+      DB.finance={fees,pays,expenses,updatedAt:new Date().toISOString()};
     }
     /* Eleves archives (corbeille) recus de la base. */
     if(Array.isArray(d.archived)){
@@ -2480,7 +2490,7 @@ function renderCore(){
   if(!ME){app.innerHTML=S.loginView==='forgot'?forgotHtml():loginHtml();return}
   /* Le surveillant general n'accede qu'a la discipline et a son compte */
   if(isSurv()&&S.view!=='discipline'&&S.view!=='account'){S.view='discipline';S.classId=null}
-  if(isEcon()&&['fin','fin-class','fin-student','account'].indexOf(S.view)<0){S.view='fin';S.classId=null;S.studentId=null}
+  if(isEcon()&&['fin','fin-class','fin-student','fin-exp','account'].indexOf(S.view)<0){S.view='fin';S.classId=null;S.studentId=null}
   const cls=curClass();
   if(S.view==='class'&&!cls){S.view='dash'}
   app.innerHTML=shellHtml();
@@ -2690,6 +2700,7 @@ function econShell(){
     '<div class="me"><span>'+esc(ME.name)+' <span class="role">Économe</span></span><button class="btn sm" data-act="logout">Quitter</button></div></header>'+
     '<div class="shell"><nav class="side" aria-label="Navigation">'+
     '<a class="nav '+(S.view==='fin'?'on':'')+'" data-act="go" data-v="fin">Tableau de bord financier</a>'+
+    '<a class="nav '+(S.view==='fin-exp'?'on':'')+'" data-act="go" data-v="fin-exp">Dépenses du quotidien</a>'+
     classesPicker(cl,'fin-class',S.view==='fin-class'?S.classId:null)+
     '<h4>Compte</h4><a class="nav '+(S.view==='account'?'on':'')+'" data-act="go" data-v="account">Mon compte</a></nav>'+
     '<main id="main">'+mainHtml()+'</main></div>';
@@ -2730,7 +2741,8 @@ function shellHtml(){
    (isAdmin()&&!isReadOnlySession()?'<h4>Espaces</h4>'+
      '<a class="nav '+(S.view==='spaces-teachers'?'on':'')+'" data-act="space" data-s="teachers">Enseignants</a>'+
      '<a class="nav '+(S.view==='discipline'?'on':'')+'" data-act="space" data-s="discipline">Discipline</a>'+
-     '<a class="nav '+(/^fin/.test(S.view)?'on':'')+'" data-act="space" data-s="fin">Finances</a>':'')+
+     '<a class="nav '+(/^fin/.test(S.view)&&S.view!=='fin-exp'?'on':'')+'" data-act="space" data-s="fin">Finances</a>'+
+     '<a class="nav '+(S.view==='fin-exp'?'on':'')+'" data-act="go" data-v="fin-exp">Dépenses du quotidien</a>':'')+
    '<h4>Administration</h4>'+
    (isAdmin()&&!isReadOnlySession()?'<a class="nav '+(S.view==='teachers'?'on':'')+'" data-act="go" data-v="teachers">Enseignants</a><a class="nav '+(S.view==='school'?'on':'')+'" data-act="go" data-v="school">Paramètres</a>':'')+
    (isAdmin()?'<a class="nav '+(S.view==='search'?'on':'')+'" data-act="go" data-v="search">Rechercher un élève</a>':'')+
@@ -2877,7 +2889,7 @@ function searchHtml(){
 
 function mainHtml(){
   if(isSurv()&&S.view!=='discipline'&&S.view!=='account')S.view='discipline';
-  if(isEcon()&&['fin','fin-class','fin-student','account'].indexOf(S.view)<0){S.view='fin';S.classId=null;S.studentId=null}
+  if(isEcon()&&['fin','fin-class','fin-student','fin-exp','account'].indexOf(S.view)<0){S.view='fin';S.classId=null;S.studentId=null}
   if(/^fin/.test(S.view)&&(!canFinance()||isReadOnlySession()))S.view='dash';
   if(S.view==='sessions')return sessionsHtml();
   if(S.view==='lessons')return lessonsHtml();
@@ -2893,6 +2905,7 @@ function mainHtml(){
   if(S.view==='fin')return financeDashHtml();
   if(S.view==='fin-class')return financeClassHtml();
   if(S.view==='fin-student')return financeStudentHtml();
+  if(S.view==='fin-exp')return financeExpensesHtml();
   if(S.view==='account')return accountHtml();
   return dashHtml();
 }
@@ -4453,6 +4466,7 @@ function financeStore(){
   if(!DB.finance||typeof DB.finance!=='object')DB.finance={fees:{},pays:{}};
   if(!DB.finance.fees||typeof DB.finance.fees!=='object')DB.finance.fees={};
   if(!DB.finance.pays||typeof DB.finance.pays!=='object')DB.finance.pays={};
+  if(!Array.isArray(DB.finance.expenses))DB.finance.expenses=[];
   return DB.finance;
 }
 function todayISO(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
@@ -4512,6 +4526,74 @@ function delPayment(sid,pid){
   a.splice(i,1);if(!a.length)delete financeStore().pays[sid];
   financeStore().updatedAt=new Date().toISOString();return true;
 }
+/* ---------- Dépenses du quotidien ----------
+   DB.finance.expenses = [{id,date,label,cat,amount,mode,ref,note,by,at}]
+   Une dépense se saisit en deux champs (libellé + montant) ; elle se déduit
+   des recettes encaissées : solde = encaissé − dépenses. Elle reste
+   modifiable et supprimable, et donne lieu à une fiche imprimable. */
+/* Identifiant reserve de la ligne « depenses » dans la table finance
+   synchronisee : aucun eleve ne peut porter cet identifiant. */
+const DEPENSES_ROW='@depenses';
+function expensesList(){
+  const f=financeStore();
+  return f.expenses.slice().sort((x,y)=>String(y.date||'').localeCompare(String(x.date||''))||
+    String(y.at||'').localeCompare(String(x.at||'')));
+}
+function expenseById(id){return financeStore().expenses.find(e=>e&&e.id===id)||null}
+function expensesTotal(list){return Math.round((list||[]).reduce((n,e)=>n+(Number(e&&e.amount)||0),0)*100)/100}
+function recettesTotal(){
+  let n=0;
+  (DB.classes||[]).forEach(c=>(c.students||[]).forEach(s=>{n+=paidOf(s.id)}));
+  return Math.round(n*100)/100;
+}
+function depensesTotal(){return expensesTotal(financeStore().expenses)}
+function soldeFinance(){return Math.round((recettesTotal()-depensesTotal())*100)/100}
+function expenseCats(){return ['Fournitures','Entretien','Salaires','Transport','Eau et électricité','Cantine','Informatique','Loyer','Divers']}
+function addExpense(data){
+  const f=financeStore();
+  const e={id:uid(),date:data.date||todayISO(),label:String(data.label||'').replace(/\s+/g,' ').trim(),
+    cat:String(data.cat||'Divers').trim()||'Divers',
+    amount:Math.round((Number(data.amount)||0)*100)/100,
+    mode:data.mode||'esp',ref:String(data.ref||'').trim(),note:String(data.note||'').trim(),
+    by:ME?ME.name:'',at:new Date().toISOString()};
+  f.expenses.push(e);f.updatedAt=e.at;
+  return e;
+}
+function updateExpense(id,data){
+  const f=financeStore(),e=f.expenses.find(x=>x&&x.id===id);
+  if(!e)return null;
+  e.date=data.date||e.date;
+  e.label=String(data.label||e.label).replace(/\s+/g,' ').trim();
+  e.cat=String(data.cat||e.cat||'Divers').trim()||'Divers';
+  e.amount=Math.round((Number(data.amount)||0)*100)/100;
+  e.mode=data.mode||e.mode||'esp';
+  e.ref=String(data.ref==null?e.ref:data.ref).trim();
+  e.note=String(data.note==null?e.note:data.note).trim();
+  e.editAt=new Date().toISOString();e.editBy=ME?ME.name:'';
+  f.updatedAt=e.editAt;
+  return e;
+}
+function delExpense(id){
+  const f=financeStore(),i=f.expenses.findIndex(x=>x&&x.id===id);
+  if(i<0)return false;
+  f.expenses.splice(i,1);f.updatedAt=new Date().toISOString();
+  return true;
+}
+/* Période affichée dans l'onglet : tout, ce mois-ci, cette année. */
+function expensePeriod(){return ['all','month','year'].indexOf(S.expPeriod)>=0?S.expPeriod:'all'}
+function expensePeriodLabel(){
+  const p=expensePeriod(),now=new Date();
+  if(p==='month')return 'Mois de '+now.toLocaleDateString('fr-FR',{month:'long',year:'numeric'});
+  if(p==='year')return 'Année '+now.getFullYear();
+  return 'Toutes les dépenses';
+}
+function expenseInPeriod(e){
+  const p=expensePeriod();if(p==='all')return true;
+  const d=String((e&&e.date)||''),now=new Date();
+  if(p==='month')return d.slice(0,7)===now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');
+  return d.slice(0,4)===String(now.getFullYear());
+}
+function expensesShown(){return expensesList().filter(expenseInPeriod)}
 function financeState(sid){
   const defined=hasFee(sid),fee=feeOf(sid),paid=paidOf(sid),rest=Math.round((fee-paid)*100)/100;
   return {fee,paid,rest,defined,pct:fee>0?Math.min(1,paid/fee):0,
@@ -4547,6 +4629,12 @@ function financeRecent(limit){
 }
 
 /* ---------- Pages de l'espace économe ---------- */
+/* Deux onglets : les frais scolaires (recettes attendues et encaissées) et
+   les dépenses du quotidien, qui viennent en déduction des recettes. */
+function finTabsHtml(active){
+  const t=(v,l)=>'<button type="button" data-act="go" data-v="'+v+'"'+(active===v?' class="on" aria-current="page"':'')+'>'+l+'</button>';
+  return '<div class="ftabs">'+t('fin','Frais scolaires et recettes')+t('fin-exp','Dépenses du quotidien')+'</div>';
+}
 function financeDashHtml(){
   const classes=DB.classes||[],tot=financeTotals(classes);
   let h='<div class="page-h"><div><h1>Gestion des finances</h1><p>Frais scolaires · année '+esc(DB.school.year)+' · '+esc(finStamp())+'</p></div>'+
@@ -4554,7 +4642,11 @@ function financeDashHtml(){
       (tot.fee>0?'<button class="btn primary" data-act="fin-report">Bilan financier (PDF)</button>':'')+
       '<button class="btn" data-act="fin-dues" title="Liste des élèves qui doivent encore payer, classée par classe et par nom">Reste à payer (PDF)</button>'+
     '</div>':'')+'</div>';
-  if(!classes.length)return h+'<div class="panel empty"><h3>Aucune classe</h3><p>Créez des classes et inscrivez des élèves pour tenir les comptes de l’établissement.</p></div>';
+  h+=finTabsHtml('fin');
+  if(!classes.length){
+    return h+'<div class="panel empty"><h3>Aucune classe</h3><p>Créez des classes et inscrivez des élèves pour tenir les comptes de l’établissement.</p></div>'+
+      expensesPanelHtml();
+  }
   h+='<div class="kpis">'+
     '<div class="kpi"><b>'+money(tot.fee)+'</b><span>montant attendu</span></div>'+
     '<div class="kpi"><b style="color:var(--green-d)">'+money(tot.paid)+'</b><span>encaissé</span></div>'+
@@ -4571,7 +4663,83 @@ function financeDashHtml(){
     recent.map(x=>'<tr><td>'+frDate(x.p.date)+'</td><td><b>'+esc(x.st.name)+'</b></td><td>'+esc(x.cls.name)+'</td><td class="num">'+money(x.p.amount)+'</td><td>'+esc(modeLabel(x.p.mode))+'</td><td class="mono small">N° '+String(Number(x.p.no)||0).padStart(4,'0')+'</td>'+
       '<td class="right nowrap"><button class="btn sm" data-act="receipt" data-id="'+x.st.id+'" data-pid="'+x.p.id+'">Reçu</button> <button class="btn sm" data-act="fin-student" data-id="'+x.st.id+'">Fiche</button></td></tr>').join('')+'</tbody></table></div>';
   h+='</div>';
+  h+=expensesPanelHtml();
   return h;
+}
+/* Panneau des dépenses, repris sur le tableau de bord financier. */
+function expensesPanelHtml(){
+  const deps=expensesList(),dtot=expensesTotal(deps),rec=recettesTotal(),solde=Math.round((rec-dtot)*100)/100;
+  let h='<div class="panel"><h3>Recettes et dépenses du quotidien</h3>'+
+    '<div class="kpis" style="margin:10px 0 12px">'+
+      '<div class="kpi"><b style="color:var(--green-d)">'+money(rec)+'</b><span>recettes encaissées</span></div>'+
+      '<div class="kpi"><b style="color:var(--red)">'+money(dtot)+'</b><span>dépenses · '+deps.length+' ligne'+(deps.length>1?'s':'')+'</span></div>'+
+      '<div class="kpi"><b style="color:'+(solde<0?'var(--red)':'var(--green-d)')+'">'+money(solde)+'</b><span>solde (recettes − dépenses)</span></div></div>'+
+    '<div class="toolbar" style="margin:0 0 8px"><button class="btn primary" data-act="exp-add">Saisir une dépense</button>'+
+      '<button class="btn" data-act="go" data-v="fin-exp">Toutes les dépenses</button>'+
+      (deps.length?'<button class="btn" data-act="exp-pdf">Fiche des dépenses (PDF)</button>':'')+'</div>';
+  if(!deps.length)h+='<p class="muted" style="margin-bottom:0">Aucune dépense enregistrée. Notez ici les achats du quotidien (fournitures, entretien, transport, carburant…) : ils sont déduits des recettes pour donner le solde.</p>';
+  else h+='<div class="tw"><table class="t"><thead><tr><th>Date</th><th>Libellé</th><th>Catégorie</th><th class="num">Montant</th><th></th></tr></thead><tbody>'+
+    deps.slice(0,6).map(e=>'<tr><td>'+frDate(e.date)+'</td><td><b>'+esc(e.label)+'</b></td><td>'+esc(e.cat||'')+'</td>'+
+      '<td class="num" style="color:var(--red)">'+money(e.amount)+'</td>'+
+      '<td class="right nowrap"><button class="btn sm" data-act="exp-edit" data-id="'+e.id+'">Modifier</button></td></tr>').join('')+'</tbody></table></div>';
+  return h+'</div>';
+}
+/* Onglet « Dépenses du quotidien » : saisie, modification, suppression et
+   fiche imprimable. Le solde affiché est recettes encaissées − dépenses. */
+function financeExpensesHtml(){
+  if(!canFinance())return '<div class="panel empty"><h3>Accès réservé</h3><p>Seuls l’économe et l’administrateur tiennent les dépenses.</p></div>';
+  const all=expensesList(),list=expensesShown(),tot=expensesTotal(list),dtot=expensesTotal(all),
+    rec=recettesTotal(),solde=Math.round((rec-dtot)*100)/100;
+  const pct=rec>0?Math.round(Math.min(1,dtot/rec)*100):0;
+  const periods=[{k:'all',l:'Toutes les dépenses'},{k:'month',l:'Ce mois-ci'},{k:'year',l:'Cette année'}];
+  let h='<div class="page-h"><div><h1>Dépenses du quotidien</h1><p>'+esc(expensePeriodLabel())+' · année scolaire '+esc(viewYear())+' · '+esc(finStamp())+'</p></div>'+
+    '<div class="toolbar" style="margin:0"><button class="btn primary" data-act="exp-add">Saisir une dépense</button>'+
+      '<button class="btn" data-act="exp-pdf">Fiche des dépenses (PDF)</button></div></div>';
+  h+=finTabsHtml('fin-exp');
+  h+='<div class="kpis">'+
+    '<div class="kpi"><b style="color:var(--green-d)">'+money(rec)+'</b><span>recettes encaissées</span></div>'+
+    '<div class="kpi"><b style="color:var(--red)">'+money(dtot)+'</b><span>dépenses · '+all.length+' ligne'+(all.length>1?'s':'')+'</span></div>'+
+    '<div class="kpi"><b style="color:'+(solde<0?'var(--red)':'var(--green-d)')+'">'+money(solde)+'</b><span>solde (recettes − dépenses)</span></div>'+
+    '<div class="kpi"><b>'+(rec>0?pct+' %':'—')+'</b><span>part des recettes dépensée</span></div></div>';
+  h+='<div class="panel"><div class="toolbar" style="margin:0 0 10px">'+
+    '<label class="f" style="flex:0 1 220px;margin:0">Période<select class="inp" data-expperiod="1" aria-label="Période des dépenses">'+
+      periods.map(x=>'<option value="'+x.k+'"'+(expensePeriod()===x.k?' selected':'')+'>'+x.l+'</option>').join('')+'</select></label>'+
+    '<span class="grow"></span><span class="small muted">'+list.length+' sur '+all.length+' dépense'+(all.length>1?'s':'')+'</span></div>';
+  if(!list.length){
+    h+='<p class="muted" style="margin-bottom:0">'+(all.length?'Aucune dépense sur cette période.':'Aucune dépense enregistrée. Le bouton « Saisir une dépense » demande le libellé et le montant ; la dépense est aussitôt déduite des recettes pour donner le solde.')+'</p>';
+  }else{
+    h+='<div class="tw"><table class="t"><thead><tr><th style="width:92px">Date</th><th>Libellé</th><th>Catégorie</th><th>Payé en</th><th>Référence</th><th class="num">Montant</th><th></th></tr></thead><tbody>'+
+      list.map(e=>'<tr><td>'+frDate(e.date)+'</td><td><b>'+esc(e.label)+'</b>'+(e.note?' <span class="small muted">'+esc(e.note)+'</span>':'')+'</td>'+
+        '<td>'+esc(e.cat||'—')+'</td><td>'+esc(modeLabel(e.mode))+'</td><td class="small muted">'+esc(e.ref||'—')+'</td>'+
+        '<td class="num"><b style="color:var(--red)">'+money(e.amount)+'</b></td>'+
+        '<td class="right nowrap"><button class="btn sm" data-act="exp-slip" data-id="'+e.id+'" title="Aperçu et téléchargement de la fiche">Fiche</button> '+
+        '<button class="btn sm" data-act="exp-edit" data-id="'+e.id+'">Modifier</button> '+
+        '<button class="btn sm danger" data-act="exp-del" data-id="'+e.id+'">Supprimer</button></td></tr>').join('')+
+      '</tbody><tfoot><tr><td colspan="5" class="right"><b>Total '+esc(expensePeriodLabel().toLowerCase())+'</b></td><td class="num"><b style="color:var(--red)">'+money(tot)+'</b></td><td></td></tr></tfoot></table></div>'+
+      (list.length!==all.length?'<p class="small muted" style="margin:10px 0 0">Total de toutes les dépenses enregistrées : <b>'+money(dtot)+'</b>.</p>':'');
+  }
+  h+='</div>';
+  return h;
+}
+/* Saisie ou modification d'une dépense : libellé + montant, le reste est
+   facultatif (catégorie, date, mode, référence, note). */
+function expenseForm(id){
+  const e=id?expenseById(id):null;
+  if(id&&!e)return toast('Dépense introuvable.','err');
+  const catOpts=expenseCats().map(c=>'<option value="'+esc(c)+'"'+(e&&e.cat===c?' selected':'')+'>'+esc(c)+'</option>').join('');
+  const modeOpts=payModes().map(m=>'<option value="'+m.k+'"'+(e&&e.mode===m.k?' selected':'')+'>'+esc(m.fr)+'</option>').join('');
+  openModal('<form data-form="expense" data-id="'+(e?e.id:'')+'"><h2>'+(e?'Modifier la dépense':'Nouvelle dépense')+'</h2>'+
+   '<label class="f">Libellé de la dépense<input name="label" value="'+esc(e?e.label:'')+'" placeholder="Ex. Achat de craies et de registres" required autofocus><span class="small muted">Ce qui a été payé, en quelques mots.</span></label>'+
+   '<div class="row"><label class="f">Montant (FCFA)<input name="amount" inputmode="decimal" value="'+(e?e.amount:'')+'" placeholder="Ex. 15000" required></label>'+
+     '<label class="f">Catégorie<select name="cat">'+catOpts+'</select></label></div>'+
+   '<div class="row"><label class="f">Date de la dépense<input name="date" type="date" value="'+esc(e?e.date:todayISO())+'" required></label>'+
+     '<label class="f">Payé en<select name="mode">'+modeOpts+'</select></label></div>'+
+   '<div class="row"><label class="f">Référence / pièce justificative<input name="ref" value="'+esc(e?e.ref:'')+'" placeholder="Ex. Reçu n° 128, facture…"></label>'+
+     '<label class="f">Note (facultatif)<input name="note" value="'+esc(e?e.note:'')+'" placeholder="Ex. pour les salles du bâtiment B"></label></div>'+
+   '<p class="small muted" style="margin:8px 0 0">La dépense est déduite des recettes encaissées : le solde de l’établissement est recalculé aussitôt.</p>'+
+   '<div class="err" id="fe"></div>'+
+   '<div class="acts"><button type="button" class="btn" data-act="mclose">Annuler</button>'+
+   '<button class="btn primary">'+(e?'Enregistrer la modification':'Enregistrer la dépense')+'</button></div></form>');
 }
 function financeClassHtml(){
   const classes=DB.classes||[];
@@ -5045,6 +5213,138 @@ function financeDuesPdf(onlyClassId){
   previewDoc(onlyClassId?('Reste à payer — classe '+classes[0].name):'Reste à payer — élèves non soldés',name,html,
     ()=>{const r=financeDuesDoc(onlyClassId);return r?r.bytes:null});
 }
+/* ---------- Fiche des dépenses (aperçu + PDF) ----------
+   Sans identifiant : la fiche liste les dépenses de la période affichée et
+   rappelle les recettes encaissées et le solde. Avec un identifiant : le
+   justificatif d'une seule dépense. */
+function expenseSheetData(id){
+  if(id){
+    const e=expenseById(id);
+    if(!e)return null;
+    return {one:e,list:[e],title:'FICHE DE DÉPENSE',sub:'Justificatif de dépense',
+      total:Math.round((Number(e.amount)||0)*100)/100};
+  }
+  const list=expensesShown();
+  return {one:null,list,title:'FICHE DES DÉPENSES',sub:expensePeriodLabel(),total:expensesTotal(list),
+    globalTotal:depensesTotal()};
+}
+function expenseSheetHtml(id){
+  const D=expenseSheetData(id);
+  if(!D)return '';
+  const rec=recettesTotal(),tot=D.total,gtot=D.globalTotal==null?tot:D.globalTotal,
+    solde=Math.round((rec-gtot)*100)/100;
+  let h='<div class="doc-sheet">'+docHeadHtml();
+  h+='<h1>'+D.title+'</h1>';
+  h+='<p class="doc-sub">'+(D.one?esc(D.one.cat||'Divers')+' — '+esc(frDate(D.one.date)):esc(D.sub))+'</p>';
+  h+='<div class="doc-meta"><span>'+esc(finStamp())+'</span><span>'+(D.one?('Saisie par '+esc(D.one.by||'—')):(D.list.length+' dépense'+(D.list.length>1?'s':'')+' · année '+esc(viewYear())))+'</span></div>';
+  if(D.one){
+    const e=D.one;
+    h+=docKpisHtml([{l:'Montant',v:money(e.amount),c:'#b8272e'},{l:'Date',v:frDate(e.date)},{l:'Catégorie',v:e.cat||'Divers'},{l:'Payé en',v:modeLabel(e.mode)}]);
+    h+='<table class="doc-tbl"><tbody>'+
+      '<tr><th style="width:34%">Libellé</th><td class="st">'+esc(e.label)+'</td></tr>'+
+      '<tr><th>Référence / pièce</th><td>'+esc(e.ref||'—')+'</td></tr>'+
+      '<tr><th>Note</th><td>'+esc(e.note||'—')+'</td></tr>'+
+      '<tr><th>Saisie par</th><td>'+esc(e.by||'—')+(e.editAt?' · modifiée le '+esc(frDate(String(e.editAt).slice(0,10))):'')+'</td></tr>'+
+      '</tbody></table>';
+    h+='<div class="doc-grand"><div><b>Montant de la dépense</b><span>Déduit des recettes encaissées</span></div><em>'+money(e.amount)+'</em></div>';
+  }else{
+    h+=docKpisHtml([{l:'Recettes encaissées',v:money(rec),c:'#108a3a'},{l:'Dépenses (période)',v:money(tot),c:'#b8272e'},
+      {l:'Solde de l’établissement',v:money(solde),c:solde<0?'#b8272e':'#108a3a'},{l:'Lignes',v:String(D.list.length)}]);
+    if(!D.list.length)h+='<p class="doc-note">Aucune dépense enregistrée pour cette période.</p>';
+    else h+='<h2>Détail des dépenses</h2><table class="doc-tbl"><thead><tr><th>Date</th><th>Libellé</th><th>Catégorie</th><th>Payé en</th><th>Référence</th><th class="num">Montant</th></tr></thead><tbody>'+
+      D.list.map(e=>'<tr><td>'+esc(frDate(e.date))+'</td><td class="st">'+esc(e.label)+'</td><td>'+esc(e.cat||'—')+'</td><td>'+esc(modeLabel(e.mode))+'</td><td>'+esc(e.ref||'—')+'</td><td class="num">'+money(e.amount)+'</td></tr>').join('')+
+      '</tbody></table><div class="doc-total">Total des dépenses : '+money(tot)+'</div>';
+    h+='<div class="doc-grand"><div><b>Solde de l’établissement</b><span>Recettes '+esc(money(rec))+' − dépenses '+esc(money(gtot))+' (toutes périodes)</span></div><em style="color:'+(solde<0?'#b8272e':'#108a3a')+'">'+money(solde)+'</em></div>';
+  }
+  return h+docSignHtml()+'</div>';
+}
+function expenseSheetDoc(id){
+  const D=expenseSheetData(id);
+  if(!D)return null;
+  const navy=[0.039,0.098,0.184],gold=[0.788,0.635,0.153],grey=[0.42,0.46,0.53],ink=[0.09,0.12,0.18],
+    green=[0.06,0.45,0.22],red=[0.72,0.16,0.20],band=[0.949,0.961,0.980],line=[0.85,0.88,0.92];
+  const doc=PdfDoc(),M=doc.M,cw=doc.cw;
+  const rec=recettesTotal(),tot=D.total,gtot=D.globalTotal==null?tot:D.globalTotal,
+    solde=Math.round((rec-gtot)*100)/100;
+  doc.newPage();
+  doc.text(DB.school.name,M,M+16,14,'F2',navy);
+  doc.textRight('Année scolaire '+viewYear(),doc.W-M,M+16,8.5,'F1',grey);
+  doc.textRight(DB.school.city||'',doc.W-M,M+27,8,'F1',grey);
+  doc.rect(M,M+32,cw,1.6,gold);
+  doc.y=M+62;
+  doc.text(D.title,M,doc.y,20,'F2',navy);
+  doc.y+=19;
+  doc.text(D.one?((D.one.cat||'Divers')+' — '+frDate(D.one.date)):D.sub,M,doc.y,10.5,'F1',grey);
+  doc.y+=17;
+  doc.text(finStamp(),M,doc.y,8,'F1',grey);
+  doc.textRight(D.one?modeLabel(D.one.mode):(D.list.length+' ligne'+(D.list.length>1?'s':'')),doc.W-M,doc.y,8.5,'F2',ink);
+  doc.y+=16;
+  const cards=D.one?[
+    {l:'MONTANT',v:money(D.one.amount),c:red},
+    {l:'DATE',v:frDate(D.one.date),c:ink},
+    {l:'CATÉGORIE',v:D.one.cat||'Divers',c:ink},
+    {l:'PAYÉ EN',v:modeLabel(D.one.mode),c:ink}
+  ]:[
+    {l:'RECETTES ENCAISSÉES',v:money(rec),c:green},
+    {l:'DÉPENSES (PÉRIODE)',v:money(tot),c:red},
+    {l:'SOLDE GLOBAL',v:money(solde),c:solde<0?red:green},
+    {l:'LIGNES',v:String(D.list.length),c:ink}
+  ];
+  const bw=(cw-24)/4,bh=42;
+  cards.forEach((c,i)=>{
+    const x=M+i*(bw+8);
+    doc.rect(x,doc.y,bw,bh,[0.965,0.973,0.985],line,0.5);
+    doc.text(c.l,x+8,doc.y+14,7,'F2',grey);
+    doc.text(pdfCut(c.v,8.5,bw-16,true),x+8,doc.y+30,11.5,'F2',c.c);
+  });
+  doc.y+=bh+20;
+  if(D.one){
+    const e=D.one;
+    doc.text('Détail de la dépense',M,doc.y,11.5,'F2',navy);
+    doc.y+=8;doc.hline(M,M+cw,doc.y,gold,1);doc.y+=10;
+    doc.table([{w:150,label:'Rubrique'},{w:cw-150,label:'Valeur'}],
+      [['Libellé',e.label],['Référence / pièce',e.ref||'—'],['Note',e.note||'—'],
+       ['Saisie par',(e.by||'—')+(e.editAt?' (modifiée le '+frDate(String(e.editAt).slice(0,10))+')':'')]],
+      {size:9,boldCols:[0],zebra:true});
+  }else{
+    doc.text('Détail des dépenses',M,doc.y,11.5,'F2',navy);
+    doc.y+=8;doc.hline(M,M+cw,doc.y,gold,1);doc.y+=12;
+    if(!D.list.length)doc.text('Aucune dépense enregistrée pour cette période.',M,doc.y+10,8.5,'F1',grey);
+    else doc.table([
+      {w:66,label:'Date'},
+      {w:cw-66-88-66-96-86,label:'Libellé'},
+      {w:88,label:'Catégorie'},
+      {w:66,label:'Payé en'},
+      {w:96,label:'Référence'},
+      {w:86,label:'Montant',align:'right'}
+    ],D.list.map(e=>[frDate(e.date),e.label,e.cat||'—',modeLabel(e.mode),e.ref||'—',money(e.amount)]),
+      {size:8,boldCols:[1],zebra:true});
+  }
+  doc.need(60);
+  doc.y+=14;
+  doc.rect(M,doc.y,cw,30,band,line,0.5);
+  doc.text('SOLDE DE L’ÉTABLISSEMENT',M+10,doc.y+12,7.5,'F2',grey);
+  doc.textRight('Recettes '+money(rec)+' − dépenses '+money(gtot),doc.W-M-10,doc.y+12,8,'F1',grey);
+  doc.textRight(money(solde),doc.W-M-10,doc.y+24,12,'F2',solde<0?red:green);
+  doc.y+=48;
+  doc.need(70);
+  doc.text('Fait à '+(DB.school.city||'')+', le '+new Date().toLocaleDateString('fr-FR'),M,doc.y,8.5,'F1',grey);
+  doc.textRight('L’Économe / The Bursar',doc.W-M,doc.y,9,'F2',ink);
+  doc.hline(doc.W-M-140,doc.W-M,doc.y+26,line,0.5);
+  doc.textRight(ME?ME.name:'',doc.W-M,doc.y+38,8,'F1',grey);
+  const slug=v=>String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^A-Za-z0-9]+/g,'-').replace(/^-+|-+$/g,'');
+  const name=(D.one?'fiche_depense_'+slug(D.one.label).slice(0,32):'fiche_depenses_'+slug(D.sub))
+    .replace(/-+$/,'')+'_'+String(viewYear()).replace(/[^0-9]+/g,'-')+'.pdf';
+  return {fileName:name,bytes:doc.finish()};
+}
+function expenseSheetPdf(id){
+  if(!canFinance())return toast('Seuls l’économe et l’administrateur accèdent aux dépenses.','err');
+  const D=expenseSheetData(id);
+  if(!D)return toast('Dépense introuvable.','err');
+  const html=expenseSheetHtml(id);
+  const doc=expenseSheetDoc(id);
+  previewDoc(id?('Fiche de dépense — '+D.one.label):('Fiche des dépenses — '+D.sub),doc.fileName,html,()=>doc.bytes);
+}
 /* ---------- Reçu de paiement (PDF) ---------- */
 function receiptDoc(sid,pid){
   const f=financeStudent(sid);if(!f)return;
@@ -5255,6 +5555,22 @@ A['pay-add']=el=>{if(!canFinance())return;paymentForm(el.dataset.id)};
 A['pay-del']=el=>{if(!canFinance())return;const sid=el.dataset.id,pid=el.dataset.pid;
   askConfirm('Supprimer ce versement ?','Le versement sera retiré du profil financier de l’élève et le reste à payer recalculé. Le reçu déjà remis n’aura plus de valeur.','Supprimer',()=>{delPayment(sid,pid);dirty();saveNow();render();toast('Versement supprimé.','ok')},true)};
 A['receipt']=el=>{if(!canFinance())return;receiptPdf(el.dataset.id,el.dataset.pid)};
+/* Dépenses du quotidien : saisie, modification, suppression, fiche. */
+A['exp-add']=()=>{if(!canFinance())return toast('Seuls l’économe et l’administrateur tiennent les dépenses.','err');expenseForm(null)};
+A['exp-edit']=el=>{if(!canFinance())return;expenseForm(el.dataset.id)};
+A['exp-del']=el=>{
+  if(!canFinance())return;
+  const e=expenseById(el.dataset.id);
+  if(!e)return toast('Dépense introuvable.','err');
+  askConfirm('Supprimer cette dépense ?',
+    '« <b>'+esc(e.label)+'</b> » · '+money(e.amount)+' du '+frDate(e.date)+'.<br>Elle sera retirée des comptes et le solde recalculé. Cette suppression est définitive.',
+    'Supprimer',()=>{
+      if(delExpense(e.id)){dirty();saveNow();closeModal();render();toast('Dépense supprimée : solde '+money(soldeFinance())+'.','ok')}
+      else toast('Dépense introuvable.','err');
+    },true);
+};
+A['exp-pdf']=()=>expenseSheetPdf();
+A['exp-slip']=el=>expenseSheetPdf(el.dataset.id);
 A['fin-report']=()=>{if(!canFinance())return;financeReportPdf(null)};
 A['pdf-download']=()=>{
   if(!pdfPreview)return;
@@ -5442,7 +5758,8 @@ function backupCounts(d){
   });
   const fin=d.finance||{};
   for(const sid in (fin.pays||{}))payments+=(fin.pays[sid]||[]).length;
-  return {classes,students,grades,remarks,payments,
+  const expenses=Array.isArray(fin.expenses)?fin.expenses.length:0;
+  return {classes,students,grades,remarks,payments,expenses,
     archived:(d.archivedStudents||[]).length,
     sessions:(d.sessions||[]).length,
     users:(d.users||[]).length};
@@ -5762,6 +6079,26 @@ document.addEventListener('submit',async e=>{
     const p=addPayment(sid,{date:fd.date,amount:amt,mode:fd.mode,ref:fd.ref,note:fd.note});
     dirty();saveNow();closeModal();render();
     toast('Versement de '+money(p.amount)+' enregistré · reçu N° '+String(p.no).padStart(4,'0'),'ok');
+  }else if(kind==='expense'){
+    /* Dépense du quotidien : libellé + montant obligatoires, le reste facultatif. */
+    if(!canFinance())return err('Seuls l’économe et l’administrateur peuvent enregistrer les dépenses.');
+    const label=String(fd.label||'').replace(/\s+/g,' ').trim();
+    if(label.length<2)return err('Écrivez le libellé de la dépense (ex. « Achat de craies »).');
+    const raw=String(fd.amount==null?'':fd.amount).replace(/[^0-9.,]/g,'').replace(',','.'),amt=Number(raw);
+    if(!Number.isFinite(amt)||amt<=0)return err('Saisissez un montant supérieur à zéro.');
+    if(!fd.date)return err('Indiquez la date de la dépense.');
+    const data={label:label,amount:amt,date:fd.date,cat:fd.cat,mode:fd.mode,ref:fd.ref,note:fd.note};
+    const id=f.dataset.id;
+    if(id){
+      const e=updateExpense(id,data);
+      if(!e)return err('Dépense introuvable.');
+      dirty();saveNow();closeModal();render();
+      toast('Dépense modifiée : '+money(e.amount)+' · solde '+money(soldeFinance())+'.','ok');
+    }else{
+      const e=addExpense(data);
+      dirty();saveNow();closeModal();render();
+      toast('Dépense enregistrée : '+money(e.amount)+' · solde '+money(soldeFinance())+'.','ok');
+    }
   }else if(kind==='teacher'){
     const un=fd.username.trim().toLowerCase();if(!/^[a-z0-9._-]{2,}$/.test(un))return err('Identifiant : lettres, chiffres, point ou tiret, sans espace.');
     const id=f.dataset.id;if(DB.users.some(u=>u.username===un&&u.id!==id))return err('Cet identifiant est déjà utilisé.');
@@ -5857,6 +6194,10 @@ document.addEventListener('change',e=>{
   if(e.target.id==='q-class'){SEARCH.cls=e.target.value;renderSearchResults();return}
   if(e.target.id==='q-scope'){SEARCH.scope=e.target.value;renderSearchResults();return}
   if(e.target.dataset&&e.target.dataset.discsel){S.view='discipline';S.classId=e.target.value;render();return}
+  if(e.target.dataset&&e.target.dataset.expperiod){
+    S.expPeriod=['all','month','year'].indexOf(e.target.value)>=0?e.target.value:'all';
+    render();return;
+  }
   if(e.target.dataset&&e.target.dataset.classpick){
     const id=e.target.value;if(!id)return;
     const v=e.target.dataset.classpick;

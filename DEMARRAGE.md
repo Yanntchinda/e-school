@@ -55,13 +55,34 @@ Dans **Paramètres → Personnel**, ajoutez un compte par personne :
 |---|---|---|
 | Enseignant | saisir les notes de ses matières, voir ses classes | **Enseignant** |
 | Surveillant général | saisir les absences, retards et consignes | **Surveillant général** |
-| Économe | montants dus, versements, reçus | **Économe** |
+| Économe | montants dus, versements, reçus, dépenses du quotidien | **Économe** |
 
 Chaque compte a son propre identifiant et son mot de passe. Les enseignants
 sont ensuite affectés aux matières dans les paramètres de chaque classe. La page
 de connexion propose quatre espaces : Administration, Enseignant, Surveillant
 général et Économe ; chaque compte ouvre automatiquement l'espace qui lui
 correspond.
+
+## Les dépenses du quotidien (économe)
+
+L'espace **Économe** (et l'administration) a deux onglets : **Frais scolaires
+et recettes** et **Dépenses du quotidien**.
+
+- **Saisir une dépense** : le libellé (« Achat de craies ») et le montant
+  suffisent ; la date du jour est déjà remplie. Catégorie, mode de paiement,
+  référence de la pièce et note sont facultatifs.
+- **Le solde se calcule tout seul** : recettes encaissées − dépenses. Il est
+  affiché en haut de l'onglet et sur le tableau de bord financier, avec le
+  rappel des deux totaux.
+- **Modifier** ou **Supprimer** une dépense à tout moment : le solde est
+  recalculé aussitôt (la suppression demande une confirmation).
+- **Fiche imprimable** : le bouton **Fiche des dépenses (PDF)** ouvre un aperçu
+  (période affichée : tout, ce mois-ci, cette année) avec toutes les lignes,
+  les totaux et le solde ; **Télécharger le PDF** enregistre le document. Le
+  bouton **Fiche** d'une ligne produit le justificatif de cette seule dépense.
+- Les dépenses sont comprises dans la **sauvegarde complète**, dans la **base
+  partagée** (synchronisées comme les versements) et effacées par « Tout
+  effacer ».
 
 ## 3. Enregistrer les données
 
