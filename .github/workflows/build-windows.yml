@@ -1,0 +1,225 @@
+name: Construire l'installateur Windows
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - arena/86c7fea5-e-school
+    paths:
+      - 'desktop-app/**'
+      - '.github/workflows/build-windows.yml'
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  build:
+    name: Compilation Windows
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: desktop-app
+
+    steps:
+      - name: Recuperer le depot
+        uses: actions/checkout@v4
+
+      - name: Installer Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Verifier les fichiers du programme
+        shell: pwsh
+        run: |
+          foreach ($f in @('main.js','app/index.html','app/icon.ico','package.json')) {
+            if (Test-Path $f) {
+              Write-Host "[OK] $f ($((Get-Item $f).Length) octets)"
+            } else {
+              throw "Fichier manquant : $f"
+            }
+          }
+
+      - name: Verifier le script de recuperation
+        shell: pwsh
+        working-directory: .
+        run: |
+          $bat = Get-Content -Raw -Encoding UTF8 'outils/RECUPERER-MES-DONNEES.bat'
+          $m = '#' + 'PSSTART' + '#'
+          $i = $bat.IndexOf($m)
+          if ($i -lt 0) { throw "Marqueur absent du fichier .bat" }
+          $code = $bat.Substring($i + $m.Length)
+          $errs = $null
+          [void][System.Management.Automation.Language.Parser]::ParseInput($code, [ref]$null, [ref]$errs)
+          if ($errs -and $errs.Count -gt 0) {
+            $errs | ForEach-Object { Write-Host $_ }
+            throw "Erreur de syntaxe dans le script de recuperation"
+          }
+          if ($code -notmatch 'mbi_gestion_bulletins_v1') { throw "Cle de donnees absente du script" }
+          if ($code -notmatch 'Copy-Store') { throw "Remise en place absente du script" }
+          Write-Host "[OK] script de recuperation : syntaxe valide"
+
+      - name: Installer les composants
+        shell: pwsh
+        run: |
+          npm install --no-audit --no-fund 2>&1 | Tee-Object -FilePath install.log
+          if ($LASTEXITCODE -ne 0) {
+            $tail = (Get-Content install.log -Tail 120) -join "`n"
+            $body = "Installation des composants en echec.`n`n``````n$tail`n``````"
+            $j = @{ body = $body } | ConvertTo-Json
+            Invoke-RestMethod -Method Post -Uri "https://api.github.com/repos/${{ github.repository }}/issues/2/comments" -Headers @{ Authorization = "Bearer ${{ secrets.GITHUB_TOKEN }}" } -Body $j -ContentType 'application/json'
+            exit 1
+          }
+
+      - name: Construire l'installateur
+        shell: pwsh
+        run: |
+          npm run build:win -- --publish never 2>&1 | Tee-Object -FilePath build.log
+          if ($LASTEXITCODE -ne 0) {
+            $tail = (Get-Content build.log -Tail 150) -join "`n"
+            $body = "Compilation en echec (code $LASTEXITCODE).`n`n``````n$tail`n``````"
+            $j = @{ body = $body } | ConvertTo-Json
+            Invoke-RestMethod -Method Post -Uri "https://api.github.com/repos/${{ github.repository }}/issues/2/comments" -Headers @{ Authorization = "Bearer ${{ secrets.GITHUB_TOKEN }}" } -Body $j -ContentType 'application/json'
+            exit 1
+          }
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+
+      - name: Verifier le resultat
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem -Path "dist/installers" -Filter "*.exe" -ErrorAction SilentlyContinue
+          if (-not $exe) { throw "Aucun .exe produit" }
+          foreach ($f in $exe) {
+            Write-Host ("[OK] " + $f.Name + " - " + [math]::Round($f.Length/1MB,1) + " Mo")
+          }
+
+      - name: Publier le fichier telechargeable
+        uses: actions/upload-artifact@v4
+        with:
+          name: installateur-windows
+          path: desktop-app/dist/installers/*.exe
+          retention-days: 90
+
+      - name: Creer la version telechargeable
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.0
+          name: GestSchool 1.0.0 - Installateur Windows
+          body: |
+            Application Windows **GestSchool** - gestion scolaire : eleves, notes,
+            bulletins, personnel et finances.
+
+            - **GestSchool-1.0.0-Setup.exe** : installateur classique. Le double-cliquer,
+              suivre l'assistant ; une icone "GestSchool" apparait sur le Bureau et dans
+              le menu Demarrer.
+            - **GestSchool-1.0.0-Portable.exe** : un seul fichier, sans installation.
+              Le poser sur une cle USB et le double-cliquer : le programme demarre
+              directement.
+
+            Windows affiche un avertissement (fichier non signe) : cliquer sur
+            "Informations complementaires" puis "Executer quand meme".
+
+            Aucun compte de demonstration n'est fourni : la premiere ouverture demande
+            le nom de l'etablissement et la creation du compte administrateur.
+
+            Quatre espaces de connexion : Administration, Enseignant, Surveillant general
+            et Econome.
+
+            Mot de passe administrateur oublie : question secrete choisie a
+            l'installation, puis nouveau mot de passe (aucune donnee perdue).
+
+            Le logiciel fonctionne sans connexion internet.
+
+            Mise a jour depuis l'ancien nom (e-School) : les donnees deja saisies sont
+            reprises automatiquement au premier demarrage, il n'y a rien a ressaisir.
+
+            Reparation des donnees :
+
+            - Le logiciel cherche maintenant la base dans les deux dossiers de donnees
+              (`%APPDATA%\GestSchool` et `%APPDATA%\e-School Gestion Bulletins`) et
+              reprend celui qui contient reellement les classes, eleves et notes. Un
+              dossier `GestSchool` vide ne peut plus faire demarrer le logiciel sur une
+              base vide.
+            - Sauvegarde automatique : chaque jour, une sauvegarde complete est deposee
+              dans `Documents\GestSchool-Sauvegardes` (les 40 dernieres sont gardees),
+              sans aucune fenetre. Menu Aide > Sauvegardes automatiques.
+            - Recuperation des donnees d'une ancienne version **sans aucun code** :
+              menu **Aide > Recuperer les donnees d'une ancienne version...**. Le logiciel
+              cherche dans l'ancien dossier `e-School Gestion Bulletins`, dans le dossier
+              actuel et dans Chrome, Edge et Brave (si l'ancienne version etait ouverte en
+              double-cliquant sur le fichier .html), met le dossier actuel de cote dans
+              `Documents\GestSchool-Sauvegardes` puis redemarre avec les donnees choisies.
+            - Outil de secours **RECUPERER-MES-DONNEES.bat** (joint ci-dessous), utile si le
+              logiciel ne demarre pas : il ne supprime rien, copie l'ancienne base sur le
+              Bureau puis la remet en place. Il classe desormais toutes les bases trouvees
+              de la plus complete a la plus vide et ecrit un fichier .json par base
+              (DONNEES-1_LA-PLUS-COMPLETE...), avec LISEZ-MOI.txt et RAPPORT.txt.
+            - **Parametres > Importer un fichier de recuperation (.json)...** : le logiciel
+              affiche avant toute restauration le nombre de classes, d'eleves et de comptes
+              contenus dans le fichier. Une base vide est signalee en rouge au lieu d'etre
+              restauree silencieusement ; une base sans administrateur est refusee.
+              Correctif : un fichier .json vide ne peut plus donner un logiciel vide sans
+              explication.
+
+            En cas de logiciel vide apres une mise a jour : ouvrir GestSchool puis
+            **Aide > Recuperer les donnees d'une ancienne version...**.
+
+            Nouveautes :
+            - En-tete de l'etablissement (image importee ou nom, ville et annee) sur tous
+              les documents telecharges et imprimes : bulletins, releves, conseil de
+              classe, notes a completer, bilan financier, reste a payer, recus et fiche
+              des depenses.
+            - Pied de page sur chaque document : la devise de l'etablissement en francais
+              et en anglais, puis INFOLINE 6 77 71 22 32 / 6 73 35 80 89 / 6 87 656 296 /
+              6 59 33 74 06.
+            - Fiche et rapport des depenses du quotidien : en-tete sur la premiere page et
+              pied de page sur la derniere page uniquement.
+            - Recu de paiement : deux exemplaires A5 imprimes cote a cote sur une seule
+              feuille A4 paysage, pour un seul eleve (un pour l'ecole, un pour le parent).
+            - Tableau d'honneur : ni en-tete ni pied de page imprimes.
+            - Espace administrateur : onglet **Copyright** sous « Mon compte »
+              (titulaire des droits, conditions d'utilisation et contact).
+
+            Nouveau : corbeille dans toutes les sections.
+
+            - Supprimer un element ne l'efface plus : il passe dans la **Corbeille**
+              (menu Administration) et peut etre **restaure** en un clic, ou supprime
+              definitivement sur demande.
+            - Tout est concerne : eleves (avec notes, absences et photo), classes
+              entieres, matieres (avec leurs notes), comptes du personnel (avec leurs
+              affectations), versements et recus, depenses, lignes de discipline,
+              lecons, en-tete et logo de l'etablissement.
+            - Un bouton « Corbeille » est present dans chaque section (eleves, classe,
+              personnel, finances, depenses, discipline, lecons, parametres).
+            - Le message affiche apres une suppression propose **Annuler** pendant
+              quelques secondes.
+            - Les bulletins, recus et fiches se recalculent a partir des donnees :
+              restaurer l'element suffit a faire reapparaitre le document.
+            - « Tout effacer » telecharge automatiquement une sauvegarde complete avant
+              l'effacement ; la corbeille est comprise dans les sauvegardes.
+            - La corbeille est limitee a 250 elements : au-dela, les plus anciens sont
+              effaces et l'utilisateur est prevenu.
+
+            Copyright © 2026 GESTSCHOOL. Tous droits reserves.
+            Developpe et edite par TCHINDA NOTSAWO ANAIS YANN.
+            Contact : yanntchinda813@gmail.com
+          files: |
+            desktop-app/dist/installers/*.exe
+            outils/RECUPERER-MES-DONNEES.bat
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Annoncer le succes
+        if: success()
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem -Path "dist/installers" -Filter "*.exe"
+          $list = ($exe | ForEach-Object { "- " + $_.Name + " (" + [math]::Round($_.Length/1MB,1) + " Mo)" }) -join "`n"
+          $body = "Compilation reussie.`n`n$list`n`nTelechargement : https://github.com/${{ github.repository }}/releases/tag/v1.0.0"
+          $j = @{ body = $body } | ConvertTo-Json
+          Invoke-RestMethod -Method Post -Uri "https://api.github.com/repos/${{ github.repository }}/issues/2/comments" -Headers @{ Authorization = "Bearer ${{ secrets.GITHUB_TOKEN }}" } -Body $j -ContentType 'application/json'
