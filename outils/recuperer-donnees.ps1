@@ -1,11 +1,13 @@
 # ==========================================================================
 #  GestSchool - RECUPERER MES DONNEES
 #  Ce programme ne supprime rien. Il :
-#    1. trouve les dossiers de donnees du logiciel sur l'ordinateur
-#       (ancien nom « e-School Gestion Bulletins » comme nom actuel) ;
+#    1. trouve les donnees du logiciel sur l'ordinateur : dossier de
+#       l'ancien nom « e-School Gestion Bulletins », dossier actuel
+#       « GestSchool », et navigateurs (Chrome, Edge, Brave) si l'ancienne
+#       version a ete ouverte en double-cliquant sur le fichier .html ;
 #    2. en fait une copie de securite sur le Bureau ;
 #    3. remet l'ancienne base dans le dossier utilise par GestSchool ;
-#    4. fabrique un fichier de sauvegarde .json restaurable dans le logiciel ;
+#    4. fabrique, si possible, un fichier de sauvegarde .json restaurable ;
 #    5. retrouve les anciennes sauvegardes .json deja exportees.
 #  Double-cliquer sur RECUPERER-MES-DONNEES.bat pour l'executer.
 # ==========================================================================
@@ -177,12 +179,14 @@ function Save-BackupJson {
 }
 
 function Copy-Store {
-  param([string]$From, [string]$To)
-  foreach ($sub in @('Local Storage', 'Session Storage', 'IndexedDB', 'Preferences')) {
+  param([string]$From, [string]$To, [switch]$LocalStorageOnly)
+  $subs = @('Local Storage', 'Session Storage', 'IndexedDB', 'Preferences')
+  if ($LocalStorageOnly) { $subs = @('Local Storage', 'Session Storage') }
+  try { New-Item -ItemType Directory -Force -Path $To | Out-Null } catch { return $false }
+  foreach ($sub in $subs) {
     $src = Join-Path $From $sub
     if (-not (Test-Path -LiteralPath $src)) { continue }
     $dst = Join-Path $To $sub
-    try { New-Item -ItemType Directory -Force -Path $To | Out-Null } catch { return $false }
     if (Test-Path -LiteralPath $dst) { Remove-Item -LiteralPath $dst -Recurse -Force -ErrorAction SilentlyContinue }
     Copy-Item -LiteralPath $src -Destination $dst -Recurse -Force -ErrorAction SilentlyContinue
   }
@@ -213,6 +217,27 @@ function Find-BackupFiles {
   return $found
 }
 
+# Dossiers de stockage des navigateurs : si l'ancienne version a ete ouverte
+# en double-cliquant sur un fichier .html, les donnees sont la.
+function Get-BrowserProfiles {
+  param([string]$LocalApp)
+  $roots = @(
+    @{ Name = 'Google Chrome'; Dir = (Join-Path $LocalApp 'Google\Chrome\User Data') },
+    @{ Name = 'Microsoft Edge'; Dir = (Join-Path $LocalApp 'Microsoft\Edge\User Data') },
+    @{ Name = 'Brave'; Dir = (Join-Path $LocalApp 'BraveSoftware\Brave-Browser\User Data') }
+  )
+  $list = @()
+  foreach ($r in $roots) {
+    if (-not (Test-Path -LiteralPath $r.Dir)) { continue }
+    $subs = @(Get-ChildItem -LiteralPath $r.Dir -Directory -ErrorAction SilentlyContinue |
+      Where-Object { $_.Name -eq 'Default' -or $_.Name -like 'Profile *' })
+    foreach ($s in $subs) {
+      $list = $list + [pscustomobject]@{ Path = $s.FullName; Browser = $r.Name; Profile = $s.Name }
+    }
+  }
+  return $list
+}
+
 # --------------------------------------------------------------------------
 Say '=========================================================='
 Say '   GestSchool - recuperation des donnees'
@@ -228,19 +253,27 @@ $roaming = [Environment]::GetFolderPath('ApplicationData')
 $localApp = [Environment]::GetFolderPath('LocalApplicationData')
 $target = Join-Path $roaming 'GestSchool'
 
-Head '0. Logiciel ouvert'
-$running = @()
+Head '0. Logiciel et navigateurs ouverts'
+$runningApp = @()
 try {
-  $running = @(Get-Process -ErrorAction SilentlyContinue | Where-Object {
+  $runningApp = @(Get-Process -ErrorAction SilentlyContinue | Where-Object {
     $_.ProcessName -eq 'GestSchool' -or $_.ProcessName -eq 'e-School Gestion Bulletins'
   })
 } catch { }
-if ($running.Count -gt 0) {
-  Say '  GestSchool est encore ouvert : fermez-le avant de continuer.'
-  Write-Host '  Fermez GestSchool, puis appuyez sur Entree...' -NoNewline
+$runningWeb = @()
+try {
+  $runningWeb = @(Get-Process -ErrorAction SilentlyContinue | Where-Object {
+    $_.ProcessName -eq 'chrome' -or $_.ProcessName -eq 'msedge' -or $_.ProcessName -eq 'brave'
+  })
+} catch { }
+if ($runningApp.Count -gt 0 -or $runningWeb.Count -gt 0) {
+  if ($runningApp.Count -gt 0) { Say '  GestSchool est encore ouvert.' }
+  if ($runningWeb.Count -gt 0) { Say '  Un navigateur (Chrome, Edge ou Brave) est encore ouvert.' }
+  Say '  Fermez-les pour que la copie soit complete.'
+  Write-Host '  Appuyez sur Entree une fois ferme...' -NoNewline
   try { [void](Read-Host) } catch { }
 } else {
-  Say '  GestSchool est ferme : parfait.'
+  Say '  Application et navigateurs fermes : parfait.'
 }
 
 Head '1. Dossiers de donnees trouves'
@@ -255,11 +288,16 @@ foreach ($d in @(Get-ChildItem -LiteralPath $roaming -Directory -ErrorAction Sil
     $profiles = $profiles + $d.FullName
   }
 }
+$browserProfiles = @(Get-BrowserProfiles -LocalApp $localApp)
+foreach ($b in $browserProfiles) { $profiles = $profiles + $b.Path }
 $profiles = @($profiles | Select-Object -Unique)
 
+$browserName = @{}
+foreach ($b in $browserProfiles) { $browserName[$b.Path] = $b.Browser }
+
 if ($profiles.Count -eq 0) {
-  Say '  Aucun dossier GestSchool / e-School dans :'
-  Say ('  ' + $roaming)
+  Say '  Aucun dossier de donnees trouve.'
+  Say ('  (recherche dans : ' + $roaming + ')')
 } else {
   foreach ($p in $profiles) {
     $size = Storage-Size -Dir $p
@@ -268,8 +306,10 @@ if ($profiles.Count -eq 0) {
     $tag = 'vide'
     if ($has) { $tag = 'DONNEES TROUVEES' }
     elseif ($size -gt 0) { $tag = 'fichiers presents, sans la base' }
+    $origin = 'logiciel'
+    if ($browserName.ContainsKey($p)) { $origin = 'navigateur ' + $browserName[$p] }
     Say ('  ' + $p)
-    Say ('      ' + $tag + '  -  ' + [Math]::Round($size / 1024, 1) + ' Ko  -  dernier fichier : ' + $newest.ToString('dd/MM/yyyy HH:mm'))
+    Say ('      ' + $tag + '  -  ' + $origin + '  -  ' + [Math]::Round($size / 1024, 1) + ' Ko  -  dernier fichier : ' + $newest.ToString('dd/MM/yyyy HH:mm'))
   }
 }
 
@@ -292,51 +332,62 @@ foreach ($p in $profiles) {
 }
 
 Head '3. Base de donnees retrouvee'
-$best = $null
-$bestWhen = New-Object System.DateTime 2000, 1, 1
-foreach ($p in $profiles) {
-  if (-not (Storage-HasData -Dir $p)) { continue }
-  $when = Storage-Newest -Dir $p
-  if ($when -gt $bestWhen) { $bestWhen = $when; $best = $p }
+$withData = @($profiles | Where-Object { Storage-HasData -Dir $_ } | Sort-Object { Storage-Newest -Dir $_ } -Descending)
+if ($withData.Count -eq 0) {
+  Say '  Aucune base GestSchool / e-School identifiable sur cet ordinateur.'
+} else {
+  foreach ($p in $withData) {
+    $who = 'logiciel'
+    if ($browserName.ContainsKey($p)) { $who = 'navigateur ' + $browserName[$p] }
+    Say ('  ' + (Storage-Newest -Dir $p).ToString('dd/MM/yyyy HH:mm') + '  ' + $who + '  ' + $p)
+  }
 }
-if ($best) { Say ('  Donnees les plus recentes dans : ' + $best) }
-else { Say '  Aucune base GestSchool identifiable dans ces dossiers.' }
 
+$best = $null
+if ($withData.Count -gt 0) { $best = $withData[0] }
 $jsonPath = ''
 $counts = $null
+$extractOk = $false
 if ($best) {
   $db = Find-DbObject -Dir $best
   if ($null -ne $db) {
     $jsonPath = Join-Path $outDir ('DONNEES-RECUPEREES_' + $stamp + '.json')
-    try { $counts = Save-BackupJson -Obj $db -Path $jsonPath } catch { $counts = $null; $jsonPath = '' }
+    try { $counts = Save-BackupJson -Obj $db -Path $jsonPath; $extractOk = $true } catch { $counts = $null; $jsonPath = '' }
   }
 }
-if ($null -ne $counts) {
+if ($extractOk) {
+  Say ''
   Say ('  Etablissement : ' + $counts['classes'] + ' classe(s), ' + $counts['students'] + ' eleve(s), ' + $counts['users'] + ' compte(s), ' + $counts['payments'] + ' versement(s).')
   Say ('  Fichier de sauvegarde cree : ' + $jsonPath)
-} else {
-  Say '  Extraction directe impossible : la copie du dossier (etape 2) reste utilisable.'
+} elseif ($best) {
+  Say ''
+  Say '  La base est bien la, mais elle est compressee par le logiciel :'
+  Say '  elle ne peut pas etre transformee en fichier .json.'
+  Say '  C est normal : l etape 4 la remet directement en place.'
 }
 
 Head '4. Remise en place dans GestSchool'
 $restored = $false
+$alreadyHad = $false
 if (-not (Test-Path -LiteralPath $target)) {
   try { New-Item -ItemType Directory -Force -Path $target | Out-Null } catch { }
 }
 $targetHas = Storage-HasData -Dir $target
-$sources = @()
-foreach ($p in $profiles) {
-  if ($p -ne $target -and (Storage-HasData -Dir $p)) { $sources = $sources + $p }
-}
+$sources = @($withData | Where-Object { $_ -ne $target })
 
 if ($targetHas) {
-  Say '  Le dossier actuel contient deja une base : rien n a ete remplace.'
-  Say '  Pour remettre l ancienne base, utilisez le fichier .json de l etape 3 :'
-  Say '     GestSchool > Parametres > Restaurer une sauvegarde...'
+  $alreadyHad = $true
+  Say '  Le dossier actuel de GestSchool contient deja une base : rien n a ete remplace.'
+  Say '  Ouvrez GestSchool : vos donnees devraient s afficher.'
+  Say '  Si vous voulez plutot remettre une autre version des donnees, utilisez le'
+  Say '  fichier .json de l etape 3 : GestSchool > Parametres > Restaurer une sauvegarde.'
 } elseif ($sources.Count -gt 0) {
   foreach ($src in $sources) {
-    Say ('  Copie de ' + $src)
-    if (Copy-Store -From $src -To $target) {
+    $who = 'dossier ' + $src
+    if ($browserName.ContainsKey($src)) { $who = 'navigateur ' + $browserName[$src] }
+    Say ('  Copie depuis : ' + $who)
+    $localOnly = $browserName.ContainsKey($src)
+    if (Copy-Store -From $src -To $target -LocalStorageOnly:$localOnly) {
       $restored = $true
       Say ('      -> donnees remises dans ' + $target)
       break
@@ -345,7 +396,7 @@ if ($targetHas) {
     }
   }
 } else {
-  Say '  Aucun ancien dossier de donnees a remettre en place.'
+  Say '  Aucune base a remettre en place.'
 }
 
 Head '5. Anciennes sauvegardes .json'
@@ -369,41 +420,32 @@ if ($backups.Count -eq 0) {
   Say ('  ' + $backups.Count + ' fichier(s) copie(s) dans le dossier de recuperation.')
 }
 
-Head '6. Navigateurs (version HTML seulement)'
-$browsers = @(
-  @{ Name = 'Google Chrome'; Dir = (Join-Path $localApp 'Google\Chrome\User Data\Default') },
-  @{ Name = 'Microsoft Edge'; Dir = (Join-Path $localApp 'Microsoft\Edge\User Data\Default') },
-  @{ Name = 'Brave'; Dir = (Join-Path $localApp 'BraveSoftware\Brave-Browser\User Data\Default') }
-)
-$foundBrowser = $false
-foreach ($br in $browsers) {
-  if (-not (Test-Path -LiteralPath $br.Dir)) { continue }
-  if (Storage-HasData -Dir $br.Dir) {
-    $foundBrowser = $true
-    Say ('  ' + $br.Name + ' contient une base GestSchool (version ouverte dans le navigateur).')
-  }
-}
-if (-not $foundBrowser) { Say '  Aucune base GestSchool dans Chrome, Edge ou Brave.' }
-
 # --------------------------------------------------------------------------
+$finalHas = Storage-HasData -Dir $target
 Say ''
 Say '=========================================================='
-if ($restored) {
-  Say '   TERMINE : vos donnees sont revenues.'
+if ($finalHas) {
+  Say '   VOS DONNEES SONT EN PLACE.'
   Say ''
-  Say '   -> Fermez GestSchool s il est ouvert, puis relancez-le.'
-} elseif ($null -ne $counts) {
-  Say '   SAUVEGARDE RETROUVEE.'
+  Say '   1. Fermez cette fenetre.'
+  Say '   2. Ouvrez GestSchool (icone du Bureau ou du menu Demarrer).'
+  Say '   3. Vos classes, eleves, notes et finances doivent apparaitre.'
+  if (-not $restored) { Say '' ; Say '   (Le dossier contenait deja une base : rien n a ete ecrase.)' }
+} elseif ($extractOk) {
+  Say '   SAUVEGARDE RETROUVEE, A RESTAURER DANS LE LOGICIEL.'
   Say ''
-  Say '   -> Ouvrez GestSchool.'
-  Say '   -> Parametres > Restaurer une sauvegarde...'
-  Say ('   -> Choisissez : ' + $jsonPath)
+  Say '   1. Ouvrez GestSchool.'
+  Say '   2. Parametres > Restaurer une sauvegarde...'
+  Say ('   3. Choisissez : ' + $jsonPath)
 } else {
   Say '   AUCUNE DONNEE RETROUVEE AUTOMATIQUEMENT.'
   Say ''
-  Say '   -> Le dossier de recuperation contient tout ce qui a ete trouve :'
+  Say '   Le dossier ci-dessous contient tout ce qui a ete trouve sur cet'
+  Say '   ordinateur. Envoyez-le (ou son fichier RAPPORT.txt) pour analyse :'
   Say ('      ' + $outDir)
-  Say '   -> Envoyez ce dossier (ou le fichier RAPPORT.txt) pour analyse.'
+  Say ''
+  Say '   Verifiez aussi qu il ne reste pas une ancienne sauvegarde .json'
+  Say '   dans Telechargements, le Bureau, Documents ou OneDrive.'
 }
 Say '=========================================================='
 Say ''

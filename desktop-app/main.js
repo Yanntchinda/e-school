@@ -121,6 +121,165 @@ try {
   app.setPath('userData', userDataInfo.dir);
 } catch (e) { /* chemin indisponible : Electron utilise son dossier habituel */ }
 
+/* ---------- Récupération des données d'une ancienne version ----------
+   Le menu « Aide → Récupérer les données d'une ancienne version » liste les
+   dossiers de données trouvés sur l'ordinateur (ancien nom du logiciel,
+   nouveau nom, et navigateurs si l'ancienne version a été ouverte en
+   double-cliquant sur le fichier .html). Choisir une source copie son
+   stockage dans le dossier de données du logiciel, après avoir mis le dossier
+   actuel de côté. Rien n'est supprimé : en cas d'échec, la copie de sécurité
+   est remise en place. */
+
+function browserRoots () {
+  const local = process.env.LOCALAPPDATA || path.join(app.getPath('appData'), '..', 'Local');
+  return [
+    { label: 'Google Chrome', dir: path.join(local, 'Google', 'Chrome', 'User Data') },
+    { label: 'Microsoft Edge', dir: path.join(local, 'Microsoft', 'Edge', 'User Data') },
+    { label: 'Brave', dir: path.join(local, 'BraveSoftware', 'Brave-Browser', 'User Data') }
+  ];
+}
+
+function profileStores (root) {
+  const out = [];
+  let names = [];
+  try { names = fs.readdirSync(root); } catch (e) { return out; }
+  for (const name of names) {
+    if (name !== 'Default' && !/^Profile \d+$/.test(name)) continue;
+    const dir = path.join(root, name);
+    if (storageHasData(dir)) out.push(dir);
+  }
+  return out;
+}
+
+function recoverySources () {
+  const list = [];
+  const base = app.getPath('appData');
+  const mine = path.join(base, APP_NAME);
+  let names = [];
+  try { names = fs.readdirSync(base); } catch (e) { names = []; }
+  for (const name of names) {
+    if (!/gestschool|e-?school|gestion|bulletin/i.test(name)) continue;
+    const dir = path.join(base, name);
+    try { if (!fs.statSync(dir).isDirectory()) continue; } catch (e) { continue; }
+    if (!storageHasData(dir)) continue;
+    if (dir === mine) continue;
+    list.push({ kind: 'logiciel', label: name, dir, when: storageNewest(dir) });
+  }
+  for (const root of browserRoots()) {
+    for (const dir of profileStores(root.dir)) {
+      list.push({ kind: 'navigateur', label: root.label, dir, when: storageNewest(dir) });
+    }
+  }
+  return list.sort((a, b) => b.when - a.when);
+}
+
+function whenText (ms) {
+  if (!ms) return 'date inconnue';
+  try {
+    const d = new Date(ms);
+    return d.toLocaleDateString('fr-FR') + ' ' + d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  } catch (e) { return 'date inconnue'; }
+}
+
+function copyDirInto (from, to, sub) {
+  const src = path.join(from, sub);
+  if (!fs.existsSync(src)) return false;
+  fs.mkdirSync(to, { recursive: true });
+  fs.rmSync(path.join(to, sub), { recursive: true, force: true });
+  fs.cpSync(src, path.join(to, sub), { recursive: true });
+  return true;
+}
+
+/* Copie la source dans le dossier de données puis relance le logiciel. */
+function applyRecovery (sourceDir) {
+  const userData = app.getPath('userData');
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+  const safety = path.join(backupsFolder(), 'avant-recuperation-' + stamp);
+  let saved = false;
+  try { saved = copyDirInto(userData, safety, 'Local Storage'); } catch (e) { saved = false; }
+
+  try {
+    if (mainWindow) { mainWindow.destroy(); mainWindow = null; }
+  } catch (e) {}
+
+  setTimeout(() => {
+    let ok = false;
+    try {
+      if (!fs.existsSync(path.join(sourceDir, 'Local Storage'))) throw new Error('dossier source vide');
+      fs.rmSync(path.join(userData, 'Local Storage'), { recursive: true, force: true });
+      fs.cpSync(path.join(sourceDir, 'Local Storage'), path.join(userData, 'Local Storage'), { recursive: true });
+      ok = storageHasData(userData);
+    } catch (e) {
+      ok = false;
+    }
+    if (!ok && saved) {
+      try { fs.rmSync(path.join(userData, 'Local Storage'), { recursive: true, force: true }); } catch (e) {}
+      try { fs.cpSync(path.join(safety, 'Local Storage'), path.join(userData, 'Local Storage'), { recursive: true }); } catch (e) {}
+    }
+    try {
+      dialog.showMessageBoxSync({
+        type: ok ? 'info' : 'error',
+        title: 'Récupération des données',
+        message: ok ? 'Données remises en place' : 'La récupération a échoué',
+        detail: ok
+          ? 'Le logiciel va redémarrer avec les données récupérées.\n\n' +
+            'Si celles-ci ne correspondent pas à ce que vous attendiez, la copie de sécurité du dossier précédent est conservée ici :\n' + safety
+          : 'Le dossier choisi n’a pas pu être copié. Le dossier de données actuel a été remis en état.\n\n' +
+            'Copie de sécurité : ' + safety
+      });
+    } catch (e) {}
+    try { app.relaunch(); } catch (e) {}
+    app.exit(ok ? 0 : 1);
+  }, 900);
+}
+
+function askRecoverySources () {
+  const sources = recoverySources();
+  if (!sources.length) {
+    const base = app.getPath('appData');
+    dialog.showMessageBox(mainWindow, {
+      type: 'info',
+      title: 'Récupérer les données d’une ancienne version',
+      message: 'Aucune donnée d’une ancienne version n’a été trouvée.',
+      detail: 'Dossiers examinés :\n' +
+        '  ' + base + ' (GestSchool, e-School Gestion Bulletins…)\n' +
+        '  Chrome, Edge et Brave (si l’ancienne version a été ouverte dans un navigateur).\n\n' +
+        'Autres solutions :\n' +
+        '  • Paramètres → Restaurer une sauvegarde… si vous avez un fichier sauvegarde-gestschool_….json\n' +
+        '  • le programme RECUPERER-MES-DONNEES.bat (fourni avec le logiciel) analyse aussi le Bureau, ' +
+        'Téléchargements, Documents et OneDrive.',
+      buttons: ['Fermer']
+    });
+    return;
+  }
+  const list = sources.slice(0, 6).map(s =>
+    '• ' + s.kind + ' « ' + s.label + ' » — ' + whenText(s.when)).join('\n');
+  const buttons = ['Annuler', 'Utiliser « ' + sources[0].label + ' » (' + whenText(sources[0].when) + ')'];
+  if (sources.length > 1) buttons.push('Choisir un dossier…');
+  const choice = dialog.showMessageBoxSync(mainWindow, {
+    type: 'question',
+    title: 'Récupérer les données d’une ancienne version',
+    message: sources.length === 1
+      ? 'Des données ont été trouvées.'
+      : sources.length + ' dossiers contenant des données ont été trouvés.',
+    detail: 'Le plus récent est proposé en premier :\n\n' + list +
+      '\n\nLes données sont copiées dans le logiciel, sans rien supprimer : ' +
+      'le dossier actuel est d’abord mis de côté dans Documents\\GestSchool-Sauvegardes.',
+    buttons,
+    defaultId: 1,
+    cancelId: 0,
+    noLink: true
+  });
+  if (choice === 0) return;
+  if (choice === 1) { applyRecovery(sources[0].dir); return; }
+  const picked = dialog.showOpenDialogSync(mainWindow, {
+    title: 'Choisir le dossier de données à récupérer',
+    properties: ['openDirectory'],
+    message: 'Sélectionnez le dossier qui contient « Local Storage » (par exemple e-School Gestion Bulletins).'
+  });
+  if (picked && picked.length) applyRecovery(picked[0]);
+}
+
 let mainWindow = null;
 
 /* Une seule instance : si l'utilisateur reclique sur l'icône, on réutilise la fenêtre ouverte. */
@@ -321,6 +480,10 @@ function buildMenu () {
           }
         },
         {
+          label: 'Récupérer les données d’une ancienne version…',
+          click: () => askRecoverySources()
+        },
+        {
           label: 'Où sont mes données ?',
           click: () => {
             shell.openPath(app.getPath('userData'));
@@ -361,3 +524,15 @@ app.whenReady().then(() => {
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });
+
+/* Exports utilisés uniquement par les tests automatiques : dans l'application
+   lancée normalement, ce bloc ne change rien au comportement. */
+module.exports = {
+  storageHasData,
+  storageNewest,
+  dataFolders,
+  copyStorage,
+  chooseUserDataDir,
+  recoverySources,
+  applyRecovery
+};
