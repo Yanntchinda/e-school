@@ -146,9 +146,12 @@ jobs:
             - Sauvegarde automatique : chaque jour, une sauvegarde complete est deposee
               dans `Documents\GestSchool-Sauvegardes` (les 40 dernieres sont gardees),
               sans aucune fenetre. Menu Aide > Sauvegardes automatiques.
-            - Outil de recuperation `outils/RECUPERER-MES-DONNEES.bat` : il ne supprime
-              rien, copie l'ancienne base sur le Bureau puis la remet en place. Mode
-              d'emploi : `RECUPERER-MES-DONNEES.md`.
+            - Outil de recuperation **RECUPERER-MES-DONNEES.bat** (joint ci-dessous) :
+              il ne supprime rien, copie l'ancienne base sur le Bureau puis la remet en
+              place. Mode d'emploi : RECUPERER-MES-DONNEES.md (dossier outils/).
+
+            En cas de logiciel vide apres une mise a jour : fermer GestSchool,
+            telecharger **RECUPERER-MES-DONNEES.bat** ci-dessous et le double-cliquer.
 
             Nouveautes :
             - En-tete de l'etablissement (image importee ou nom, ville et annee) sur tous
