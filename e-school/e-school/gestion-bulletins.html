@@ -168,6 +168,29 @@ main{padding:24px 28px 60px;min-width:0}
 .notice{padding:10px 14px;border-radius:8px;background:var(--amber-bg);color:#7a4f10;font-size:14px;margin-bottom:14px;border:1px solid #f0dca8}
 .notice.info{background:#e8f0fc;color:#1d3d78;border-color:#c8d8f3}
 
+/* copyright */
+.copy-card{max-width:860px}
+.copy-head{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;
+  padding-bottom:14px;margin-bottom:16px;border-bottom:1px solid var(--line)}
+.copy-mark{display:flex;align-items:center;gap:12px}
+.copy-c{width:46px;height:46px;border-radius:50%;display:grid;place-items:center;background:var(--brand);
+  color:#fff;font-size:23px;font-weight:700;font-family:var(--serif);flex:none}
+.copy-mark b{display:block;font-family:var(--serif);font-size:21px;color:var(--ink);letter-spacing:.01em}
+.copy-mark span{display:block;font-size:11.5px;color:var(--muted);letter-spacing:.06em;text-transform:uppercase}
+.copy-year{font-family:var(--serif);font-size:26px;font-weight:700;color:#c9a227;letter-spacing:.06em}
+.copy-claim{font-family:var(--serif);font-size:19px;font-weight:700;color:var(--ink);background:#f7f9fc;
+  border-left:4px solid #c9a227;padding:12px 16px;border-radius:0 8px 8px 0;margin:0 0 16px}
+.copy-card p{font-size:14.5px;line-height:1.65;color:#2b3846;margin:0 0 12px}
+.copy-card p:last-of-type{margin-bottom:0}
+.copy-meta{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 20px;margin:18px 0 0;
+  padding-top:16px;border-top:1px solid var(--line)}
+.copy-meta span{display:block;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:700;margin-bottom:2px}
+.copy-meta b{font-size:14.5px;color:var(--ink);font-weight:600}
+.copy-meta a{color:var(--brand);text-decoration:none;font-weight:600}
+.copy-meta a:hover{text-decoration:underline}
+.copy-foot{margin:16px 0 0;font-size:12px;color:var(--muted);font-style:italic}
+@media print{.copy-card{max-width:none;border:0;padding:0;box-shadow:none}}
+
 /* tables */
 table.t{width:100%;border-collapse:collapse}
 table.t th{font-size:12.5px;color:var(--muted);font-weight:600;text-align:left;padding:8px 10px;border-bottom:2px solid var(--line);background:#fafbfd;white-space:nowrap}
@@ -2855,7 +2878,9 @@ function shellHtml(){
    '<h4>Administration</h4>'+
    (isAdmin()&&!isReadOnlySession()?'<a class="nav '+(S.view==='teachers'?'on':'')+'" data-act="go" data-v="teachers">Enseignants</a><a class="nav '+(S.view==='school'?'on':'')+'" data-act="go" data-v="school">Paramètres</a>':'')+
    (isAdmin()?'<a class="nav '+(S.view==='search'?'on':'')+'" data-act="go" data-v="search">Rechercher un élève</a>':'')+
-   '<a class="nav '+(S.view==='account'?'on':'')+'" data-act="go" data-v="account">Mon compte</a></nav>'+
+   '<a class="nav '+(S.view==='account'?'on':'')+'" data-act="go" data-v="account">Mon compte</a>'+
+   (isAdmin()?'<h4>À propos</h4><a class="nav '+(S.view==='copyright'?'on':'')+'" data-act="go" data-v="copyright">Copyright</a>':'')+
+   '</nav>'+
    '<main id="main">'+mainHtml()+'</main></div>';
 }
 /* ---------- Espace surveillant general : saisie de la discipline ---------- */
@@ -3016,6 +3041,7 @@ function mainHtml(){
   if(S.view==='fin-student')return financeStudentHtml();
   if(S.view==='fin-exp')return financeExpensesHtml();
   if(S.view==='account')return accountHtml();
+  if(S.view==='copyright'&&isAdmin())return copyrightHtml();
   return dashHtml();
 }
 
@@ -3887,6 +3913,38 @@ function schoolHtml(){
    '<div class="toolbar"><button class="btn" data-act="merge-start">Importer un fichier de notes d’enseignant…</button></div></div>'+
   '<div class="panel"><h3>Réinitialisation</h3><p class="small muted" style="margin-top:0">Efface définitivement classes, élèves, notes, comptes et finances sur cet ordinateur. Exportez d’abord une sauvegarde.</p><div class="toolbar"><button class="btn danger" data-act="wipe">Tout effacer</button></div></div>';
 }
+/* ---------- Copyright ----------
+   Onglet réservé à l'administrateur, sous « Mon compte ». Le texte est aussi
+   repris à l'impression de la page (Ctrl+P). */
+const COPY_YEAR='2026', COPY_VERSION='1.0',
+  COPY_OWNER='TCHINDA NOTSAWO ANAIS YANN', COPY_CONTACT='yanntchinda813@gmail.com';
+function copyrightHtml(){
+  return '<div class="page-h"><div><h1>Copyright</h1><p>GestSchool · version '+esc(COPY_VERSION)+' · '+esc(COPY_YEAR)+'</p></div></div>'+
+    '<div class="panel copy-card">'+
+      '<div class="copy-head">'+
+        '<div class="copy-mark"><span class="copy-c">©</span><div><b>GestSchool</b>'+
+          '<span>Logiciel de gestion scolaire</span></div></div>'+
+        '<div class="copy-year">'+esc(COPY_YEAR)+'</div>'+
+      '</div>'+
+      '<p class="copy-claim">Copyright © '+esc(COPY_YEAR)+' GESTSCHOOL. Tous droits réservés.</p>'+
+      '<p>Ce logiciel de gestion scolaire, incluant son code source, son interface, son architecture, '+
+        'ses fonctionnalités et sa documentation, est protégé par les lois applicables en matière de '+
+        'propriété intellectuelle.</p>'+
+      '<p>Toute reproduction, modification, distribution, commercialisation ou utilisation non autorisée '+
+        'de tout ou partie du logiciel est interdite sans l’accord écrit préalable du titulaire des droits.</p>'+
+      '<p>La copie, la décompilation, la revente ou la redistribution non autorisée du logiciel sont '+
+        'interdites, sous réserve des exceptions prévues par la législation applicable.</p>'+
+      '<div class="copy-meta">'+
+        '<div><span>Développé et édité par</span><b>'+esc(COPY_OWNER)+'</b></div>'+
+        '<div><span>Version</span><b>'+esc(COPY_VERSION)+'</b></div>'+
+        '<div><span>Année</span><b>'+esc(COPY_YEAR)+'</b></div>'+
+        '<div><span>Contact</span><b><a href="mailto:'+esc(COPY_CONTACT)+'">'+esc(COPY_CONTACT)+'</a></b></div>'+
+      '</div>'+
+      '<p class="copy-foot">Pour toute demande d’autorisation, d’information ou de signalement, écrivez à '+
+        '<a href="mailto:'+esc(COPY_CONTACT)+'">'+esc(COPY_CONTACT)+'</a>.</p>'+
+    '</div>';
+}
+
 function accountHtml(){
   const head='<div class="page-h"><div><h1>Mon compte</h1><p>'+esc(ME.name)+' · identifiant « '+esc(ME.username)+' »</p></div></div>';
   /* Seul l'administrateur peut changer lui-meme son mot de passe. Les autres
@@ -3909,6 +3967,7 @@ function accountHtml(){
     '<div class="err" id="fe"></div>'+
     '<button class="btn primary">'+(ME.secQ?'Remplacer la question secrète':'Enregistrer la question secrète')+'</button>'+
     '</form>';
+
   return head+
   '<form class="panel" data-form="pw" style="max-width:460px"><h3>Changer mon mot de passe</h3><label class="f">Mot de passe actuel<input name="old" type="password" required></label><label class="f">Nouveau mot de passe<input name="new" type="password" minlength="4" required></label><div class="pw-row"><button type="button" class="btn sm" data-act="toggle-pw">Afficher les mots de passe</button></div><div class="err" id="fe"></div><button class="btn primary">Enregistrer</button></form>'+
   secPanel;

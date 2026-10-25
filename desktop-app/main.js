@@ -163,7 +163,10 @@ function buildMenu () {
                 '\nÉlèves, notes, bulletins, personnel et finances.' +
                 '\n\nDonnées enregistrées localement sur cet ordinateur,' +
                 '\nou sur la base partagée configurée dans les Paramètres.' +
-                '\nAucune connexion internet n\'est nécessaire.'
+                '\nAucune connexion internet n\'est nécessaire.' +
+                '\n\nCopyright © 2026 GESTSCHOOL. Tous droits réservés.' +
+                '\nDéveloppé et édité par TCHINDA NOTSAWO ANAIS YANN.' +
+                '\nContact : yanntchinda813@gmail.com'
             });
           }
         },

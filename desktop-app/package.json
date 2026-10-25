@@ -17,6 +17,7 @@
   "build": {
     "appId": "com.eschool.bulletins",
     "productName": "GestSchool",
+    "copyright": "Copyright © 2026 GESTSCHOOL. Tous droits réservés.",
     "directories": {
       "output": "dist/installers"
     },
