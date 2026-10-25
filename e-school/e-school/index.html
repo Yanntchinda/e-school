@@ -242,6 +242,13 @@ td.sumc{font-weight:700;min-width:64px;padding:0 8px;background:#fcfcf6}
 .bulletin{width:190mm;margin:0 auto 14px;background:#fff;color:#000;font-family:Calibri,Carlito,"Segoe UI",Arial,sans-serif;font-size:10.5pt;padding:0;line-height:1.25}
 .xl .bulletin{padding:6mm 7mm;width:100%;max-width:210mm;box-shadow:0 2px 14px rgba(0,0,0,.18)}
 .bulletin .b-head{display:block;width:100%;height:auto}
+.bulletin .b-head-txt{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap;margin:0 0 4px}
+.bulletin .b-head-txt b{font-size:17px;color:#0a1930;font-family:var(--serif)}
+.bulletin .b-head-txt span{font-size:10.5px;color:#5b6b7d}
+.bulletin .b-foot{margin:6px 0 0;padding-top:2.2mm;border-top:.4mm solid #c9a227;text-align:center;color:#4b5b6e;font-size:8.2pt;line-height:1.3}
+.bulletin .b-foot p{margin:0;font-style:italic}
+.bulletin .b-foot .en{font-size:7.6pt;color:#5b6b7d}
+.bulletin .b-foot .tel{margin-top:.6mm;font-style:normal;font-weight:700;color:#0a1930;font-size:8.4pt}
 .bulletin .b-title{font-family:inherit;text-align:center;font-size:17.5pt;font-weight:400;letter-spacing:.2px;margin:2.4mm 0 1.2mm;white-space:nowrap}
 .bulletin .b-title .b-sub{display:inline;font-size:17.5pt;font-style:normal;font-weight:400;letter-spacing:.2px;margin:0;white-space:nowrap}
 .bulletin .b-year{font-style:italic;font-size:12pt;display:flex;justify-content:space-between;align-items:baseline;margin:0 0 .5mm;line-height:1.12;text-align:left}
@@ -416,8 +423,15 @@ tr.row-focus td{background:#fff7d6!important;box-shadow:inset 0 0 0 999px rgba(2
    (contrairement à un PDF dans un cadre, qui reste blanc sur beaucoup de
    navigateurs, notamment mobiles). */
 .doc-prev{background:#eef2f7;padding:14px;border-radius:9px}
+.doc-foot{margin-top:16px;padding-top:7px;border-top:1px solid #c9a227;text-align:center;color:#5b6b7d;font-size:9.5px;line-height:1.4}
+.doc-foot p{margin:0;font-style:italic}
+.doc-foot .tel{margin-top:2px;font-style:normal;font-weight:700;color:#0a1930;letter-spacing:.02em}
+.doc-foot .en{font-size:9px;color:#6b7a8c}
 .doc-sheet{background:#fff;border:1px solid #d7dee8;border-radius:4px;box-shadow:0 6px 20px rgba(16,32,56,.10);padding:26px 28px 22px;color:#16202e;font-size:13px;line-height:1.45}
 .doc-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap}
+.doc-head-img-wrap{margin:0 0 4px}
+.doc-head-img{display:block;width:100%;height:auto;margin:0 0 6px}
+.doc-head-sub{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;font-size:11px;color:#5b6b7d}
 .doc-head b{display:block;font-family:var(--serif);font-size:17px;color:#0a1930}
 .doc-head span{display:block;font-size:11.5px;color:#5b6b7d}
 .doc-head-r{text-align:right}
@@ -576,6 +590,11 @@ tr.row-focus td{background:#fff7d6!important;box-shadow:inset 0 0 0 999px rgba(2
 .hon .hn-f .v.gold{color:#b45309}
 .hon .hn-f .en{font-size:10.5pt;font-style:italic;color:#64748b;white-space:nowrap}
 .hon .hn-f.avg .v{font-size:19pt}
+/* devise de l'établissement, en bas du diplôme */
+.hon .hn-motto{margin:2.5mm 0 0;text-align:center;color:#475569;line-height:1.35}
+.hon .hn-motto p{margin:0;font-style:italic;font-size:8.6pt}
+.hon .hn-motto .en{font-size:8pt;color:#64748b}
+.hon .hn-motto .tel{margin-top:.8mm;font-style:normal;font-weight:800;color:#0a192f;font-size:9pt;letter-spacing:.02em}
 .hon .hn-foot{display:grid;grid-template-columns:1fr 1fr;gap:12mm;align-items:start;
   /* 36,9 mm : la marge basse compense exactement le resserrement des lignes.
      Les marges -6 mm / +8 mm remontent tout le pied de 8 mm vers « Moyenne
@@ -657,6 +676,16 @@ table.t td.stu-cell{white-space:nowrap}
   #printRoot .sheet{box-sizing:content-box;width:190mm;max-width:190mm;padding:9mm;
     margin:0 auto;break-after:page;page-break-after:always}
   #printRoot .sheet:last-child{break-after:auto;page-break-after:auto}
+  /* Documents longs (conseil de classe, notes à compléter, bilan) : la marge
+     du papier est recréée par le padding, et le pied de page reste visible en
+     bas de chaque page imprimée. Le relevé de notes (.sheet) garde le sien
+     dans le flux, une feuille par page. */
+  #printRoot .doc-sheet{box-sizing:border-box;width:190mm;max-width:190mm;margin:0 auto;
+    padding:9mm 9mm 28mm;background:#fff;break-before:page;page-break-before:always}
+  #printRoot .doc-sheet:first-child{break-before:auto;page-break-before:auto}
+  #printRoot .doc-sheet>.doc-foot{position:fixed;bottom:7mm;left:9mm;right:9mm;
+    margin:0;padding-top:5px;background:#fff}
+  #printRoot .doc-sheet>.doc-foot.flow{position:static;margin-top:18px}
   /* Tableau d'honneur : page paysage independante, meme au milieu d'un lot de bulletins portrait */
   @page hon{size:A4 landscape;margin:0}
   #printRoot .hon{width:296mm;height:208mm;page:hon;break-before:page;page-break-before:always;
@@ -1287,18 +1316,26 @@ function pdfLatin(str){
   return out;
 }
 const pdfEsc=s=>pdfLatin(s).replace(/[\\()]/g,c=>'\\'+c);
-/* Assemble les objets PDF : polices Helvetica (F1 normale, F2 gras). */
-function buildPdfBytes(pages){
+/* Assemble les objets PDF : polices Helvetica (F1 normale, F2 gras) et, si
+   le document en porte une, l'image d'en-tête de l'établissement (JPEG). */
+function buildPdfBytes(pages,images){
   const objs=[];const put=(n,b)=>{objs[n]=b};
   const pageNums=[],contentNums=[];let n=5;
   pages.forEach(()=>{pageNums.push(n);contentNums.push(n+1);n+=2});
+  const imgs=(images||[]).filter(Boolean);
+  const imgNums=imgs.map((x,i)=>n+i);
+  const xobj=imgs.length?' /XObject << '+imgs.map((im,i)=>'/'+im.name+' '+imgNums[i]+' 0 R').join(' ')+' >>':'';
   put(1,'<< /Type /Catalog /Pages 2 0 R >>');
   put(2,'<< /Type /Pages /Kids ['+pageNums.map(x=>x+' 0 R').join(' ')+'] /Count '+pages.length+' >>');
   put(3,'<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>');
   put(4,'<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>');
+  imgs.forEach((im,i)=>{
+    put(imgNums[i],'<< /Type /XObject /Subtype /Image /Width '+im.w+' /Height '+im.h+
+      ' /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length '+im.data.length+' >>\nstream\n'+im.data+'\nendstream');
+  });
   pages.forEach((p,i)=>{
     put(pageNums[i],'<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595.28 841.89] '+
-      '/Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents '+contentNums[i]+' 0 R >>');
+      '/Resources << /Font << /F1 3 0 R /F2 4 0 R >>'+xobj+' >> /Contents '+contentNums[i]+' 0 R >>');
     put(contentNums[i],'<< /Length '+p.length+' >>\nstream\n'+p+'\nendstream');
   });
   let out='%PDF-1.4\n%\u00E2\u00E3\u00CF\u00D3\n';
@@ -1314,7 +1351,7 @@ function buildPdfBytes(pages){
 }
 /* Petit moteur de mise en page A4 : texte, filets, tableaux paginés. */
 function PdfDoc(){
-  const d={pages:[],cur:'',y:0,W:595.28,H:841.89,M:36,has:false};
+  const d={pages:[],cur:'',y:0,W:595.28,H:841.89,M:36,has:false,images:[],foot:'all',autoHead:null};
   d.cw=d.W-2*d.M;
   const put=s=>{d.cur+=s;d.has=true};
   const PY=y=>d.H-y;                       /* y : distance depuis le haut */
@@ -1331,9 +1368,33 @@ function PdfDoc(){
   };
   d.hline=(x1,x2,y,color,lw)=>put((color||[0,0,0]).map(c=>c.toFixed(3)).join(' ')+' RG '+(lw||0.5)+' w '+
     x1.toFixed(2)+' '+PY(y).toFixed(2)+' m '+x2.toFixed(2)+' '+PY(y).toFixed(2)+' l S\n');
-  d.newPage=()=>{if(d.has)d.endPage();d.cur='';d.has=false;d.y=d.M};
+  /* Pied de page commun à tous les documents : la devise de l'établissement
+     en français et en anglais, puis l'infoline. Le numéro de page reste à
+     droite. Les opérateurs sont produits à part pour pouvoir aussi les poser
+     sur la seule dernière page (rapport des dépenses). */
+  d.footOps=()=>{
+    const M=d.M,W=d.W,cw=d.cw,y=d.H;
+    const ops=[];
+    ops.push('BT /F1 6.6 Tf 0.420 0.460 0.530 rg '+M.toFixed(2)+' '+(y-19).toFixed(2)+' Td ('+pdfEsc(DOC_MOTTO_FR)+') Tj ET');
+    ops.push('BT /F1 6.3 Tf 0.460 0.500 0.570 rg '+M.toFixed(2)+' '+(y-26.5).toFixed(2)+' Td ('+pdfEsc(DOC_MOTTO_EN)+') Tj ET');
+    ops.push('BT /F2 7 Tf 0.039 0.098 0.184 rg '+M.toFixed(2)+' '+(y-35).toFixed(2)+' Td ('+pdfEsc(DOC_INFOLINE)+') Tj ET');
+    ops.push('0.788 0.635 0.153 RG 0.5 w '+M.toFixed(2)+' '+(y-14).toFixed(2)+' m '+(W-M).toFixed(2)+' '+(y-14).toFixed(2)+' l S');
+    ops.push('BT /F1 6.6 Tf 0.450 0.500 0.580 rg '+(W-M-52).toFixed(2)+' '+(y-35).toFixed(2)+' Td (page __PAGE__/__NPAGES__) Tj ET');
+    return ops.join('\n')+'\n';
+  };
+  /* Image : enregistrée une fois, puis posée aux dimensions demandées. */
+  d.image=(dataUrl,x,y,w,h)=>{
+    const im=pdfImage(dataUrl);
+    if(!im)return false;
+    let ent=d.images.find(e=>e.data===im.data);
+    if(!ent){ent={name:'Im'+d.images.length,data:im.data,w:im.w,h:im.h};d.images.push(ent)}
+    put('q '+w.toFixed(2)+' 0 0 '+h.toFixed(2)+' '+x.toFixed(2)+' '+PY(y+h).toFixed(2)+' cm /'+ent.name+' Do Q\n');
+    return true;
+  };
+  d.newPage=()=>{if(d.has)d.endPage();d.cur='';d.has=false;d.y=d.autoHead?d.autoHead(d):d.M};
   d.endPage=()=>{
-    d.textRight('page __PAGE__/__NPAGES__',d.W-d.M,d.H-20,7.5,'F1',[0.45,0.5,0.58]);
+    if(d.foot==='all')d.cur+=d.footOps();
+    else if(d.foot!=='last')d.textRight('page __PAGE__/__NPAGES__',d.W-d.M,d.H-20,7.5,'F1',[0.45,0.5,0.58]);
     d.pages.push(d.cur);d.cur='';d.has=false;
   };
   d.need=h=>{if(d.y+h>d.H-d.M-16){d.newPage();return true}return false};
@@ -1377,11 +1438,38 @@ function PdfDoc(){
   d.finish=()=>{
     if(d.has)d.endPage();
     if(!d.pages.length){d.cur='';d.has=true;d.endPage()}
+    if(d.foot==='last'&&d.pages.length)d.pages[d.pages.length-1]+=d.footOps();
     const n=d.pages.length;
     const pages=d.pages.map((p,i)=>p.replace(/__PAGE__/g,String(i+1)).replace(/__NPAGES__/g,String(n)));
-    return buildPdfBytes(pages);
+    return buildPdfBytes(pages,d.images);
   };
   return d;
+}
+/* Dimensions d'un JPEG : le bloc SOF donne la hauteur et la largeur en
+   pixels. Sert à placer l'image d'en-tête sans la déformer. */
+function jpegSize(bin){
+  let i=2;
+  while(i<bin.length-8){
+    if(bin.charCodeAt(i)!==0xFF){i++;continue}
+    const m=bin.charCodeAt(i+1);
+    if(m===0xD8||m===0xDA)break;
+    if(m>=0xC0&&m<=0xCF&&m!==0xC4&&m!==0xC8&&m!==0xCC)
+      return {h:(bin.charCodeAt(i+5)<<8)|bin.charCodeAt(i+6),w:(bin.charCodeAt(i+7)<<8)|bin.charCodeAt(i+8)};
+    const len=(bin.charCodeAt(i+2)<<8)|bin.charCodeAt(i+3);
+    if(len<2)break;
+    i+=2+len;
+  }
+  return null;
+}
+/* Décode un data-URL JPEG en image PDF utilisable par PdfDoc. */
+function pdfImage(dataUrl){
+  const m=String(dataUrl||'').match(/^data:image\/jpeg;base64,([A-Za-z0-9+/=\s]+)$/);
+  if(!m)return null;
+  let bin='';
+  try{bin=atob(m[1].replace(/\s+/g,''))}catch(e){return null}
+  const dim=jpegSize(bin);
+  if(!dim||!dim.w||!dim.h)return null;
+  return {data:bin,w:dim.w,h:dim.h};
 }
 function downloadBytes(name,bytes,mime){
   const a=document.createElement('a');
@@ -1402,13 +1490,12 @@ function missingNotesReportHtml(t){
     (DB.school.city?'<span>'+esc2(DB.school.city)+'</span>':'')+'</div></header>'+
     '<p class="mn-meta">Édité le '+esc(stamp)+' · '+(groups.length?(groups.length+(groups.length>1?' classes':' classe')+' · '+total+(total>1?' enseignants':' enseignant')):'aucune classe concernée')+'</p>';
   if(!groups.length){
-    h+='<p class="mn-empty">'+(anyMissing?'Aucun professeur n’a zéro note : la saisie est commencée dans toutes les classes.':'Toutes les notes du '+ordSup(t)+' trimestre sont saisies.')+'</p></section>';
-    return h;
+    return h+'<p class="mn-empty">'+(anyMissing?'Aucun professeur n’a zéro note : la saisie est commencée dans toutes les classes.':'Toutes les notes du '+ordSup(t)+' trimestre sont saisies.')+'</p>'+docFootHtml()+'</section>';
   }
   h+='<h2>Classes et enseignants concernés</h2><table class="mn-t"><colgroup><col style="width:20%"><col style="width:80%"></colgroup>'+
     '<thead><tr><th>Classe</th><th>Enseignants n’ayant encore saisi aucune note</th></tr></thead><tbody>';
   for(const g of groups)h+='<tr><td><b>'+esc2(g.cls)+'</b></td><td>'+g.names.map(esc2).join(' · ')+'</td></tr>';
-  return h+'</tbody></table></section>';
+  return h+'</tbody></table>'+docFootHtml()+'</section>';
 }
 /* Le rapport est imprimé par le navigateur : « Enregistrer au format PDF » donne
    un PDF identique à l'écran. (Le bouton principal, lui, écrit le PDF directement.) */
@@ -1424,13 +1511,9 @@ function exportMissingNotesPdf(t){
   const anyMissing=missingNoteRows(t).length>0;
   const navy=[0.039,0.098,0.184],gold=[0.788,0.635,0.153],grey=[0.42,0.46,0.53],ink=[0.09,0.12,0.18],green=[0.06,0.45,0.22];
   const doc=PdfDoc();const M=doc.M,cw=doc.cw;
+  doc.autoHead=pdfHeader;
   doc.newPage();
   /* --- en-tête --- */
-  doc.text(DB.school.name,M,M+16,14,'F2',navy);
-  doc.textRight('Année scolaire '+viewYear(),doc.W-M,M+16,8.5,'F1',grey);
-  doc.textRight(DB.school.city||'',doc.W-M,M+27,8,'F1',grey);
-  doc.rect(M,M+32,cw,1.6,gold);
-  doc.y=M+62;
   doc.text('NOTES À COMPLÉTER',M,doc.y,20,'F2',navy);
   doc.y+=19;
   doc.text('Classes et enseignants concernés — '+TRN[t-1]+' trimestre',M,doc.y,10.5,'F1',grey);
@@ -1515,7 +1598,7 @@ function classCouncilReportHtml(t){
     h+='</tbody></table>';
   }
   return h+'<p class="mn-meta" style="margin-top:6mm">Appréciations : Insuffisant (moins de 10) · Passable (10 à 11,99) · Assez bien (12 à 13,99) · Bien (14 à 15,99) · Très bien (16 et plus).<br>'+
-    'Tableau d’honneur : TH = tableau d’honneur · THF = tableau d’honneur + félicitations · THFA = tableau d’honneur + félicitations + encouragements.</p></section>';
+    'Tableau d’honneur : TH = tableau d’honneur · THF = tableau d’honneur + félicitations · THFA = tableau d’honneur + félicitations + encouragements.</p>'+docFootHtml()+'</section>';
 }
 function printClassCouncil(t){
   $('#printRoot').innerHTML=classCouncilReportHtml(t);
@@ -1529,12 +1612,8 @@ function exportClassCouncilPdf(t){
   const navy=[0.039,0.098,0.184],gold=[0.788,0.635,0.153],grey=[0.42,0.46,0.53],ink=[0.09,0.12,0.18],
     band=[0.949,0.961,0.980],head=[0.929,0.945,0.965],line=[0.85,0.88,0.92],zeb=[0.975,0.98,0.99];
   const doc=PdfDoc(),M=doc.M,cw=doc.cw;
+  doc.autoHead=pdfHeader;
   doc.newPage();
-  doc.text(DB.school.name,M,M+16,14,'F2',navy);
-  doc.textRight('Année scolaire '+viewYear(),doc.W-M,M+16,8.5,'F1',grey);
-  doc.textRight(DB.school.city||'',doc.W-M,M+27,8,'F1',grey);
-  doc.rect(M,M+32,cw,1.6,gold);
-  doc.y=M+62;
   doc.text('CONSEIL DE CLASSE',M,doc.y,20,'F2',navy);
   doc.y+=19;
   doc.text(t===3?'Bilan annuel — moyennes, rangs et absences de l’année':'Liste alphabétique des élèves — '+TRN[t-1]+' trimestre',M,doc.y,10.5,'F1',grey);
@@ -1833,6 +1912,7 @@ function honourHtml(cls,sid,t){
           '<div class="hn-date">'+esc(honDateLine(sc))+'</div>'+
           '<div class="hn-sg"><span class="r">Le Chef d’Établissement<i>Headmaster</i></span></div>'+
         '</div>'+
+        '<div class="hn-motto"><p>'+esc(DOC_MOTTO_FR)+'</p><p class="en">'+esc(DOC_MOTTO_EN)+'</p><p class="tel">'+esc(DOC_INFOLINE)+'</p></div>'+
       '</div>'+
     '</div>'+
   '</section>';
@@ -2040,7 +2120,9 @@ function bulletinHtml(cls,sid,t){
   const pp=ppName(cls),tel=ppTel(cls);
   const photoSrc=studentPhotoSrc(cls,st);
   const photoHtml=photoSrc?'<img class="b-photo" src="'+photoSrc+'" alt="Photo de '+esc(st.name)+'">':'<div class="b-photo b-photo-empty">Photo</div>';
-  return '<section class="bulletin">'+(hasHeader()?'<img class="b-head" src="'+headerSrc()+'" alt="">':'')+
+  const head=hasHeader()?'<img class="b-head" src="'+headerSrc()+'" alt="">'
+    :'<div class="b-head-txt"><b>'+esc(sc.name)+'</b><span>'+esc(sc.city||'')+'</span></div><div class="doc-rule"></div>';
+  return '<section class="bulletin">'+head+
    '<h2 class="b-title">'+L.title(t)+(L.sub?'<span class="b-sub">&nbsp;/&nbsp;'+esc(L.sub)+'</span>':'')+'</h2>'+
    '<div class="b-profile"><div class="b-profile-info">'+
    '<div class="b-year"><span>'+L.year+'&nbsp;&nbsp;'+esc(sc.year)+'</span><span class="tr nw"><b>'+L.tr(t)+'</b></span></div>'+
@@ -2053,6 +2135,7 @@ function bulletinHtml(cls,sid,t){
    '<thead><tr><th>'+L.subject+'</th>'+order.map(k=>'<th>'+hd[k]+'</th>').join('')+'<th>'+L.rank+'</th><th>'+L.obs+'</th></tr></thead><tbody>'+b+'</tbody></table>'+
    '<div class="b-legend">'+esc(L.legend)+'</div>'+
    bBottomHtml(cls,st,res,P,t,ann,remark,pp,sc)+
+   docFootHtml('b-foot')+
    '</section>';
 }
 
@@ -3627,13 +3710,13 @@ function statsTab(cls){
 }
 function resultsSheet(cls,t){
   const D=statsData(cls,t),L=LB[cls.lang||'fr'];
-  return '<section class="sheet">'+(hasHeader()?'<img src="'+headerSrc()+'" style="width:100%;display:block" alt="">':'')+'<h2>RÉSULTATS DU '+t+'<sup>'+(t===1?'ER':'E')+'</sup> TRIMESTRE</h2><div class="sub">Classe : <b>'+esc(cls.name)+'</b> · Année scolaire '+esc(viewYear())+' · Professeur principal : '+esc(ppName(cls)||'—')+'</div>'+
+  return '<section class="sheet">'+docHeadHtml()+'<h2>RÉSULTATS DU '+t+'<sup>'+(t===1?'ER':'E')+'</sup> TRIMESTRE</h2><div class="sub">Classe : <b>'+esc(cls.name)+'</b> · Année scolaire '+esc(viewYear())+' · Professeur principal : '+esc(ppName(cls)||'—')+'</div>'+
    '<div class="k"><span>Élèves classés : <b>'+D.rk.length+' / '+cls.students.length+'</b></span><span>Moyenne de classe : <b>'+fmt1(D.mean)+'</b></span><span>Médiane : <b>'+fmt1(D.med)+'</b></span><span>Réussite (≥ 10) : <b>'+(D.pass==null?'—':Math.round(D.pass*100)+' %')+'</b></span></div>'+
    '<table><thead><tr><th style="width:14mm">Rang</th><th>Noms et prénoms</th><th style="width:24mm">Moyenne</th><th style="width:34mm">Appréciation</th></tr></thead><tbody>'+
    D.rk.map(x=>'<tr><td>'+rankHtml(D.res.per[x.s.id].rank)+'</td><td>'+esc(x.s.name)+'</td><td style="text-align:center"><b style="color:'+(x.a<10?'#c00000':'inherit')+'">'+fmt(x.a)+'</b></td><td>'+mention(x.a)+'</td></tr>').join('')+'</tbody></table>'+
    '<table><thead><tr><th>Matière</th><th style="width:16mm">Coef.</th><th style="width:20mm">Moyenne</th><th style="width:18mm">Min.</th><th style="width:18mm">Max.</th><th style="width:18mm">≥ 10</th></tr></thead><tbody>'+
    D.subs.map(x=>'<tr><td>'+esc(x.sub.name)+'</td><td style="text-align:center">'+fmt(x.sub.coef,x.sub.coef%1?1:0)+'</td><td style="text-align:center"><span style="color:'+(x.avg!=null&&x.avg<10?'#c00000':'inherit')+';font-weight:700">'+fmt1(x.avg)+'</span></td><td style="text-align:center">'+fmt1(x.min)+'</td><td style="text-align:center">'+fmt1(x.max)+'</td><td style="text-align:center">'+(x.pass==null?'—':Math.round(x.pass*100)+' %')+'</td></tr>').join('')+'</tbody></table>'+
-   '<div style="display:flex;justify-content:flex-end;margin-top:8mm"><div>'+esc(viewSchool().city)+' '+L.at+' _______________<br><b>'+L.principal+'</b></div></div></section>';
+   '<div style="display:flex;justify-content:flex-end;margin-top:8mm"><div>'+esc(viewSchool().city)+' '+L.at+' _______________<br><b>'+L.principal+'</b></div></div>'+docFootHtml()+'</section>';
 }
 function exportCsv(cls,t){
   const res=getRes(cls,t),list=[...cls.students].sort(cmpName);
@@ -4407,6 +4490,16 @@ const DOC_PRINT_CSS=()=>[
  '.doc-head{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}',
  '.doc-head b{display:block;font-size:17px;color:#0a1930}.doc-head span{display:block;font-size:11.5px;color:#5b6b7d}',
  '.doc-head-r{text-align:right}.doc-rule{height:2px;background:#c9a227;margin:9px 0 16px}',
+ '.doc-head-img-wrap{margin:0 0 4px}',
+ '.doc-head-img{display:block;width:100%;height:auto;margin:0 0 6px}',
+ '.doc-head-sub{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;font-size:11px;color:#5b6b7d}',
+ '.doc-foot{margin-top:16px;padding-top:7px;border-top:1px solid #c9a227;text-align:center;color:#5b6b7d;font-size:9.5px;line-height:1.4}',
+ '.doc-foot p{margin:0;font-style:italic}.doc-foot .en{font-size:9px;color:#6b7a8c}',
+ '.doc-foot .tel{margin-top:2px;font-style:normal;font-weight:700;color:#0a1930}',
+ '@media print{.doc-foot{position:fixed;bottom:0;left:0;right:0;margin:0;padding-top:6px;background:#fff}}',
+ /* Rapport des dépenses : le pied ne doit apparaître qu’à la dernière page. */
+ '@media print{.doc-foot.flow{position:static;margin-top:18px}}',
+ '.doc-foot.flow{margin-top:18px}',
  '.doc-sheet h1{font-size:25px;margin:0 0 4px;color:#0a1930}.doc-sub{margin:0 0 8px;color:#5b6b7d;font-size:12.5px}',
  '.doc-meta{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;font-size:11px;color:#5b6b7d;margin-bottom:14px}',
  '.doc-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:0 0 18px}',
@@ -4440,7 +4533,7 @@ const DOC_PRINT_CSS=()=>[
  '.doc-amount b{display:block;font-size:24px;color:#108a3a;margin:3px 0 2px}',
  '.doc-amount i{font-style:normal;font-size:11px;color:#3d4c60}',
  '.doc-para{font-size:11.5px;line-height:1.6;color:#2b3846;margin:14px 0 0}',
- '@page{size:A4;margin:12mm}'
+ '@page{size:A4;margin:12mm 12mm 24mm}'
 ].join('\n');
 function previewDoc(title,fileName,html,build){
   releasePdfPreview();
@@ -4843,12 +4936,8 @@ function financeReportDoc(onlyClassId){
     band=[0.949,0.961,0.980],head=[0.929,0.945,0.965],line=[0.85,0.88,0.92],zeb=[0.975,0.98,0.99];
   const doc=PdfDoc(),M=doc.M,cw=doc.cw,tot=financeTotals(classes);
   const nStu=classes.reduce((n,c)=>n+(c.students||[]).length,0);
+  doc.autoHead=pdfHeader;
   doc.newPage();
-  doc.text(DB.school.name,M,M+16,14,'F2',navy);
-  doc.textRight('Année scolaire '+viewYear(),doc.W-M,M+16,8.5,'F1',grey);
-  doc.textRight(DB.school.city||'',doc.W-M,M+27,8,'F1',grey);
-  doc.rect(M,M+32,cw,1.6,gold);
-  doc.y=M+62;
   doc.text('BILAN FINANCIER',M,doc.y,20,'F2',navy);
   doc.y+=19;
   doc.text(onlyClassId?('Classe '+classes[0].name+' — situation des frais scolaires'):'Situation des frais scolaires par classe et par élève',M,doc.y,10.5,'F1',grey);
@@ -4955,16 +5044,63 @@ function financeReportDoc(onlyClassId){
 /* ---------- Versions HTML des documents financiers (aperçu à l'écran) ----------
    Elles reprennent exactement les données des PDF : mêmes totaux, même tri,
    même règle d'exclusion des élèves soldés. */
+/* En-tête commun des documents PDF : l'image d'en-tête de l'établissement
+   quand elle a été importée, sinon son nom, sa ville et l'année. Renvoie la
+   position verticale où commence le contenu. */
+function pdfHeader(doc){
+  const M=doc.M,cw=doc.cw,W=doc.W,
+    navy=[0.039,0.098,0.184],gold=[0.788,0.635,0.153],grey=[0.42,0.46,0.53];
+  if(hasHeader()){
+    const im=pdfImage(headerSrc());
+    if(im){
+      let w=cw,h=w*im.h/im.w;
+      if(h>86){h=86;}
+      doc.image(headerSrc(),M,M+10,w,h);
+      doc.textRight('Année scolaire '+viewYear(),W-M,M+10+h+9,8,'F1',grey);
+      doc.rect(M,M+10+h+15,cw,1.6,gold);
+      return M+10+h+38;
+    }
+  }
+  doc.text(DB.school.name,M,M+16,14,'F2',navy);
+  doc.textRight('Année scolaire '+viewYear(),W-M,M+16,8.5,'F1',grey);
+  doc.textRight(DB.school.city||'',W-M,M+27,8,'F1',grey);
+  doc.rect(M,M+32,cw,1.6,gold);
+  return M+62;
+}
+/* ---------- En-tête et pied de page de tous les documents ----------
+   Chaque document téléchargé ou imprimé porte l'en-tête de l'établissement
+   (l'image importée dans Paramètres, sinon son nom, sa ville et l'année) et
+   la devise de l'école, en français et en anglais, suivie de l'infoline. */
+const DOC_MOTTO_FR='Inculquer le savoir, le savoir faire et le savoir être : telle est notre mission.';
+const DOC_MOTTO_EN='To instil knowledge, know-how and good conduct: such is our mission.';
+const DOC_INFOLINE='Infoline : 677712232/691212555';
+function docFootHtml(cls){
+  return '<div class="'+(cls||'doc-foot')+'">'+
+    '<p class="fr">'+esc(DOC_MOTTO_FR)+'</p>'+
+    '<p class="en">'+esc(DOC_MOTTO_EN)+'</p>'+
+    '<p class="tel">'+esc(DOC_INFOLINE)+'</p></div>';
+}
 function docHeadHtml(){
+  /* En-tête importé par l'établissement : il contient déjà le nom, la ville et
+     les coordonnées. Sinon on compose l'en-tête texte habituel. */
+  if(hasHeader()){
+    return '<div class="doc-head-img-wrap"><img class="doc-head-img" src="'+headerSrc()+'" alt="'+esc(DB.school.name)+'">'+
+      '<div class="doc-head-sub"><span>Année scolaire '+esc(viewYear())+'</span><span>'+esc(DB.school.city||'')+'</span></div></div>'+
+      '<div class="doc-rule"></div>';
+  }
   return '<div class="doc-head"><div><b>'+esc(DB.school.name)+'</b><span>'+esc(DB.school.city||'')+'</span></div>'+
     '<div class="doc-head-r"><span>Année scolaire '+esc(viewYear())+'</span><span>'+esc(DB.school.city||'')+'</span></div></div><div class="doc-rule"></div>';
 }
 function docKpisHtml(list){
   return '<div class="doc-kpis">'+list.map(k=>'<div class="doc-kpi"><span>'+esc(k.l)+'</span><b'+(k.c?' style="color:'+k.c+'"':'')+'>'+esc(k.v)+'</b></div>').join('')+'</div>';
 }
-function docSignHtml(){
+function docSignHtml(flowFoot){
+  /* flowFoot : le pied reste dans le flux, donc uniquement sur la dernière
+     page (rapport des dépenses). Sinon il est répété en bas de chaque page
+     à l'impression. */
   return '<div class="doc-sign"><div>Fait à '+esc(DB.school.city||'')+', le '+new Date().toLocaleDateString('fr-FR')+'</div>'+
-    '<div class="doc-sign-r"><b>L’Économe / The Bursar</b><i></i><span>'+esc(ME?ME.name:'')+'</span></div></div>';
+    '<div class="doc-sign-r"><b>L’Économe / The Bursar</b><i></i><span>'+esc(ME?ME.name:'')+'</span></div></div>'+
+    docFootHtml(flowFoot?'doc-foot flow':'doc-foot');
 }
 function financeReportHtml(onlyClassId){
   const classes=onlyClassId?(DB.classes||[]).filter(c=>c.id===onlyClassId):(DB.classes||[]);
@@ -5090,12 +5226,8 @@ function financeDuesDoc(onlyClassId){
     line=[0.85,0.88,0.92],zeb=[0.975,0.98,0.99];
   const doc=PdfDoc(),M=doc.M,cw=doc.cw;
   const withPhone=D.groups.some(g=>g.rows.some(r=>String(r.st.parentPhone||'').trim()));
+  doc.autoHead=pdfHeader;
   doc.newPage();
-  doc.text(DB.school.name,M,M+16,14,'F2',navy);
-  doc.textRight('Année scolaire '+viewYear(),doc.W-M,M+16,8.5,'F1',grey);
-  doc.textRight(DB.school.city||'',doc.W-M,M+27,8,'F1',grey);
-  doc.rect(M,M+32,cw,1.6,gold);
-  doc.y=M+62;
   doc.text('RESTE À PAYER',M,doc.y,20,'F2',navy);
   doc.y+=19;
   doc.text(onlyClassId?('Classe '+classes[0].name+' — élèves qui doivent encore payer'):'Élèves non soldés — situation par classe et par nom',M,doc.y,10.5,'F1',grey);
@@ -5256,7 +5388,7 @@ function expenseSheetHtml(id){
       '</tbody></table><div class="doc-total">Total des dépenses : '+money(tot)+'</div>';
     h+='<div class="doc-grand"><div><b>Solde de l’établissement</b><span>Recettes '+esc(money(rec))+' − dépenses '+esc(money(gtot))+' (toutes périodes)</span></div><em style="color:'+(solde<0?'#b8272e':'#108a3a')+'">'+money(solde)+'</em></div>';
   }
-  return h+docSignHtml()+'</div>';
+  return h+docSignHtml(true)+'</div>';
 }
 function expenseSheetDoc(id){
   const D=expenseSheetData(id);
@@ -5267,11 +5399,7 @@ function expenseSheetDoc(id){
   const rec=recettesTotal(),tot=D.total,gtot=D.globalTotal==null?tot:D.globalTotal,
     solde=Math.round((rec-gtot)*100)/100;
   doc.newPage();
-  doc.text(DB.school.name,M,M+16,14,'F2',navy);
-  doc.textRight('Année scolaire '+viewYear(),doc.W-M,M+16,8.5,'F1',grey);
-  doc.textRight(DB.school.city||'',doc.W-M,M+27,8,'F1',grey);
-  doc.rect(M,M+32,cw,1.6,gold);
-  doc.y=M+62;
+  doc.y=pdfHeader(doc);doc.foot='last';
   doc.text(D.title,M,doc.y,20,'F2',navy);
   doc.y+=19;
   doc.text(D.one?((D.one.cat||'Divers')+' — '+frDate(D.one.date)):D.sub,M,doc.y,10.5,'F1',grey);
