@@ -169,7 +169,9 @@ jobs:
             Copyright © 2026 GESTSCHOOL. Tous droits reserves.
             Developpe et edite par TCHINDA NOTSAWO ANAIS YANN.
             Contact : yanntchinda813@gmail.com
-          files: desktop-app/dist/installers/*.exe
+          files: |
+            desktop-app/dist/installers/*.exe
+            outils/RECUPERER-MES-DONNEES.bat
           draft: false
           prerelease: false
         env:
