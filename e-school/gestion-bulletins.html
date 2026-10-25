@@ -5485,7 +5485,13 @@ function receiptDoc(sid,pid){
   doc.newPage();
   doc.rect(M,56,cw,doc.H-112,[1,1,1],[0.80,0.84,0.89],0.9);
   doc.rect(M,56,cw,4,gold);
-  doc.text(DB.school.name,x,88,15,'F2',navy);
+  /* En-tête importé : l'image remplace le nom composé en texte. */
+  const recHead=hasHeader()?pdfImage(headerSrc()):null;
+  if(recHead){
+    let hw=Math.min(200,cw-40),hh=hw*recHead.h/recHead.w;
+    if(hh>22){hh=22;hw=hh*recHead.w/recHead.h}
+    doc.image(headerSrc(),x,64,hw,hh);
+  }else doc.text(DB.school.name,x,88,15,'F2',navy);
   doc.textRight('Année scolaire '+viewYear(),M+cw-20,88,8.5,'F1',grey);
   doc.textRight(DB.school.city||'',M+cw-20,99,8,'F1',grey);
   doc.hline(x,M+cw-20,110,line,0.7);
