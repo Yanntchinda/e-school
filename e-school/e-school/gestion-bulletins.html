@@ -3674,7 +3674,7 @@ function trashHtml(){
     '<div class="toolbar" style="margin:0"><button class="btn" data-act="go" data-v="dash">Tableau de bord</button>'+
     (isAdmin()&&trashRaw().length&&!isReadOnlySession()?'<button class="btn danger" data-act="trash-empty">Vider la corbeille</button>':'')+'</div></div>';
   if(isReadOnlySession())h+='<div class="notice">Session archivée : la corbeille est consultable, mais la restauration se fait depuis la session en cours.</div>';
-  h+='<div class="notice info" style="margin-bottom:14px"><b>Aucune suppression n’est définitive.</b> Les bulletins, reçus et fiches ne sont pas stockés à part : ils se recalculent à partir des élèves, des notes et des versements. Restaurer l’élément suffit donc à faire réapparaître le document.</div>';
+  h+='<div class="notice info" style="margin-bottom:14px"><b>Aucune suppression n’est définitive tant que l’élément est dans la corbeille.</b> Les bulletins, reçus et fiches ne sont pas stockés à part : ils se recalculent à partir des élèves, des notes et des versements. Restaurer l’élément suffit donc à faire réapparaître le document.</div>';
   h+='<div class="trash-bar"><button class="trash-chip '+(kind?'':'on')+'" data-act="trash-kind" data-kind="">Tout<span class="n">'+all.length+'</span></button>'+
     TRASH_KINDS.filter(k=>trashAllowedKind(k.k)).map(k=>'<button class="trash-chip '+(kind===k.k?'on':'')+'" data-act="trash-kind" data-kind="'+k.k+'">'+esc(k.l)+(counts[k.k]?'<span class="n">'+counts[k.k]+'</span>':'')+'</button>').join('')+'</div>';
   if(!list.length){
