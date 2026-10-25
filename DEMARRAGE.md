@@ -89,8 +89,8 @@ et recettes** et **Dépenses du quotidien**.
 Trois possibilités, au choix dans **Paramètres → Base de données partagée** :
 
 - **Aucune** : tout reste sur cet ordinateur.
-- **Mon serveur e-school** : un poste du réseau fait office de base commune
-  (`server/e-school-server.py`, aucune installation). Voir `server/README.md`.
+- **Mon serveur GestSchool** : un poste du réseau fait office de base commune
+  (`server/gestschool-server.py`, aucune installation). Voir `server/README.md`.
 - **Supabase** : service hébergé, facultatif.
 
 Dès que la base est connectée, chaque modification part toute seule ; il n'y a

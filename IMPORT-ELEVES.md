@@ -97,7 +97,7 @@ Les deux se retrouvent aussi dans l'application, bouton par bouton.
 
 Dans **Paramètres → Sauvegarde de toutes les données**, le bouton
 **« Sauvegarder toutes les données… »** produit un fichier
-`sauvegarde-e-school_<école>_<date>_<heure>.json` contenant :
+`sauvegarde-gestschool_<école>_<date>_<heure>.json` contenant :
 
 - les classes, les élèves, les notes, les appréciations et les leçons ;
 - les finances (montants dus et versements) ;

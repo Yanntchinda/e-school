@@ -1,11 +1,11 @@
 @echo off
 setlocal enabledelayedexpansion
-title e-School - Construction de l'installateur Windows
+title GestSchool - Construction de l'installateur Windows
 cd /d "%~dp0"
 
 echo.
 echo ==========================================================
-echo    e-School - Construction de l'installateur Windows
+echo    GestSchool - Construction de l'installateur Windows
 echo ==========================================================
 echo.
 echo Ce script fabrique deux fichiers .exe : installateur et portable.
@@ -124,7 +124,7 @@ echo.
 echo [ERREUR] La fabrication de l'installateur a echoue.
 echo.
 echo Solutions a essayer dans cet ordre :
-echo   1. Deplacer le dossier dans C:\e-school\ puis relancer
+echo   1. Deplacer le dossier dans C:\GestSchool\ puis relancer
 echo      car les accents et les espaces dans le chemin posent probleme
 echo   2. Clic droit sur ce fichier puis "Executer en tant qu'administrateur"
 echo   3. Supprimer le dossier node_modules puis relancer

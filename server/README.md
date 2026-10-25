@@ -1,4 +1,4 @@
-# Base de données partagée e-school
+# Base de données partagée GestSchool
 
 Deux façons de synchroniser les postes de l'établissement, **au choix** :
 
@@ -17,7 +17,7 @@ d'abonnement, pas d'internet obligatoire si les postes sont sur le même réseau
 ### Démarrer
 
 ```bash
-python3 server/e-school-server.py
+python3 server/gestschool-server.py
 ```
 
 Le serveur écoute sur le port **8090** et écrit la base dans `server/ecole.db`.
@@ -39,7 +39,7 @@ Les mêmes réglages existent en variables d'environnement :
 
 1. Ouvrir l'application, se connecter comme **administrateur**.
 2. **Paramètres → Base de données partagée**.
-3. Choisir « **Mon serveur e-school** ».
+3. Choisir « **Mon serveur GestSchool** ».
 4. Adresse : `http://adresse-du-serveur:8090`
    (sur le même ordinateur : `http://localhost:8090`).
 5. Jeton : seulement si le serveur a été démarré avec `--token`.
@@ -99,7 +99,7 @@ Placez-le derrière Nginx ou Caddy avec un certificat HTTPS, et démarrez-le
 avec `--token` :
 
 ```bash
-python3 server/e-school-server.py --host 127.0.0.1 --token "$(openssl rand -hex 16)"
+python3 server/gestschool-server.py --host 127.0.0.1 --token "$(openssl rand -hex 16)"
 ```
 
 L'application envoie le jeton dans l'en-tête `Authorization: Bearer …`.

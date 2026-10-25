@@ -16,7 +16,7 @@ La synchronisation Supabase corrige exactement ce point : une seule base, plusie
 ## 1. Créer le projet
 
 1. https://supabase.com → **New project**
-2. Nom : `e-school` · Mot de passe base : *notez-le* · Région : `Europe` (ou la plus proche)
+2. Nom : `gestschool` · Mot de passe base : *notez-le* · Région : `Europe` (ou la plus proche)
 3. Attendre la fin de la création (~2 min)
 
 ## 2. Créer les tables (une seule fois)
@@ -28,7 +28,7 @@ La synchronisation Supabase corrige exactement ce point : une seule base, plusie
 Résultat attendu en bas de l'éditeur :
 
 ```
-Schéma e-school installé tables_creees: 9 fonctions_creees: 2
+Schéma GestSchool installé tables_creees: 9 fonctions_creees: 2
 ```
 
 > Le script est idempotent : vous pouvez le relancer sans perdre de données.

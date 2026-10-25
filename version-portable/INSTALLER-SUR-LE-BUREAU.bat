@@ -1,27 +1,27 @@
 @echo off
 setlocal enabledelayedexpansion
-title e-School - Installation du raccourci sur le Bureau
+title GestSchool - Installation du raccourci sur le Bureau
 cd /d "%~dp0"
 
 echo.
 echo ==========================================================
-echo    e-School - Raccourci sur le Bureau
+echo    GestSchool - Raccourci sur le Bureau
 echo ==========================================================
 echo.
-echo Ce script installe une icone e-School sur votre Bureau.
+echo Ce script installe une icone GestSchool sur votre Bureau.
 echo Aucune installation, aucun outil a telecharger.
 echo.
 
-if not exist "%~dp0e-school.html" (
-    echo [ERREUR] Le fichier e-school.html est introuvable.
-    echo Gardez ce script dans le meme dossier que e-school.html.
+if not exist "%~dp0GestSchool.html" (
+    echo [ERREUR] Le fichier GestSchool.html est introuvable.
+    echo Gardez ce script dans le meme dossier que GestSchool.html.
     echo.
     pause
     exit /b 1
 )
 
 rem ---------- Adresse du logiciel ----------
-set "APPURL=%~dp0e-school.html"
+set "APPURL=%~dp0GestSchool.html"
 set "APPURL=%APPURL:\=/%"
 
 rem ---------- Recherche du navigateur ----------
@@ -41,16 +41,16 @@ echo [OK] Navigateur detecte : !BROWSER!
 echo.
 
 rem ---------- Creation du raccourci ----------
-set "VBSFILE=%TEMP%\eschool_shortcut.vbs"
+set "VBSFILE=%TEMP%\gestschool_shortcut.vbs"
 
 echo Set oWS = WScript.CreateObject("WScript.Shell")> "%VBSFILE%"
 echo sDesk = oWS.SpecialFolders("Desktop")>> "%VBSFILE%"
-echo Set oLink = oWS.CreateShortcut(sDesk ^& "\e-School Bulletins.lnk")>> "%VBSFILE%"
+echo Set oLink = oWS.CreateShortcut(sDesk ^& "\GestSchool.lnk")>> "%VBSFILE%"
 echo oLink.TargetPath = "!BROWSER!">> "%VBSFILE%"
 echo oLink.Arguments = "--app=""file:///%APPURL%"" --window-size=1400,900">> "%VBSFILE%"
 echo oLink.WorkingDirectory = "%~dp0">> "%VBSFILE%"
 echo oLink.IconLocation = "%~dp0icon.ico">> "%VBSFILE%"
-echo oLink.Description = "e-School - Gestion des bulletins">> "%VBSFILE%"
+echo oLink.Description = "GestSchool">> "%VBSFILE%"
 echo oLink.Save>> "%VBSFILE%"
 echo WScript.Quit 0>> "%VBSFILE%"
 
@@ -62,7 +62,7 @@ echo ==========================================================
 echo    TERMINE
 echo ==========================================================
 echo.
-echo Une icone "e-School Bulletins" est maintenant sur votre Bureau.
+echo Une icone "GestSchool" est maintenant sur votre Bureau.
 echo Double-cliquez dessus pour ouvrir l'application.
 echo.
 echo L'application s'ouvre dans une fenetre propre, sans barre
@@ -85,11 +85,11 @@ echo.
 
 echo Set oWS = WScript.CreateObject("WScript.Shell")> "%VBSFILE%"
 echo sDesk = oWS.SpecialFolders("Desktop")>> "%VBSFILE%"
-echo Set oLink = oWS.CreateShortcut(sDesk ^& "\e-School Bulletins.lnk")>> "%VBSFILE%"
-echo oLink.TargetPath = "%~dp0e-school.html">> "%VBSFILE%"
+echo Set oLink = oWS.CreateShortcut(sDesk ^& "\GestSchool.lnk")>> "%VBSFILE%"
+echo oLink.TargetPath = "%~dp0GestSchool.html">> "%VBSFILE%"
 echo oLink.WorkingDirectory = "%~dp0">> "%VBSFILE%"
 echo oLink.IconLocation = "%~dp0icon.ico">> "%VBSFILE%"
-echo oLink.Description = "e-School - Gestion des bulletins">> "%VBSFILE%"
+echo oLink.Description = "GestSchool">> "%VBSFILE%"
 echo oLink.Save>> "%VBSFILE%"
 echo WScript.Quit 0>> "%VBSFILE%"
 
@@ -104,7 +104,7 @@ exit /b 0
 del "%VBSFILE%" >nul 2>&1
 echo.
 echo [ERREUR] Le raccourci n'a pas pu etre cree.
-echo Creez-le manuellement : clic droit sur e-school.html
+echo Creez-le manuellement : clic droit sur GestSchool.html
 echo puis "Envoyer vers" ^> "Bureau".
 echo.
 pause

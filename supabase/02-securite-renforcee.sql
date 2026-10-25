@@ -1,5 +1,5 @@
 -- =====================================================================
--- e-school — MODE SÉCURISÉ (optionnel mais recommandé si l'URL est publique)
+-- GestSchool — MODE SÉCURISÉ (optionnel mais recommandé si l'URL est publique)
 -- À exécuter APRÈS 01-schema.sql, uniquement quand vous êtes prêt.
 --
 -- Ce script supprime l'accès direct avec la clé « anon » et exige une

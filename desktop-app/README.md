@@ -1,4 +1,4 @@
-# e-School — Application de bureau Windows
+# GestSchool — Application de bureau Windows
 
 ## Telecharger et installer (le plus simple)
 
@@ -8,8 +8,8 @@ Deux fichiers, au choix :
 
 | Fichier | Usage |
 |---|---|
-| `e-School-Bulletins-1.0.0-Setup.exe` | installateur : icone sur le Bureau et dans le menu Demarrer |
-| `e-School-Bulletins-1.0.0-Portable.exe` | un seul fichier, **sans installation** (cle USB, poste partage) |
+| `GestSchool-1.0.0-Setup.exe` | installateur : icone **GestSchool** sur le Bureau et dans le menu Demarrer |
+| `GestSchool-1.0.0-Portable.exe` | un seul fichier, **sans installation** (cle USB, poste partage) |
 
 Double-cliquer, puis suivre l'assistant pour la version Setup.
 Aucun outil a installer. Guide complet : [GUIDE-INSTALLATION.md](GUIDE-INSTALLATION.md).
@@ -39,7 +39,8 @@ Sur votre PC : installer Node.js LTS, puis double-cliquer sur `CONSTRUIRE-L-INST
 
 ## Donnees
 
-Enregistrees dans `%APPDATA%\e-School Gestion Bulletins`.
+Enregistrees dans `%APPDATA%\GestSchool` (l'ancien dossier
+`%APPDATA%\e-School Gestion Bulletins` est repris automatiquement au premier demarrage).
 Menu **Aide -> Ou sont mes donnees ?** pour les retrouver.
 Sauvegarde : menu **Fichier -> Exporter une sauvegarde** (Ctrl+S).
 Aucune connexion internet n'est necessaire a l'utilisation.

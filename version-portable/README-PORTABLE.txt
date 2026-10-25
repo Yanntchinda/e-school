@@ -1,14 +1,14 @@
 ========================================================================
- e-School - VERSION PORTABLE
+ GestSchool - VERSION PORTABLE
 ========================================================================
 
 AUCUNE INSTALLATION NÉCESSAIRE !
 
  Comment lancer l'application :
-1. Double-cliquez simplement sur le fichier : LANCER-E-SCHOOL.bat
+1. Double-cliquez simplement sur le fichier : LANCER-GESTSCHOOL.bat
 2. L'application s'ouvre automatiquement dans votre navigateur par défaut
 3. Laissez la petite fenêtre noire ouverte pendant que vous utilisez l'application
-4. Pour fermer l'application, fermez la fenêtre noire ou double-cliquez sur ARRETER-E-SCHOOL.bat
+4. Pour fermer l'application, fermez la fenêtre noire ou double-cliquez sur ARRETER-GESTSCHOOL.bat
 
  Prérequis :
 - Python doit être installé sur l'ordinateur (99% des ordinateurs Windows l'ont déjà)

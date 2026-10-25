@@ -88,14 +88,17 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v1.0.0
-          name: e-School 1.0.0 - Installateur Windows
+          name: GestSchool 1.0.0 - Installateur Windows
           body: |
-            Application Windows de e-School - Gestion des bulletins.
+            Application Windows **GestSchool** - gestion scolaire : eleves, notes,
+            bulletins, personnel et finances.
 
-            - **Setup.exe** : installateur classique. Le double-cliquer, suivre l'assistant ;
-              une icone "e-School Bulletins" apparait sur le Bureau et dans le menu Demarrer.
-            - **Portable.exe** : un seul fichier, sans installation. Le poser sur une cle USB
-              et le double-cliquer : le programme demarre directement.
+            - **GestSchool-1.0.0-Setup.exe** : installateur classique. Le double-cliquer,
+              suivre l'assistant ; une icone "GestSchool" apparait sur le Bureau et dans
+              le menu Demarrer.
+            - **GestSchool-1.0.0-Portable.exe** : un seul fichier, sans installation.
+              Le poser sur une cle USB et le double-cliquer : le programme demarre
+              directement.
 
             Windows affiche un avertissement (fichier non signe) : cliquer sur
             "Informations complementaires" puis "Executer quand meme".
@@ -110,6 +113,22 @@ jobs:
             l'installation, puis nouveau mot de passe (aucune donnee perdue).
 
             Le logiciel fonctionne sans connexion internet.
+
+            Mise a jour depuis l'ancien nom (e-School) : les donnees deja saisies sont
+            reprises automatiquement au premier demarrage, il n'y a rien a ressaisir.
+
+            Nouveautes :
+            - En-tete de l'etablissement (image importee ou nom, ville et annee) sur tous
+              les documents telecharges et imprimes : bulletins, releves, conseil de
+              classe, notes a completer, bilan financier, reste a payer, recus et fiche
+              des depenses.
+            - Pied de page sur chaque document : la devise de l'etablissement en francais
+              et en anglais, puis Infoline 677712232/691212555.
+            - Fiche et rapport des depenses du quotidien : en-tete sur la premiere page et
+              pied de page sur la derniere page uniquement.
+            - Recu de paiement : deux exemplaires A5 imprimes cote a cote sur une seule
+              feuille A4 paysage, pour un seul eleve (un pour l'ecole, un pour le parent).
+            - Tableau d'honneur : ni en-tete ni pied de page imprimes.
           files: desktop-app/dist/installers/*.exe
           draft: false
           prerelease: false

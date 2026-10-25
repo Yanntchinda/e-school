@@ -2,6 +2,31 @@
 
 const { app, BrowserWindow, Menu, dialog, shell } = require('electron');
 const path = require('path');
+const fs = require('fs');
+
+/* Le logiciel s'appelle GestSchool. */
+const APP_NAME = 'GestSchool';
+app.setName(APP_NAME);
+
+/* Le logiciel portait avant le nom « e-School Gestion Bulletins ». Ses données
+   (classes, élèves, notes, comptes, finances) sont dans un dossier de
+   %APPDATA%. Ce dossier est repris tel quel au premier démarrage : rien n'est
+   effacé, rien n'est à ressaisir. */
+const LEGACY_DATA_DIR = 'e-School Gestion Bulletins';
+try {
+  const base = app.getPath('appData');
+  const target = path.join(base, APP_NAME);
+  const legacy = path.join(base, LEGACY_DATA_DIR);
+  if (!fs.existsSync(target) && fs.existsSync(legacy)) {
+    try {
+      fs.renameSync(legacy, target);
+    } catch (e) {
+      /* Renommage impossible (dossier verrouillé) : on continue à travailler
+         dans l'ancien dossier plutôt que de perdre les données. */
+      app.setPath('userData', legacy);
+    }
+  }
+} catch (e) { /* chemin indisponible : Electron utilise son dossier habituel */ }
 
 let mainWindow = null;
 
@@ -19,7 +44,7 @@ function createWindow () {
     height: 900,
     minWidth: 1024,
     minHeight: 700,
-    title: 'e-School - Gestion des bulletins',
+    title: 'GestSchool',
     icon: path.join(__dirname, 'app/icon.png'),
     show: false,
     backgroundColor: '#e9edf4',
@@ -133,7 +158,7 @@ function buildMenu () {
             dialog.showMessageBox(mainWindow, {
               type: 'info',
               title: 'À propos',
-              message: 'e-School - Gestion des bulletins',
+              message: 'GestSchool',
               detail: 'Version ' + app.getVersion() +
                 '\nÉlèves, notes, bulletins, personnel et finances.' +
                 '\n\nDonnées enregistrées localement sur cet ordinateur,' +

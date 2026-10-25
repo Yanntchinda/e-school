@@ -1,10 +1,10 @@
 {
-  "name": "e-school-gestion-bulletins",
+  "name": "gestschool",
   "version": "1.0.0",
   "description": "Application de gestion scolaire : eleves, notes, bulletins, personnel et finances",
   "main": "main.js",
   "author": {
-    "name": "e-School"
+    "name": "GestSchool"
   },
   "license": "MIT",
   "scripts": {
@@ -16,7 +16,7 @@
   },
   "build": {
     "appId": "com.eschool.bulletins",
-    "productName": "e-School Gestion Bulletins",
+    "productName": "GestSchool",
     "directories": {
       "output": "dist/installers"
     },
@@ -46,11 +46,11 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "e-School Bulletins",
+      "shortcutName": "GestSchool",
       "installerIcon": "app/icon.ico",
       "uninstallerIcon": "app/icon.ico",
       "deleteAppDataOnUninstall": false,
-      "artifactName": "e-School-Bulletins-${version}-Setup.${ext}"
+      "artifactName": "GestSchool-${version}-Setup.${ext}"
     },
     "mac": {
       "target": "dmg",
@@ -69,7 +69,7 @@
     "compression": "maximum",
     "npmRebuild": false,
     "portable": {
-      "artifactName": "e-School-Bulletins-${version}-Portable.${ext}"
+      "artifactName": "GestSchool-${version}-Portable.${ext}"
     }
   },
   "devDependencies": {

@@ -1,12 +1,12 @@
 @echo off
-title e-School - Mise a jour de l'application
+title GestSchool - Mise a jour de l'application
 cd /d "%~dp0"
 
 set SOURCE=..\e-school\e-school\index.html
 
 if not exist "%SOURCE%" (
     echo [ERREUR] Fichier introuvable : %SOURCE%
-    echo Ce script doit rester dans le dossier desktop-app du projet e-school.
+    echo Ce script doit rester dans le dossier desktop-app du projet GestSchool.
     pause
     exit /b 1
 )

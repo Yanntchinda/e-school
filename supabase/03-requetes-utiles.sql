@@ -1,5 +1,5 @@
 -- =====================================================================
---  e-school — REQUÊTES UTILES (facultatives)
+--  GestSchool — REQUÊTES UTILES (facultatives)
 --  À coller dans Supabase → SQL Editor pour contrôler le système.
 -- =====================================================================
 

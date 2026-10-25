@@ -1,4 +1,4 @@
-# Installer e-School sur votre PC Windows
+# Installer GestSchool sur votre PC Windows
 
 ## LA METHODE LA PLUS SIMPLE — 2 minutes, rien a installer
 
@@ -7,7 +7,7 @@ L'installateur est deja construit et pret. **Aucun outil, aucun Node.js, aucune 
 ### Telecharger
 https://github.com/Yanntchinda/e-school/releases/tag/v1.0.0
 
-Cliquer sur **`e-School-Bulletins-1.0.0-Setup.exe`** (76 Mo).
+Cliquer sur **`GestSchool-1.0.0-Setup.exe`** (76 Mo).
 
 ### Installer
 1. Double-cliquer sur le fichier telecharge
@@ -17,7 +17,7 @@ Cliquer sur **`e-School-Bulletins-1.0.0-Setup.exe`** (76 Mo).
 4. **Installer**, puis **Terminer**
 
 ### Resultat
-Une icone **e-School Bulletins** apparait :
+Une icone **GestSchool** apparait :
 - sur le **Bureau**
 - dans le **menu Demarrer**
 
@@ -27,7 +27,7 @@ Details techniques du fichier :
 
 | Propriete | Valeur |
 |---|---|
-| Nom | `e-School-Bulletins-1.0.0-Setup.exe` |
+| Nom | `GestSchool-1.0.0-Setup.exe` |
 | Taille | 79 758 352 octets (76,1 Mo) |
 | Type | application Windows x64 (NSIS) |
 | Empreinte SHA-256 | `87c08b23d8e2694584d8e31663092a33ebc6d5599135e0dde2c1c86528e78a5b` |
@@ -39,11 +39,15 @@ Details techniques du fichier :
 ## Ou sont mes donnees
 
 ```
-%APPDATA%\e-School Gestion Bulletins
+%APPDATA%\GestSchool
 ```
 
 Le menu **Aide → Ou sont mes donnees ?** ouvre ce dossier directement.
 Les donnees sont conservees meme si vous desinstallez le programme.
+
+Le logiciel s'appelait avant **e-School** : son ancien dossier
+`%APPDATA%\e-School Gestion Bulletins` est repris automatiquement au premier
+demarrage. Classes, eleves, notes et finances restent en place, rien a ressaisir.
 
 Sauvegarde : menu **Fichier → Exporter une sauvegarde** (Ctrl+S).
 
@@ -126,7 +130,7 @@ Il faut Node.js (gratuit) et une connexion internet la premiere fois.
 | Methode | Comment | Avantage |
 |---|---|---|
 | Version portable | dossier `version-portable` → `INSTALLER-SUR-LE-BUREAU.bat` | icone sur le Bureau en 10 s, sans rien installer |
-| Fichier unique | double-clic sur `version-portable/e-school.html` | zero installation |
+| Fichier unique | double-clic sur `version-portable/GestSchool.html` | zero installation |
 | Application web | ouvrir le lien de l'apercu | accessible depuis n'importe quel appareil |
 
 ---
@@ -151,7 +155,7 @@ Il faut Node.js (gratuit) et une connexion internet la premiere fois.
 | Installateur produit | 79 758 352 octets |
 | Acces public sans authentification | oui (HTTP 302 vers le fichier) |
 | `app/index.html` inclus | oui, 525 115 octets, derniere version |
-| Titre de la page dans l'app | `Gestion scolaire` (puis le nom reel de l'etablissement) |
+| Titre de la page dans l'app | `GestSchool` (puis « nom de l'etablissement — GestSchool ») |
 | Impression sans en-tete navigateur | oui (`@page margin: 0`) |
 | Emojis | 0 |
 | `main.js` | syntaxe valide |

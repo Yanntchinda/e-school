@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Base de données de l'application e-school — serveur autonome.
+"""Base de données de l'application GestSchool — serveur autonome.
 
 Sert les deux opérations de synchronisation de l'application :
     POST /pull   {"school":"..."}                 -> instantané complet
@@ -9,9 +9,9 @@ Aucune dépendance : Python 3 et son module sqlite3 suffisent. Les données
 vivent dans un fichier .db que vous pouvez copier, sauvegarder ou ouvrir avec
 n'importe quel outil SQLite.
 
-    python3 server/e-school-server.py                # port 8090, ecole.db
-    python3 server/e-school-server.py --port 8090 --db /chemin/ecole.db
-    python3 server/e-school-server.py --token secret  # accès protégé
+    python3 server/gestschool-server.py              # port 8090, ecole.db
+    python3 server/gestschool-server.py --port 8090 --db /chemin/ecole.db
+    python3 server/gestschool-server.py --token secret  # accès protégé
 
 Derrière un nom de domaine, placez-le derrière Nginx/Caddy en HTTPS.
 """
@@ -205,7 +205,7 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         path = urlparse(self.path).path.rstrip('/') or '/'
         if path in ('/', '/health'):
-            return self._json(200, {'ok': True, 'service': 'e-school', 'time': now_iso(),
+            return self._json(200, {'ok': True, 'service': 'gestschool', 'time': now_iso(),
                                     'stats': self.store.stats()})
         return self._json(404, {'ok': False, 'error': 'route inconnue'})
 
@@ -237,7 +237,7 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main():
-    ap = argparse.ArgumentParser(description="Base de données e-school (SQLite)")
+    ap = argparse.ArgumentParser(description="Base de données GestSchool (SQLite)")
     ap.add_argument('--port', type=int, default=int(os.environ.get('ESCHOOL_DB_PORT', '8090')))
     ap.add_argument('--db', default=os.environ.get('ESCHOOL_DB', os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ecole.db')))
     ap.add_argument('--token', default=os.environ.get('ESCHOOL_TOKEN', ''), help='jeton partagé (facultatif)')
@@ -247,7 +247,7 @@ def main():
     Handler.store = Store(args.db)
     Handler.token = args.token.strip()
     srv = ThreadingHTTPServer((args.host, args.port), Handler)
-    print(f'e-school base : http://{args.host}:{args.port}/  ·  base {os.path.abspath(args.db)}', flush=True)
+    print(f'GestSchool base : http://{args.host}:{args.port}/  ·  base {os.path.abspath(args.db)}', flush=True)
     try:
         srv.serve_forever()
     except KeyboardInterrupt:

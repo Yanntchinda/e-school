@@ -1,17 +1,17 @@
 @echo off
 setlocal
-title e-School - Gestion des bulletins
+title GestSchool
 cd /d "%~dp0"
 set PORT=8765
 
 echo.
 echo ==========================================================
-echo    e-School - Gestion des bulletins
+echo    GestSchool
 echo ==========================================================
 echo.
 echo Demarrage du serveur local, puis ouverture de l'application.
 echo Gardez cette fenetre ouverte pendant l'utilisation.
-echo Pour fermer : fermez cette fenetre, ou lancez ARRETER-E-SCHOOL.bat
+echo Pour fermer : fermez cette fenetre, ou lancez ARRETER-GESTSCHOOL.bat
 echo.
 
 rem ---------- Recherche d'un moteur Python ----------
@@ -35,7 +35,7 @@ if "%ENGINE%"=="PY"       start /b py -3 -m http.server %PORT%
 
 echo Ouverture de l'application dans le navigateur...
 timeout /t 3 >nul
-start "" "http://localhost:%PORT%/e-school.html"
+start "" "http://localhost:%PORT%/GestSchool.html"
 goto LOOP
 
 rem ---------- Attente ----------
@@ -52,7 +52,7 @@ echo Deux solutions :
 echo   1. Installer Python : https://www.python.org
 echo      IMPORTANT : cochez "Add Python to PATH" pendant l'installation.
 echo.
-echo   2. Sans rien installer : double-cliquez sur le fichier e-school.html
+echo   2. Sans rien installer : double-cliquez sur le fichier GestSchool.html
 echo      situe dans ce meme dossier. Il s'ouvre directement dans le navigateur.
 echo.
 pause

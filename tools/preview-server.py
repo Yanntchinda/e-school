@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Serveur d'aperçu local de l'application e-school (port 8082).
+"""Serveur d'aperçu local de l'application GestSchool (port 8082).
 
-L'application tient dans un seul fichier : e-school/e-school/e-school/index.html
+L'application tient dans un seul fichier : e-school/e-school/index.html
 Ce serveur le sert à la racine, et retombe sur le dossier parent pour les pages
 annexes (apercu-bulletin-visuel.html, bundles, etc.).
 
@@ -75,7 +75,7 @@ class Server(socketserver.ThreadingTCPServer):
 
 
 def main():
-    ap = argparse.ArgumentParser(description="Aperçu local de l'application e-school")
+    ap = argparse.ArgumentParser(description="Aperçu local de l'application GestSchool")
     ap.add_argument('--port', type=int, default=DEFAULT_PORT)
     ap.add_argument('--root', default=os.environ.get('ESCHOOL_ROOT', DEFAULT_ROOT))
     args = ap.parse_args()
@@ -87,7 +87,7 @@ def main():
 
     handler = functools.partial(Handler, directory=root)
     with Server(('0.0.0.0', args.port), handler) as httpd:
-        print(f'e-school preview: http://0.0.0.0:{args.port}/ -> {index}', flush=True)
+        print(f'GestSchool preview: http://0.0.0.0:{args.port}/ -> {index}', flush=True)
         httpd.serve_forever()
 
 

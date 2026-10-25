@@ -512,7 +512,7 @@ end $$;
 -- ---------------------------------------------------------------------
 -- 16. VÉRIFICATION FINALE
 -- ---------------------------------------------------------------------
-select 'Schéma e-school installé ' as resultat,
+select 'Schéma GestSchool installé ' as resultat,
  (select count(*) from information_schema.tables
  where table_schema='public'
  and table_name in ('schools','app_users','classes','subjects','students','grades','remarks','lessons','archives')) as tables_creees,
