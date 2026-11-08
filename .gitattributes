@@ -1,0 +1,2 @@
+# Fins de ligne Windows pour les scripts .bat
+*.bat text eol=crlf
