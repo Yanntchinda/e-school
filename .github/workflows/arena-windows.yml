@@ -7,10 +7,11 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   windows:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[publish-windows]')
     runs-on: windows-latest
     defaults:
       run:
@@ -35,10 +36,14 @@ jobs:
           }
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
-      - name: Préparer le téléchargement
-        uses: actions/upload-artifact@v4
-        with:
-          name: GestSchool-Windows
-          path: desktop-app/dist/installers/*.exe
-          if-no-files-found: error
-          retention-days: 90
+      - name: Publier le programme Windows en téléchargement direct
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $source = 'dist/installers/GestSchool-1.0.0-Setup.exe'
+          if (!(Test-Path $source)) { throw "Installateur introuvable : $source" }
+          $name = 'GestSchool-Setup-' + $env:GITHUB_SHA.Substring(0, 7) + '.exe'
+          Copy-Item $source "dist/installers/$name"
+          gh release upload v1.0.0 "dist/installers/$name" --repo $env:GITHUB_REPOSITORY --clobber
+          if ($LASTEXITCODE -ne 0) { throw 'Publication du fichier .exe impossible' }

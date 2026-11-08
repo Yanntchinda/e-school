@@ -1192,12 +1192,13 @@ function subAvg(cls,sid,sub,t){
   const v=seqIdx(t).map(i=>g[i]).filter(isNote).map(Number);
   return v.length?v.reduce((a,b)=>a+b,0)/v.length:null
 }
-function compute(cls,t){
+function compute(cls,t,sequence){
   const per={};
   for(const s of cls.students){
     const m={};let cs=0,pts=0;
     for(const sub of cls.subjects){
-      const v=subAvg(cls,s.id,sub.id,t);m[sub.id]=v;
+      const g=sequence?getG(cls,s.id,sub.id):null;
+      const v=sequence?(g&&isNote(g[sequence-1])?Number(g[sequence-1]):null):subAvg(cls,s.id,sub.id,t);m[sub.id]=v;
       /* Aucune note dans la matiere : ni la matiere ni son coefficient n'entrent dans la moyenne */
       if(v!=null&&isNote(v)){cs+=Number(sub.coef)||0;pts+=Number(v)*(Number(sub.coef)||0)}
     }
@@ -1215,17 +1216,17 @@ function compute(cls,t){
   return{per,ranked,classAvg:avgs.length?avgs.reduce((a,b)=>a+b,0)/avgs.length:null};
 }
 function getRes(cls,t){const k=cls.id+':'+t;return calcCache[k]||(calcCache[k]=compute(cls,t))}
-function bulletinRows(cls,sid,res,t){
+function bulletinRows(cls,sid,res,t,sequence){
   const rows=[];let cur=null,gc=0,gp=0;
   const flush=()=>{if(cur)rows.push({type:'group',label:cur,coef:gc,pts:gp,avg:gc>0?gp/gc:null});gc=0;gp=0};
-  const seqs=seqIdx(t);
+  const seqs=sequence?[sequence-1]:seqIdx(t);
   for(const sub of cls.subjects){
     const g=(sub.group||'').trim();
     if(g!==(cur||'')){flush();cur=g||null}
     const gr=getG(cls,sid,sub.id),m=res.per[sid].m[sub.id];
     /* Matiere sans aucune note : ni coefficient ni points imprimes, elle ne pese pas dans le total */
     const notee=(m!=null&&isNote(m));
-    rows.push({type:'sub',sub,ns:seqs.map(i=>gr?gr[i]:null),n1:gr?gr[seqs[0]]:null,n2:seqs.length>1?(gr?gr[seqs[1]]:null):null,m,
+    rows.push({type:'sub',sub,ns:seqs.map(i=>gr?gr[i]:null),n1:gr&&(!sequence||isNote(gr[seqs[0]]))?gr[seqs[0]]:null,n2:seqs.length>1?(gr?gr[seqs[1]]:null):null,m,
       coef:notee?sub.coef:null,pts:notee?m*sub.coef:null,rank:notee?res.per[sid].sr[sub.id]:null,notee});
     if(notee&&cur){gc+=Number(sub.coef)||0;gp+=m*(Number(sub.coef)||0)}
   }
@@ -2111,7 +2112,7 @@ function packHtml(cls,sid,t){
     '<style>'+docStyles()+packCss()+'</style></head><body class="pack">'+
     bulletinHtml(cls,sid,t)+honourHtml(cls,sid,t)+'</body></html>';
 }
-function bBottomHtml(cls,st,res,P,t,ann,remark,pp,sc){
+function bBottomHtml(cls,st,res,P,t,ann,remark,pp,sc,sequence){
   const avgs=res.ranked.map(s=>res.per[s.id].avg);
   const mn=avgs.length?Math.min.apply(null,avgs):null,mx=avgs.length?Math.max.apply(null,avgs):null;
   const passCount=avgs.filter(a=>a>=10).length;
@@ -2119,11 +2120,11 @@ function bBottomHtml(cls,st,res,P,t,ann,remark,pp,sc){
   const v=x=>'<span class="val">'+x+'</span>';
   const chkOn=on=>'<span class="chk'+(on?' on':'')+'" aria-hidden="true"></span>';
   /* Discipline : valeurs du trimestre, ou synthese annuelle au 3e trimestre */
-  const dv=k=>{const val=t===3?discSum(cls,st.id,k):discVal(cls,st.id,t,k);return discNum(val)==null?'&nbsp;':discNum(val)};
+  const dv=k=>{if(sequence)return '&nbsp;';const val=t===3?discSum(cls,st.id,k):discVal(cls,st.id,t,k);return discNum(val)==null?'&nbsp;':discNum(val)};
   const num=x=>x==null||x===''?'&nbsp;':x;
   /* 3e trimestre : les elements du profil de la classe sont calcules a l'annee */
   const A=t===3?annualStats(cls):null;
-  const pAvg=A?(A.per[st.id]?A.per[st.id].avg:null):P.avg;
+  const pAvg=sequence?res.classAvg:(A?(A.per[st.id]?A.per[st.id].avg:null):P.avg);
   const pMn=A?A.mn:mn,pMx=A?A.mx:mx,pPassCount=A?A.passCount:passCount,pPass=A?A.pass:pass;
   /* Mentions cochees automatiquement d'apres la moyenne generale du bulletin :
      >= 12 -> Tableau d'honneur | 15,00 a 15,99 -> Felicitations | >= 16 -> Encouragement.
@@ -2136,8 +2137,8 @@ function bBottomHtml(cls,st,res,P,t,ann,remark,pp,sc){
   const gNJ=t===3?discSum(cls,st.id,'absNJ'):discVal(cls,st.id,t,'absNJ');
   const gJ =t===3?discSum(cls,st.id,'absJ') :discVal(cls,st.id,t,'absJ');
   const solde=Math.max(0,(gNJ||0)-(gJ||0));
-  const dOn={a: solde>=8, b: solde>=12};
-  const hi=honourInfo(cls,st.id,t);
+  const dOn={a: !sequence&&solde>=8, b: !sequence&&solde>=12};
+  const hi=sequence?null:honourInfo(cls,st.id,t);
   const mOn={h:!!(hi&&hi.on),f:!!(hi&&hi.fel),e:!!(hi&&hi.enc)};
   let h='<div class="b-bottom"><table class="b-bottom-t">'+
   '<colgroup><col style="width:17%"><col style="width:18%"><col style="width:15%"><col style="width:23%"><col style="width:27%"></colgroup>'+
@@ -2203,9 +2204,9 @@ function bBottomHtml(cls,st,res,P,t,ann,remark,pp,sc){
     '<tr class="row-h">'+
       '<td class="lbl">Retards (nombre de fois)'+v(dv('ret'))+'</td>'+
       '<td class="lbl">Exclusions (jrs)<i>Expelling (jrs)</i>'+v('&nbsp;')+'</td>'+
-      '<td class="lbl center mavg" rowspan="2"><b>Moyenne trimestrielle</b>Term average'+v(P.avg==null?'&nbsp;':fmt1(P.avg))+'</td>'+
+      '<td class="lbl center mavg" rowspan="2"><b>'+(sequence?'Moyenne séquentielle':'Moyenne trimestrielle')+'</b>'+(sequence?'Sequence average':'Term average')+v(P.avg==null?'&nbsp;':fmt1(P.avg))+'</td>'+
       '<td class="lbl center mtn-cell"><span class="mtn">Félicitations'+chkOn(mOn.f)+'</span></td>'+
-      '<td class="lbl center">Rang trimestriel<i>Term rank</i>'+v(P.rank?rankHtml(P.rank):'&nbsp;')+'</td>'+
+      '<td class="lbl center">'+(sequence?'Rang séquentiel<i>Sequence rank</i>':'Rang trimestriel<i>Term rank</i>')+v(P.rank?rankHtml(P.rank):'&nbsp;')+'</td>'+
     '</tr>'+
     '<tr class="row-h">'+
       '<td class="lbl">Consignes (h)<i>Punishment</i>'+v(dv('cons'))+'</td>'+
@@ -2240,10 +2241,10 @@ function bBottomHtml(cls,st,res,P,t,ann,remark,pp,sc){
   '</tr></tbody></table></div>';
   return h;
 }
-function bulletinHtml(cls,sid,t){
+function bulletinHtml(cls,sid,t,sequence,sequenceResult){
   const L=LB[cls.lang||'fr'],sc=viewSchool(),st=cls.students.find(s=>s.id===sid);
-  const res=getRes(cls,t),P=res.per[sid],rows=bulletinRows(cls,sid,res,t);
-  const order=t===3?L.order.filter(k=>k!=='n2'):L.order;
+  const res=sequence?(sequenceResult||compute(cls,t,sequence)):getRes(cls,t),P=res.per[sid],rows=bulletinRows(cls,sid,res,t,sequence);
+  const order=t===3||sequence?L.order.filter(k=>k!=='n2'):L.order;
   const hd={n1:L.n1(t),n2:L.n2(t),m:t===3?'M.A.20':L.m,coef:L.coef,pts:L.pts};
   let b='';
   for(const r of rows){
@@ -2265,7 +2266,7 @@ function bulletinHtml(cls,sid,t){
   const prev=[];for(let k=1;k<t;k++){const a=getRes(cls,k).per[sid];prev.push(a?a.avg:null)}
   let ann=null;
   if(t===3&&prev.every(a=>a!=null)&&P.avg!=null)ann=(prev[0]+prev[1]+P.avg)/3;
-  const remark=(cls.remarks[sid]&&cls.remarks[sid]['t'+t])||'';
+  const remark=sequence?'':((cls.remarks[sid]&&cls.remarks[sid]['t'+t])||'');
   const pp=ppName(cls),tel=ppTel(cls);
   const photoSrc=studentPhotoSrc(cls,st);
   const photoHtml=photoSrc?'<img class="b-photo" src="'+photoSrc+'" alt="Photo de '+esc(st.name)+'">':'<div class="b-photo b-photo-empty">Photo</div>';
@@ -2273,18 +2274,18 @@ function bulletinHtml(cls,sid,t){
   const head=bulletinHeader?'<img class="b-head" src="'+bulletinHeader+'" alt="En-tête du bulletin">'
     :'<div class="b-head-txt"><b>'+esc(sc.name)+'</b><span>'+esc(sc.city||'')+'</span></div><div class="doc-rule"></div>';
   return '<section class="bulletin">'+head+
-   '<h2 class="b-title">'+L.title(t)+(L.sub?'<span class="b-sub">&nbsp;/&nbsp;'+esc(L.sub)+'</span>':'')+'</h2>'+
+   '<h2 class="b-title">'+(sequence?(cls.lang==='en'?'SEQUENCE REPORT CARD':'BULLETIN DE NOTES'):L.title(t))+(L.sub?'<span class="b-sub">&nbsp;/&nbsp;'+esc(L.sub)+'</span>':'')+'</h2>'+
    '<div class="b-profile"><div class="b-profile-info">'+
-   '<div class="b-year"><span>'+L.year+'&nbsp;&nbsp;'+esc(sc.year)+'</span><span class="tr nw"><b>'+L.tr(t)+'</b></span></div>'+
+   '<div class="b-year"><span>'+L.year+'&nbsp;&nbsp;'+esc(sc.year)+'</span><span class="tr nw"><b>'+(sequence?(cls.lang==='en'?(sequence===1?'1<sup>st</sup>':'3<sup>rd</sup>')+' Sequence':sequence+(sequence===1?'<sup>re</sup>':'<sup>e</sup>')+' Séquence'):L.tr(t))+'</b></span></div>'+
    '<div class="b-line"><span class="lbl">'+L.cls+'</span><span class="val big">'+clsSup(cls.name)+'</span><span class="lbl cel nw">'+L.sex+' :&nbsp;<b>'+esc(sexLabel(st,L))+'</b></span></div>'+
    '<div class="b-line"><span class="lbl">'+L.name+'</span><span class="val big">'+esc(st.name)+'</span><span class="lbl cel nw">'+L.statut+' :&nbsp;<b>'+esc(statusLabel(st,L))+'</b></span></div>'+
    '<div class="b-line"><span class="lbl">Né(e) le</span><span class="val">'+esc(st.dob||'—')+(st.pob?' à '+esc(formatBirthPlace(st.pob)):'')+'</span><span class="lbl cel nw mat-line">Matricule :&nbsp;<b>'+esc(st.mat||'—')+'</b></span></div>'+
    '<div class="b-line"><span class="lbl">'+L.pp+'</span><span class="val">'+esc(pp)+'</span><span class="lbl cel nw">'+L.cel+'&nbsp;&nbsp;<b>'+esc(tel)+'</b></span></div>'+
    '</div>'+photoHtml+'</div>'+
-   '<table class="b-table"><colgroup><col style="width:34%">'+order.map(k=>'<col style="width:'+({n1:t===3?16:8,n2:8,m:8,coef:7,pts:10}[k])+'%">').join('')+'<col style="width:8%"><col style="width:17%"></colgroup>'+
+   '<table class="b-table"><colgroup><col style="width:34%">'+order.map(k=>'<col style="width:'+({n1:t===3||sequence?16:8,n2:8,m:8,coef:7,pts:10}[k])+'%">').join('')+'<col style="width:8%"><col style="width:17%"></colgroup>'+
    '<thead><tr><th>'+L.subject+'</th>'+order.map(k=>'<th>'+hd[k]+'</th>').join('')+'<th>'+L.rank+'</th><th>'+L.obs+'</th></tr></thead><tbody>'+b+'</tbody></table>'+
    '<div class="b-legend">'+esc(L.legend)+'</div>'+
-   bBottomHtml(cls,st,res,P,t,ann,remark,pp,sc)+
+   bBottomHtml(cls,st,res,P,t,ann,remark,pp,sc,sequence)+
    docFootHtml('b-foot')+
    '</section>';
 }
@@ -4069,6 +4070,7 @@ function bulletinsTab(cls){
   const miss=list.reduce((a,s)=>a+(missingCount(cls,s.id,t)>0?1:0),0);
   /* tableaux d'honneur attribues automatiquement pour ce trimestre */
   const hon=list.filter(s=>{const x=honourInfo(cls,s.id,t);return !!(x&&x.on)}).length;
+  const sequenceOptions=['1re séquence — bulletin séquentiel','2e séquence — 1er trimestre','3e séquence — bulletin séquentiel','4e séquence — 2e trimestre','5e séquence — 3e trimestre'].map((label,i)=>'<option value="'+(i+1)+'"'+(i===seqIdx(t)[0]?' selected':'')+'>'+label+'</option>').join('');
   let h='<div class="toolbar">'+(isAdmin()?'<button class="btn primary" data-act="print-all">Imprimer les '+list.length+' bulletins</button>':'')+
    (isAdmin()?'<button class="btn" data-act="export-class-council" title="Télécharger la liste du conseil de classe : une liste alphabétique par classe avec moyenne, absences non justifiées, appréciation et colonne Observation vide">Conseil de classe · PDF</button>'+
      '<button class="btn sm" data-act="print-class-council" title="Aperçu imprimable de la liste du conseil de classe">Aperçu imprimable</button>':'')+
@@ -4076,10 +4078,11 @@ function bulletinsTab(cls){
    (hon?'<span class="badge gold">'+hon+' tableau'+(hon>1?'x':'')+' d’honneur joint'+(hon>1?'s':'')+'</span>':'')+
    '<span class="grow"></span>'+(miss?'<span class="badge warn">'+miss+' élève'+(miss>1?'s':'')+' avec des notes manquantes</span>':'<span class="badge ok">Toutes les notes sont saisies</span>')+'</div>'+
    '<p class="small muted" style="margin:-6px 0 12px">Le tableau d’honneur (moyenne d’au moins 12/20 et moins de 5 h d’absence non justifiée) est généré automatiquement avec le bulletin : l’impression et le téléchargement le joignent toujours.</p>'+
+   (isAdmin()?'<div class="panel"><h3>Bulletins par séquence</h3><p class="small muted">Choisissez la période, puis imprimez toute la classe ou un élève avec le bouton de sa ligne. Les séquences 2, 4 et 5 produisent les bulletins trimestriels.</p><div class="toolbar" style="margin-bottom:0"><label for="bulletin-sequence">Période :</label><select class="inp sm" id="bulletin-sequence" style="width:auto">'+sequenceOptions+'</select><button class="btn primary" data-act="print-sequence-all">Imprimer pour toute la classe</button></div></div>':'')+
    '<div class="tw"><table class="t"><thead><tr><th style="width:56px">N°</th><th>Noms et prénoms</th><th class="num">Moyenne</th><th>Rang</th><th>Notes manquantes</th><th></th></tr></thead><tbody>'+
   list.map((s,i)=>{const P=res.per[s.id],mc=missingCount(cls,s.id,t);const hi=honourInfo(cls,s.id,t),honOn=!!(hi&&hi.on);
     return '<tr><td>'+(i+1)+'</td><td><div class="stu-name"><b class="nm-1l">'+esc(s.name)+'</b>'+(honOn?'<button type="button" class="badge gold hon-tag" data-act="honour-prev" data-id="'+s.id+'" title="Voir le tableau d’honneur">Tableau d’honneur</button>':'')+'</div></td><td class="num">'+(P.avg==null?'—':'<span style="color:'+(P.avg<10?'var(--red)':'inherit')+';font-weight:700">'+fmt(P.avg)+'</span>')+'</td><td>'+(P.rank?rankStr(P.rank)+' / '+list.length:'—')+'</td><td>'+(mc?'<span class="badge warn">'+mc+' matière'+(mc>1?'s':'')+'</span>':'<span class="badge ok">Complet</span>')+'</td>'+
-    '<td class="right nowrap"><button class="btn sm" data-act="preview" data-id="'+s.id+'">Aperçu</button>'+(isAdmin()?' <button class="btn sm" data-act="print-one" data-id="'+s.id+'">Imprimer</button> <button class="btn sm" data-act="pack-dl" data-id="'+s.id+'" title="Télécharger le bulletin et son tableau d’honneur dans un seul fichier">Télécharger</button>':'')+'</td></tr>'}).join('')+'</tbody></table></div>';
+    '<td class="right nowrap"><button class="btn sm" data-act="preview" data-id="'+s.id+'">Aperçu</button>'+(isAdmin()?' <button class="btn sm" data-act="print-one" data-id="'+s.id+'">Imprimer</button> <button class="btn sm" data-act="print-sequence-one" data-id="'+s.id+'">Imprimer période choisie</button> <button class="btn sm" data-act="pack-dl" data-id="'+s.id+'" title="Télécharger le bulletin et son tableau d’honneur dans un seul fichier">Télécharger</button>':'')+'</td></tr>'}).join('')+'</tbody></table></div>';
   return h;
 }
 function openPreview(sid){
@@ -6343,6 +6346,26 @@ A['print-student-list']=el=>{
   if(kind==='fees'&&isReadOnlySession())return toast('Les pensions des sessions archivées ne sont pas disponibles dans cette liste.','err');
   printHtml(classStudentListHtml(cls,kind));
 };
+/* Les séquences 2, 4 et 5 correspondent aux bulletins trimestriels.
+   Les séquences 1 et 3 utilisent uniquement les notes de leur séquence. */
+function sequenceBulletinHtml(cls,sid,sequence,result){
+  const t=sequence<=2?1:sequence<=4?2:3;
+  return sequence===1||sequence===3?bulletinHtml(cls,sid,t,sequence,result)
+    :bulletinHtml(cls,sid,t)+honourHtml(cls,sid,t);
+}
+function printSequenceBulletins(sid){
+  if(!isAdmin())return toast('Impression réservée à l’administrateur.','err');
+  const cls=curClass(),picker=$('#bulletin-sequence'),sequence=picker?Number(picker.value):NaN;
+  if(!cls||!cls.students||!cls.students.length)return toast('Aucun élève dans cette classe.','err');
+  if(!Number.isInteger(sequence)||sequence<1||sequence>5)return toast('Choisissez une séquence.','err');
+  const list=[...cls.students].sort(cmpName).filter(st=>!sid||st.id===sid);
+  if(!list.length)return toast('Élève introuvable.','err');
+  const t=sequence<=2?1:sequence<=4?2:3;
+  const result=sequence===1||sequence===3?compute(cls,t,sequence):null;
+  printHtml(list.map(st=>sequenceBulletinHtml(cls,st.id,sequence,result)).join(''));
+}
+A['print-sequence-all']=()=>printSequenceBulletins();
+A['print-sequence-one']=el=>printSequenceBulletins(el.dataset.id);
 A['print-all']=()=>{if(!isAdmin())return toast('Impression réservée à l’administrateur.','err');const cls=curClass(),t=S.trim;
   /* chaque bulletin est suivi du tableau d'honneur de l'eleve quand il en a un */
   printHtml([...cls.students].sort(cmpName).map(s=>bulletinHtml(cls,s.id,t)+honourHtml(cls,s.id,t)).join(''))};
